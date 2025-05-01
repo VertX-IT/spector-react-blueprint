@@ -6,13 +6,14 @@ import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 // Your Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBeMRHD1rzOZIEyOMMfpKeFgkVcvEBKhEM",
-  authDomain: "survey-sync-nexus.firebaseapp.com",
-  projectId: "survey-sync-nexus",
-  storageBucket: "survey-sync-nexus.appspot.com",
-  messagingSenderId: "568741440285",
-  appId: "1:568741440285:web:2c857fea3050238133f597"
+  apiKey: "AIzaSyCPA-YVLd3bmoBXY2iGkaM_5Vcl0aY1KH8",
+  authDomain: "survey-build.firebaseapp.com",
+  projectId: "survey-build",
+  storageBucket: "survey-build.firebasestorage.app",
+  messagingSenderId: "712619670595",
+  appId: "1:712619670595:web:784da35e2dd765c3f868f6"
 };
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
