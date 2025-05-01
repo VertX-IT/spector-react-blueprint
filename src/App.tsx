@@ -5,10 +5,14 @@ import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { NetworkProvider } from '@/contexts/NetworkContext';
+import { MobileProvider } from '@/contexts/MobileContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PrivateRoute } from '@/routes/PrivateRoute';
 import { AuthRoute } from '@/routes/AuthRoute';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+
+// Import CSS
+import './mobile.css';
 
 // Auth Pages
 import LandingPage from '@/pages/LandingPage';
@@ -27,62 +31,64 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <NetworkProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<LandingPage />} />
+        <MobileProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
             
-            {/* Auth Routes */}
-            <Route 
-              path="/signin" 
-              element={
-                <AuthRoute>
-                  <SignInPage />
-                </AuthRoute>
-              } 
-            />
-            <Route 
-              path="/signup" 
-              element={
-                <AuthRoute>
-                  <SignUpPage />
-                </AuthRoute>
-              } 
-            />
-            <Route 
-              path="/forgot-password" 
-              element={
-                <AuthRoute>
-                  <ForgotPasswordPage />
-                </AuthRoute>
-              } 
-            />
-            
-            {/* Dashboard Routes */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <PrivateRoute>
-                  <DashboardLayout />
-                </PrivateRoute>
-              }
-            >
-              <Route index element={<DashboardHomePage />} />
-              <Route path="join-project" element={<JoinProjectPage />} />
-              <Route path="my-projects" element={<MyProjectsPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-            </Route>
-            
-            {/* Redirect /dashboard to /dashboard */}
-            <Route path="/dashboard/*" element={<Navigate to="/dashboard" replace />} />
-            
-            {/* Not Found */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </TooltipProvider>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<LandingPage />} />
+              
+              {/* Auth Routes */}
+              <Route 
+                path="/signin" 
+                element={
+                  <AuthRoute>
+                    <SignInPage />
+                  </AuthRoute>
+                } 
+              />
+              <Route 
+                path="/signup" 
+                element={
+                  <AuthRoute>
+                    <SignUpPage />
+                  </AuthRoute>
+                } 
+              />
+              <Route 
+                path="/forgot-password" 
+                element={
+                  <AuthRoute>
+                    <ForgotPasswordPage />
+                  </AuthRoute>
+                } 
+              />
+              
+              {/* Dashboard Routes */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <PrivateRoute>
+                    <DashboardLayout />
+                  </PrivateRoute>
+                }
+              >
+                <Route index element={<DashboardHomePage />} />
+                <Route path="join-project" element={<JoinProjectPage />} />
+                <Route path="my-projects" element={<MyProjectsPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+              </Route>
+              
+              {/* Redirect /dashboard to /dashboard */}
+              <Route path="/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+              
+              {/* Not Found */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
+        </MobileProvider>
       </NetworkProvider>
     </AuthProvider>
   );

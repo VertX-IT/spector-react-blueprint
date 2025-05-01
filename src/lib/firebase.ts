@@ -1,7 +1,7 @@
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 // Your Firebase configuration
@@ -20,18 +20,36 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Enable offline persistence for Firestore
-// Note: This must be called before any other Firestore functions
+// Set persistence to local
+setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    console.log('Firebase auth persistence set to local');
+  })
+  .catch((error) => {
+    console.error('Error setting auth persistence:', error);
+  });
+
+// Enable offline persistence for Firestore with improved mobile support
 const enableOfflineSupport = async () => {
   try {
-    await enableIndexedDbPersistence(db);
+    // Try multi-tab persistence first (better for web)
+    await enableMultiTabIndexedDbPersistence(db)
+      .then(() => console.log('Multi-tab offline persistence enabled'))
+      .catch((err) => {
+        // If multi-tab fails, try regular persistence
+        if (err.code === 'failed-precondition') {
+          // Multiple tabs open, fall back to single-tab persistence
+          console.log('Falling back to single-tab persistence');
+          return enableIndexedDbPersistence(db);
+        } else if (err.code === 'unimplemented') {
+          console.error('IndexedDB is not supported by this browser');
+          throw err;
+        }
+      });
+    
     console.log('Offline persistence enabled');
   } catch (error: any) {
-    if (error.code === 'failed-precondition') {
-      console.error('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-    } else if (error.code === 'unimplemented') {
-      console.error('The current browser does not support offline persistence.');
-    }
+    console.error('Error enabling offline persistence:', error);
   }
 };
 
