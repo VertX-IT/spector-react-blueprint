@@ -28,6 +28,11 @@
   --ion-color-danger-contrast-rgb: 255, 255, 255;
   --ion-color-danger-shade: #cf3c4f;
   --ion-color-danger-tint: #ed576b;
+  
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
 }
 
 html {
@@ -51,10 +56,10 @@ input, textarea, button, select, a {
 }
 
 .mobile-container {
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-top: env(safe-area-inset-top);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+  padding-bottom: var(--safe-area-inset-bottom);
+  padding-top: var(--safe-area-inset-top);
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
 }
 
 /* Improve touch targets */
@@ -72,10 +77,39 @@ button, a, .btn, [role="button"] {
 
 /* Status bar height compensation */
 .has-notch {
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--safe-area-inset-top);
 }
 
 /* Bottom navigation compensation */
 .has-bottom-tabs {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 56px);
+  padding-bottom: calc(var(--safe-area-inset-bottom) + 64px);
+}
+
+/* Fix for bottom navigation on iOS */
+.pb-safe {
+  padding-bottom: var(--safe-area-inset-bottom);
+}
+
+/* Smaller card styles for mobile */
+@media (max-width: 640px) {
+  .card {
+    padding: 1em;
+    border-radius: 12px;
+  }
+  
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.25rem;
+  }
+}
+
+/* Adjust form input sizes for better touch targets */
+@media (max-width: 640px) {
+  input, select, textarea, .btn {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    padding: 0.75rem;
+  }
 }
