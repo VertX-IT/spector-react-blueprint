@@ -27,7 +27,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onSidebarToggl
       
       {isMobile && (
         <div className="flex items-center">
-          <Logo size="xs" />
+          <Logo size="sm" />
         </div>
       )}
       
