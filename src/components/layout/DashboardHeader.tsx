@@ -20,14 +20,14 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onSidebarToggl
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4">
-      <Button variant="ghost" size="icon" onClick={onSidebarToggle}>
+      <Button variant="ghost" size="icon" onClick={onSidebarToggle} className="text-brand-navy">
         <Menu className="h-5 w-5" />
         <span className="sr-only">Toggle Sidebar</span>
       </Button>
       
       {isMobile && (
         <div className="flex items-center">
-          <Logo size="sm" />
+          <Logo size="sm" iconOnly={true} />
         </div>
       )}
       
@@ -37,15 +37,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onSidebarToggl
         <NetworkStatus isOnline={isOnline} />
         
         {!isMobile && (
-          <Button variant="ghost" size="icon" className="rounded-full">
+          <Button variant="ghost" size="icon" className="rounded-full text-brand-navy">
             <Bell className="h-5 w-5" />
             <span className="sr-only">Notifications</span>
           </Button>
         )}
         
-        <Avatar className="h-8 w-8">
+        <Avatar className="h-8 w-8 border-2 border-brand-lightblue">
           <AvatarImage src="" alt={userData?.displayName || "User"} />
-          <AvatarFallback>{userData?.displayName?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
+          <AvatarFallback className="bg-brand-navy text-white">{userData?.displayName?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
         </Avatar>
       </div>
     </header>

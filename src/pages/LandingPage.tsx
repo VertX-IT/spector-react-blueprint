@@ -31,10 +31,10 @@ const LandingPage: React.FC = () => {
         <section className="py-20 px-4">
           <div className="container mx-auto text-center max-w-4xl">
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="text-primary">Survey</span>Sync Nexus
+              <span className="text-primary">SPEC</span>TOR
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground mb-8">
-              Collect, manage, and analyze survey data with ease, even in offline environments.
+              Collect, manage, and analyze data with precision and reliability, even in offline environments.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" onClick={() => navigate('/signup')}>
@@ -47,7 +47,7 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="bg-muted/30 py-16 px-4">
+        <section className="bg-brand-lightgray py-16 px-4">
           <div className="container mx-auto">
             <h2 className="text-3xl font-bold text-center mb-12">Key Features</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -56,20 +56,20 @@ const LandingPage: React.FC = () => {
                 description="Collect data in remote areas without internet connection and sync when back online." 
               />
               <FeatureCard 
-                title="Flexible Form Builder" 
-                description="Create custom forms with various field types to meet your specific data collection needs." 
+                title="Detailed Reporting" 
+                description="Generate comprehensive reports with visual data representations for better insights." 
               />
               <FeatureCard 
-                title="Image Collection" 
-                description="Capture and store images as part of your surveys, even while offline." 
+                title="Evidence Collection" 
+                description="Capture and store images and documents as evidence with your data entries." 
               />
               <FeatureCard 
-                title="Role-Based Access" 
-                description="Assign different roles to team members with appropriate permissions." 
+                title="Secure Access Control" 
+                description="Assign different roles to team members with appropriate permissions and access levels." 
               />
               <FeatureCard 
-                title="Project Sharing" 
-                description="Easily share projects with team members using a simple PIN code system." 
+                title="Team Collaboration" 
+                description="Share projects with team members and work together in real-time." 
               />
               <FeatureCard 
                 title="Data Export" 
@@ -83,7 +83,7 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto text-center">
             <h2 className="text-3xl font-bold mb-6">Ready to get started?</h2>
             <p className="text-xl text-muted-foreground mb-8">
-              Sign up now and start collecting data more efficiently.
+              Sign up now and start collecting data with precision.
             </p>
             <Button size="lg" onClick={() => navigate('/signup')}>
               Create Free Account
@@ -92,9 +92,10 @@ const LandingPage: React.FC = () => {
         </section>
       </main>
 
-      <footer className="border-t py-8 px-4">
-        <div className="container mx-auto text-center text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} SurveySync Nexus. All rights reserved.</p>
+      <footer className="border-t py-8 px-4 bg-brand-navy text-white">
+        <div className="container mx-auto text-center">
+          <Logo className="mx-auto mb-4" />
+          <p>&copy; {new Date().getFullYear()} SPECTOR. All rights reserved.</p>
         </div>
       </footer>
     </div>
@@ -103,9 +104,9 @@ const LandingPage: React.FC = () => {
 
 const FeatureCard: React.FC<{ title: string; description: string }> = ({ title, description }) => {
   return (
-    <div className="bg-card border rounded-lg p-6 shadow-sm">
-      <h3 className="text-xl font-semibold mb-3">{title}</h3>
-      <p className="text-muted-foreground">{description}</p>
+    <div className="bg-white border rounded-lg p-6 shadow-sm">
+      <h3 className="text-xl font-semibold mb-3 text-brand-navy">{title}</h3>
+      <p className="text-brand-mediumgray">{description}</p>
     </div>
   );
 };

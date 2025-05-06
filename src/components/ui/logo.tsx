@@ -5,23 +5,44 @@ import { cn } from '@/lib/utils';
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  iconOnly?: boolean;
 }
 
-export const Logo: React.FC<LogoProps> = ({ size = 'md', className }) => {
+export const Logo: React.FC<LogoProps> = ({ size = 'md', className, iconOnly = false }) => {
   return (
     <div className={cn("flex items-center gap-2", className)}>
+      {/* Icon Logo */}
       <div className={cn(
-        "bg-primary/80 text-primary-foreground rounded-lg flex items-center justify-center font-bold",
-        size === 'sm' && "w-8 h-8 text-lg",
-        size === 'md' && "w-10 h-10 text-xl",
-        size === 'lg' && "w-12 h-12 text-2xl",
+        "bg-brand-navy text-white rounded-full flex items-center justify-center",
+        size === 'sm' && "w-8 h-8",
+        size === 'md' && "w-10 h-10",
+        size === 'lg' && "w-12 h-12",
       )}>
-        S
+        <img 
+          src="/lovable-uploads/f72ff0c9-f713-436c-a88a-f9138dd1a98d.png" 
+          alt="SPECTOR logo icon" 
+          className={cn(
+            "object-contain",
+            size === 'sm' && "w-6 h-6",
+            size === 'md' && "w-8 h-8",
+            size === 'lg' && "w-10 h-10",
+          )}
+        />
       </div>
-      <div className="font-bold">
-        <span className="text-primary">Survey</span>
-        <span className="text-foreground">Sync</span>
-      </div>
+
+      {/* Text Logo (conditionally shown) */}
+      {!iconOnly && (
+        <img 
+          src="/lovable-uploads/22148018-39eb-4c9f-b829-858c04b59724.png" 
+          alt="SPECTOR" 
+          className={cn(
+            "h-auto",
+            size === 'sm' && "h-5",
+            size === 'md' && "h-6",
+            size === 'lg' && "h-8",
+          )}
+        />
+      )}
     </div>
   );
 };

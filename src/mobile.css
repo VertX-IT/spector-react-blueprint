@@ -1,33 +1,34 @@
 
+
 /* Mobile-specific styles */
 :root {
-  --ion-color-primary: #9b87f5;
-  --ion-color-primary-rgb: 155, 135, 245;
+  --ion-color-primary: #1D3557;
+  --ion-color-primary-rgb: 29, 53, 87;
   --ion-color-primary-contrast: #ffffff;
   --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #8878d8;
-  --ion-color-primary-tint: #a593f6;
+  --ion-color-primary-shade: #1a2f4c;
+  --ion-color-primary-tint: #344968;
   
-  --ion-color-secondary: #7E69AB;
-  --ion-color-secondary-rgb: 126, 105, 171;
+  --ion-color-secondary: #4FB3A3;
+  --ion-color-secondary-rgb: 79, 179, 163;
   --ion-color-secondary-contrast: #ffffff;
   --ion-color-secondary-contrast-rgb: 255, 255, 255;
-  --ion-color-secondary-shade: #6f5c96;
-  --ion-color-secondary-tint: #8b79b3;
+  --ion-color-secondary-shade: #459d90;
+  --ion-color-secondary-tint: #61bbac;
 
-  --ion-color-success: #53d1b6;
-  --ion-color-success-rgb: 83, 209, 182;
-  --ion-color-success-contrast: #000000;
-  --ion-color-success-contrast-rgb: 0, 0, 0;
-  --ion-color-success-shade: #49b89f;
-  --ion-color-success-tint: #65d5bd;
+  --ion-color-success: #28A745;
+  --ion-color-success-rgb: 40, 167, 69;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #23933d;
+  --ion-color-success-tint: #3eb058;
   
-  --ion-color-danger: #eb445a;
-  --ion-color-danger-rgb: 235, 68, 90;
+  --ion-color-danger: #E63946;
+  --ion-color-danger-rgb: 230, 57, 70;
   --ion-color-danger-contrast: #ffffff;
   --ion-color-danger-contrast-rgb: 255, 255, 255;
-  --ion-color-danger-shade: #cf3c4f;
-  --ion-color-danger-tint: #ed576b;
+  --ion-color-danger-shade: #ca323e;
+  --ion-color-danger-tint: #e94d59;
   
   --safe-area-inset-top: env(safe-area-inset-top, 0px);
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
@@ -113,3 +114,26 @@ button, a, .btn, [role="button"] {
     padding: 0.75rem;
   }
 }
+
+/* SPECTOR specific mobile styling */
+.spector-btn-primary {
+  background-color: var(--ion-color-primary);
+  color: white;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.spector-btn-secondary {
+  background-color: var(--ion-color-secondary);
+  color: white;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.spector-card {
+  background-color: #FFFFFF;
+  border: 1px solid #D1D3D8;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
