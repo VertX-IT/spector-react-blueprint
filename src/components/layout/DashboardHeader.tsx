@@ -8,6 +8,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { NetworkStatus } from '@/components/ui/network-status';
 import { useMobile } from '@/contexts/MobileContext';
 import { Logo } from '@/components/ui/logo';
+import { Link } from 'react-router-dom';
 
 export const DashboardHeader: React.FC = () => {
   const { userData } = useAuth();
@@ -17,7 +18,9 @@ export const DashboardHeader: React.FC = () => {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4">
       <div className="flex items-center">
-        <Logo size="sm" iconOnly={true} />
+        <Link to="/">
+          <Logo size="sm" iconOnly={true} />
+        </Link>
       </div>
       
       <div className="flex-1" />

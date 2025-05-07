@@ -6,7 +6,7 @@ const DashboardHomePage: React.FC = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Redirect to projects page since we're removing the home button
+    // Redirect to projects page 
     navigate('/dashboard/my-projects');
   }, [navigate]);
 
