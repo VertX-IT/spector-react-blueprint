@@ -18,7 +18,7 @@ export const ProgressSteps: React.FC<ProgressStepsProps> = ({
   
   return (
     <div className="w-full space-y-2 mb-6">
-      <Progress value={progress} className="h-2" />
+      <Progress value={progress} className="h-2 bg-gray-200" />
       
       <div className="flex justify-between">
         {labels.map((label, index) => {
@@ -30,7 +30,7 @@ export const ProgressSteps: React.FC<ProgressStepsProps> = ({
               key={index} 
               className={cn(
                 "flex flex-col items-center relative",
-                isCompleted ? "text-green-500" : "text-muted-foreground"
+                isCompleted ? "text-brand-green" : "text-muted-foreground"
               )}
             >
               <div className={cn(
@@ -42,7 +42,7 @@ export const ProgressSteps: React.FC<ProgressStepsProps> = ({
               </div>
               <span className={cn(
                 "text-xs mt-1 font-medium",
-                isCompleted ? "text-green-500" : "text-muted-foreground",
+                isCompleted ? "text-brand-green" : "text-muted-foreground",
                 isCurrent ? "font-semibold" : ""
               )}>
                 {label}

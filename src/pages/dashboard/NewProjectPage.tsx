@@ -77,8 +77,9 @@ const NewProjectPage: React.FC = () => {
       // Move to next step
       setCurrentStep(2);
       
-      // Navigate to the form builder page (will be implemented later)
-      // For now, just show a success message
+      // Navigate to the form builder page with category parameter
+      navigate(`/dashboard/form-builder?category=${data.category}`);
+      
       toast.success('Basic details saved! Ready for form creation.');
     } catch (error) {
       console.error('Error creating project:', error);
