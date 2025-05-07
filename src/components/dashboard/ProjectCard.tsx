@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -36,39 +36,37 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-md">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-xl">{name}</CardTitle>
-            <CardDescription>{formattedDate}</CardDescription>
-          </div>
-          <Badge variant="outline">{category}</Badge>
+      <CardContent className="p-4">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="text-lg font-medium">{name}</h3>
+          <Badge variant="outline" className="text-xs">{category}</Badge>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-sm text-muted-foreground">
-          {recordCount} {recordCount === 1 ? 'record' : 'records'} collected
+        
+        <div className="text-xs text-muted-foreground mb-2">
+          {formattedDate} • {recordCount} {recordCount === 1 ? 'record' : 'records'} collected
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between pt-2 border-t bg-muted/20">
+      
+      <CardFooter className="flex justify-between pt-0 px-4 pb-4 gap-2">
         <Button
-          variant="ghost"
+          variant="default"
           size="sm"
-          className="text-primary"
+          className="flex-1"
           onClick={() => navigate(`/dashboard/projects/${id}`)}
         >
-          <FolderOpen className="h-4 w-4 mr-2" />
-          View
+          <FolderOpen className="h-4 w-4 mr-1" />
+          Open
         </Button>
         
         {isDesigner && (
           <>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
+              className="flex-1"
               onClick={() => navigate(`/dashboard/projects/${id}/edit`)}
             >
-              <Edit className="h-4 w-4 mr-2" />
+              <Edit className="h-4 w-4 mr-1" />
               Edit
             </Button>
             
@@ -79,8 +77,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                 className="text-destructive hover:text-destructive"
                 onClick={() => onDelete(id)}
               >
-                <Trash className="h-4 w-4 mr-2" />
-                Delete
+                <Trash className="h-4 w-4" />
+                <span className="sr-only">Delete</span>
               </Button>
             )}
           </>

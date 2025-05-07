@@ -24,6 +24,7 @@ import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
 import DashboardHomePage from '@/pages/dashboard/DashboardHomePage';
 import JoinProjectPage from '@/pages/dashboard/JoinProjectPage';
 import MyProjectsPage from '@/pages/dashboard/MyProjectsPage';
+import NewProjectPage from '@/pages/dashboard/NewProjectPage';
 import ProfilePage from '@/pages/dashboard/ProfilePage';
 import NotFound from '@/pages/NotFound';
 
@@ -78,6 +79,7 @@ const App: React.FC = () => {
                 <Route index element={<DashboardHomePage />} />
                 <Route path="join-project" element={<JoinProjectPage />} />
                 <Route path="my-projects" element={<MyProjectsPage />} />
+                <Route path="new-project" element={<NewProjectPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
               

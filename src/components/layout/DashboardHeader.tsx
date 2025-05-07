@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Menu, Bell } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,27 +9,16 @@ import { NetworkStatus } from '@/components/ui/network-status';
 import { useMobile } from '@/contexts/MobileContext';
 import { Logo } from '@/components/ui/logo';
 
-interface DashboardHeaderProps {
-  onSidebarToggle: () => void;
-}
-
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onSidebarToggle }) => {
+export const DashboardHeader: React.FC = () => {
   const { userData } = useAuth();
   const { isOnline } = useNetwork();
   const { isMobile } = useMobile();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4">
-      <Button variant="ghost" size="icon" onClick={onSidebarToggle} className="text-brand-navy">
-        <Menu className="h-5 w-5" />
-        <span className="sr-only">Toggle Sidebar</span>
-      </Button>
-      
-      {isMobile && (
-        <div className="flex items-center">
-          <Logo size="sm" iconOnly={true} />
-        </div>
-      )}
+      <div className="flex items-center">
+        <Logo size="sm" iconOnly={true} />
+      </div>
       
       <div className="flex-1" />
 

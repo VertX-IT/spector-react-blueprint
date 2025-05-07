@@ -1,11 +1,10 @@
 
 import React from 'react';
-import { Button } from '@/components/ui/button';
 import { ProjectCard } from '@/components/dashboard/ProjectCard';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, Plus } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 
 // Temporary dummy data for demonstration
 const dummyProjects = [
@@ -51,24 +50,15 @@ const MyProjectsPage: React.FC = () => {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">My Projects</h1>
-          <p className="text-muted-foreground">
-            {isDesigner ? 'Manage your surveys and data collection projects' : 'Access your data collection projects'}
-          </p>
-        </div>
-
-        {isDesigner && (
-          <Button onClick={() => navigate('/dashboard/new-project')}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
-        )}
+      <div className="mb-4">
+        <h1 className="text-xl font-bold tracking-tight">My Projects</h1>
+        <p className="text-sm text-muted-foreground">
+          {isDesigner ? 'Manage your surveys and data collection projects' : 'Access your data collection projects'}
+        </p>
       </div>
 
       {dummyProjects.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-3">
           {dummyProjects.map(project => (
             <ProjectCard
               key={project.id}
