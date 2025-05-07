@@ -6,6 +6,18 @@ import { Button } from '@/components/ui/button';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { 
+  DropdownMenu,
+  DropdownMenuContent, 
+  DropdownMenuItem,
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { Edit, Trash2, Plus, ToggleLeft, ToggleRight, Check } from 'lucide-react';
 
 // Template types for different asset categories
 interface FieldTemplate {
@@ -13,6 +25,20 @@ interface FieldTemplate {
   type: string;
   required: boolean;
 }
+
+// Data types available for form fields
+const dataTypes = [
+  { id: 'text', name: 'Text' },
+  { id: 'numbers', name: 'Numbers' },
+  { id: 'textAndNumbers', name: 'Text and Numbers' },
+  { id: 'coordinates', name: 'Geographical Coordinates' },
+  { id: 'image', name: 'Image (Take new, Add existing)' },
+  { id: 'definedList', name: 'Defined List (Select One)' },
+  { id: 'checkbox', name: 'Checkbox (Yes/No)' },
+  { id: 'multipleChoice', name: 'Multiple Choice' },
+  { id: 'qrBarcode', name: 'QR/Barcode Reader' },
+  { id: 'dateTime', name: 'Date and Time' },
+];
 
 // Asset categories
 const categories = [
@@ -116,19 +142,31 @@ const FormBuilderPage: React.FC = () => {
     assetName: '',
     description: ''
   });
+  
+  // Custom field state
+  const [newField, setNewField] = useState<FieldTemplate>({
+    name: '',
+    type: 'text',
+    required: false
+  });
+  
+  // Edit mode state
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   // This would be populated from the previous step in a real implementation
   useEffect(() => {
-    // For now, simulate data being passed from previous step
-    // In a real app, this would be passed through state management or URL params
+    // Get category from URL params
     const category = new URLSearchParams(location.search).get('category') || 'land';
     
-    // Set project data
+    // In a real app, you would fetch project data from context/state management
+    const urlParams = new URLSearchParams(location.search);
+    
+    // Set project data from URL params
     setProjectData({
       category,
-      name: 'Sample Project',
-      assetName: 'Sample Asset',
-      description: 'This is a sample project'
+      name: urlParams.get('name') || 'Sample Project',
+      assetName: urlParams.get('assetName') || 'Sample Asset',
+      description: urlParams.get('description') || 'This is a sample project'
     });
 
     // Set initial fields based on category
@@ -146,6 +184,67 @@ const FormBuilderPage: React.FC = () => {
     // Store form field data (would be implemented in a real app)
     toast.success('Form template saved! Ready for review.');
     // Navigate to review page (would be implemented in a real app)
+    navigate('/dashboard/review-form');
+  };
+  
+  const handleRemoveField = (index: number) => {
+    // Don't allow removing common fields (first 3)
+    if (index < 3) {
+      toast.error('Cannot remove mandatory system fields');
+      return;
+    }
+    
+    const newFields = [...fields];
+    newFields.splice(index, 1);
+    setFields(newFields);
+    toast.success('Field removed');
+  };
+  
+  const handleToggleRequired = (index: number) => {
+    const newFields = [...fields];
+    newFields[index].required = !newFields[index].required;
+    setFields(newFields);
+  };
+  
+  const handleEditField = (index: number) => {
+    setEditingIndex(index);
+    setNewField({...fields[index]});
+  };
+  
+  const handleSaveEdit = () => {
+    if (!newField.name.trim()) {
+      toast.error('Field name cannot be empty');
+      return;
+    }
+    
+    if (editingIndex !== null) {
+      const newFields = [...fields];
+      newFields[editingIndex] = {...newField};
+      setFields(newFields);
+      setEditingIndex(null);
+      setNewField({ name: '', type: 'text', required: false });
+      toast.success('Field updated');
+    }
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setNewField({ name: '', type: 'text', required: false });
+  };
+  
+  const handleAddField = () => {
+    if (!newField.name.trim()) {
+      toast.error('Please enter a field name');
+      return;
+    }
+    
+    setFields([...fields, {...newField}]);
+    setNewField({ name: '', type: 'text', required: false });
+    toast.success('Custom field added');
+  };
+
+  const getDataTypeName = (typeId: string) => {
+    return dataTypes.find(t => t.id === typeId)?.name || typeId;
   };
 
   return (
@@ -182,6 +281,12 @@ const FormBuilderPage: React.FC = () => {
                 <p className="text-sm font-semibold">Asset Name</p>
                 <p className="text-sm text-muted-foreground">{projectData.assetName}</p>
               </div>
+              {projectData.description && (
+                <div className="md:col-span-2">
+                  <p className="text-sm font-semibold">Description</p>
+                  <p className="text-sm text-muted-foreground">{projectData.description}</p>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -191,32 +296,144 @@ const FormBuilderPage: React.FC = () => {
         <CardContent className="pt-4">
           <h2 className="text-lg font-medium mb-4">Form Template</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            This template includes standard fields for your selected asset type. You can add custom fields below.
+            This template includes standard fields for your selected asset type. You can customize the fields below.
           </p>
           
           <div className="space-y-4 mb-6">
             {fields.map((field, index) => (
-              <div key={index} className="flex items-center justify-between p-3 border rounded-md">
-                <div>
-                  <p className="font-medium">{field.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{field.type.replace(/([A-Z])/g, ' $1')}</p>
-                </div>
-                <div className="flex items-center">
-                  {field.required && (
-                    <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded-full mr-2">Required</span>
-                  )}
-                </div>
+              <div 
+                key={index} 
+                className={`flex items-center justify-between p-3 border rounded-md ${editingIndex === index ? 'border-brand-green bg-gray-50' : ''}`}
+              >
+                {editingIndex === index ? (
+                  <div className="w-full space-y-3">
+                    <div className="flex gap-3">
+                      <Input 
+                        value={newField.name} 
+                        onChange={(e) => setNewField({...newField, name: e.target.value})}
+                        placeholder="Field name"
+                        className="flex-1"
+                      />
+                      <Select 
+                        value={newField.type}
+                        onValueChange={(value) => setNewField({...newField, type: value})}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Select data type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {dataTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">Required</span>
+                        <Switch 
+                          checked={newField.required}
+                          onCheckedChange={(checked) => setNewField({...newField, required: checked})}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={handleCancelEdit}>Cancel</Button>
+                      <Button size="sm" onClick={handleSaveEdit}>Save</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <p className="font-medium">{field.name}</p>
+                      <p className="text-xs text-muted-foreground">{getDataTypeName(field.type)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {field.required ? (
+                        <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded-full">Required</span>
+                      ) : (
+                        <span className="text-xs px-2 py-1 bg-gray-50 text-gray-700 rounded-full">Optional</span>
+                      )}
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleToggleRequired(index)}
+                        className="h-8 w-8"
+                        title={field.required ? "Make optional" : "Make required"}
+                      >
+                        {field.required ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                      </Button>
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleEditField(index)}
+                        className="h-8 w-8"
+                        title="Edit field"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleRemoveField(index)}
+                        className="h-8 w-8 text-red-500"
+                        disabled={index < 3} // Don't allow removing system fields
+                        title={index < 3 ? "Cannot remove system field" : "Remove field"}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
 
-          <Button 
-            variant="outline" 
-            className="w-full mb-4"
-            onClick={() => toast.info('Add custom field functionality will be implemented in the next iteration')}
-          >
-            + Add Custom Field
-          </Button>
+          <div className="border rounded-md p-4 mb-6">
+            <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
+            <div className="flex flex-wrap gap-3 items-end">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-sm mb-1 block">Field Name</label>
+                <Input 
+                  value={newField.name} 
+                  onChange={(e) => setNewField({...newField, name: e.target.value})}
+                  placeholder="Enter field name"
+                />
+              </div>
+              <div className="w-[180px]">
+                <label className="text-sm mb-1 block">Data Type</label>
+                <Select 
+                  value={newField.type}
+                  onValueChange={(value) => setNewField({...newField, type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select data type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dataTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Required</span>
+                <Switch 
+                  checked={newField.required}
+                  onCheckedChange={(checked) => setNewField({...newField, required: checked})}
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-1"
+                onClick={handleAddField}
+              >
+                <Plus className="h-4 w-4" />
+                Add Field
+              </Button>
+            </div>
+          </div>
           
           <div className="flex gap-2">
             <Button 

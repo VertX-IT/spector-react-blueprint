@@ -77,8 +77,8 @@ const NewProjectPage: React.FC = () => {
       // Move to next step
       setCurrentStep(2);
       
-      // Navigate to the form builder page with category parameter
-      navigate(`/dashboard/form-builder?category=${data.category}`);
+      // Navigate to the form builder page with all project data as parameters
+      navigate(`/dashboard/form-builder?category=${data.category}&name=${encodeURIComponent(data.name)}&assetName=${encodeURIComponent(data.assetName)}&description=${encodeURIComponent(data.description || '')}`);
       
       toast.success('Basic details saved! Ready for form creation.');
     } catch (error) {
