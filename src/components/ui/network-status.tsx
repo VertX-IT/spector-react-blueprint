@@ -12,10 +12,10 @@ export const NetworkStatus: React.FC<NetworkStatusProps> = ({ isOnline }) => {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
-          <div className="relative flex items-center">
+          <div className="flex items-center gap-1.5">
             <div className={cn(
-              "h-3 w-3 rounded-full",
-              isOnline ? "bg-green-500" : "bg-red-500",
+              "h-2.5 w-2.5 rounded-full",
+              isOnline ? "bg-green-500" : "bg-gray-400",
             )}>
               <span className="sr-only">{isOnline ? "Online" : "Offline"}</span>
               <div className={cn(
@@ -23,6 +23,12 @@ export const NetworkStatus: React.FC<NetworkStatusProps> = ({ isOnline }) => {
                 isOnline ? "animate-ping bg-green-500/75" : "animate-none",
               )} />
             </div>
+            <span className={cn(
+              "text-sm font-medium",
+              isOnline ? "text-green-500" : "text-gray-400"
+            )}>
+              {isOnline ? "Online" : "Offline"}
+            </span>
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom">

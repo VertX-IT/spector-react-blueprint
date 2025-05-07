@@ -12,11 +12,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { ProgressSteps } from '@/components/ui/progress-steps';
 
 // Form Schema for project creation
 const formSchema = z.object({
   name: z.string().min(3, {
     message: "Project name must be at least 3 characters.",
+  }),
+  assetName: z.string().min(2, {
+    message: "Asset name must be at least 2 characters.",
   }),
   description: z.string().optional(),
   category: z.string({
@@ -26,26 +30,37 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Project creation steps
+const steps = [
+  "Basic Details",
+  "Form Fields",
+  "Review",
+  "Security"
+];
+
 // Asset categories
 const categories = [
   { id: 'land', name: 'Land' },
   { id: 'buildings', name: 'Buildings' },
+  { id: 'biological', name: 'Biological Assets' },
+  { id: 'machinery', name: 'Machinery' },
+  { id: 'furniture', name: 'Furniture & Fixtures' },
   { id: 'equipment', name: 'Equipment' },
   { id: 'vehicles', name: 'Motor Vehicles' },
-  { id: 'furniture', name: 'Furniture & Fixtures' },
-  { id: 'it', name: 'IT Assets' },
   { id: 'other', name: 'Other' },
 ];
 
 const NewProjectPage: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
   
   // Initialize the form
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      assetName: '',
       description: '',
       category: '',
     },
@@ -56,17 +71,18 @@ const NewProjectPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      // TODO: Implement actual project creation with backend
-      console.log('Creating project:', data);
+      // Store form data for next steps
+      console.log('Project details:', data);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Move to next step
+      setCurrentStep(2);
       
-      toast.success('Project created successfully!');
-      navigate('/dashboard/my-projects');
+      // Navigate to the form builder page (will be implemented later)
+      // For now, just show a success message
+      toast.success('Basic details saved! Ready for form creation.');
     } catch (error) {
       console.error('Error creating project:', error);
-      toast.error('Failed to create project. Please try again.');
+      toast.error('Failed to save project details. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -76,9 +92,15 @@ const NewProjectPage: React.FC = () => {
     <>
       <div className="mb-4">
         <h1 className="text-xl font-bold tracking-tight">Create New Project</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground mb-4">
           Set up a new data collection project
         </p>
+        
+        <ProgressSteps 
+          currentStep={currentStep}
+          totalSteps={steps.length}
+          labels={steps}
+        />
       </div>
 
       <Card>
@@ -135,6 +157,23 @@ const NewProjectPage: React.FC = () => {
               
               <FormField
                 control={form.control}
+                name="assetName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Asset Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="E.g., Main Building, Company Vehicle" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Enter a name for the specific asset being tracked.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
                 name="description"
                 render={({ field }) => (
                   <FormItem>
@@ -165,7 +204,7 @@ const NewProjectPage: React.FC = () => {
                   type="submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Project'}
+                  {isSubmitting ? 'Saving...' : 'Continue to Form Builder'}
                 </Button>
               </div>
             </form>

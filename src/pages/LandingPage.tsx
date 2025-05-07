@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -55,16 +54,13 @@ const LandingPage: React.FC = () => {
               Detailed Reports. Dependable Results.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex justify-center">
               <Button 
                 size="lg" 
                 onClick={handleGetStarted}
                 className="bg-brand-navy hover:bg-brand-navy/90"
               >
                 Get Started
-              </Button>
-              <Button size="lg" variant="outline" className="border-brand-navy text-brand-navy hover:bg-brand-navy/10">
-                Learn More
               </Button>
             </div>
           </div>
