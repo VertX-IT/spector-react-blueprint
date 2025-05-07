@@ -13,6 +13,18 @@ interface FieldTemplate {
   required: boolean;
 }
 
+// Asset categories
+const categories = [
+  { id: 'land', name: 'Land' },
+  { id: 'buildings', name: 'Buildings' },
+  { id: 'biological', name: 'Biological Assets' },
+  { id: 'machinery', name: 'Machinery' },
+  { id: 'furniture', name: 'Furniture & Fixtures' },
+  { id: 'equipment', name: 'Equipment' },
+  { id: 'vehicles', name: 'Motor Vehicles' },
+  { id: 'other', name: 'Other' },
+];
+
 // Template definitions for each asset category
 const templatesByCategory: Record<string, FieldTemplate[]> = {
   land: [
