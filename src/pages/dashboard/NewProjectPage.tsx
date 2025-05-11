@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
 import { ProgressSteps } from '@/components/ui/progress-steps';
+import { useMobile } from '@/contexts/MobileContext';
 
 // Form Schema for project creation
 const formSchema = z.object({
@@ -54,6 +54,7 @@ const NewProjectPage: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const { isMobile } = useMobile();
   
   // Initialize the form
   const form = useForm<FormValues>({
@@ -79,11 +80,8 @@ const NewProjectPage: React.FC = () => {
       
       // Navigate to the form builder page with all project data as parameters
       navigate(`/dashboard/form-builder?category=${data.category}&name=${encodeURIComponent(data.name)}&assetName=${encodeURIComponent(data.assetName)}&description=${encodeURIComponent(data.description || '')}`);
-      
-      toast.success('Basic details saved! Ready for form creation.');
     } catch (error) {
       console.error('Error creating project:', error);
-      toast.error('Failed to save project details. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -104,10 +102,10 @@ const NewProjectPage: React.FC = () => {
         />
       </div>
 
-      <Card>
-        <CardContent className="pt-4">
+      <Card className={isMobile ? "mx-0 p-0" : ""}>
+        <CardContent className={`pt-4 ${isMobile ? "p-3" : ""}`}>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField
                 control={form.control}
                 name="name"
@@ -117,7 +115,7 @@ const NewProjectPage: React.FC = () => {
                     <FormControl>
                       <Input placeholder="E.g., Land Asset Survey" {...field} />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className={isMobile ? "text-xs" : ""}>
                       Give your data collection project a descriptive name.
                     </FormDescription>
                     <FormMessage />
@@ -136,7 +134,7 @@ const NewProjectPage: React.FC = () => {
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className={isMobile ? "h-11" : ""}>
                           <SelectValue placeholder="Select asset category" />
                         </SelectTrigger>
                       </FormControl>
@@ -148,7 +146,7 @@ const NewProjectPage: React.FC = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
+                    <FormDescription className={isMobile ? "text-xs" : ""}>
                       Select the type of assets this project will track.
                     </FormDescription>
                     <FormMessage />
@@ -165,7 +163,7 @@ const NewProjectPage: React.FC = () => {
                     <FormControl>
                       <Input placeholder="E.g., Main Building, Company Vehicle" {...field} />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className={isMobile ? "text-xs" : ""}>
                       Enter a name for the specific asset being tracked.
                     </FormDescription>
                     <FormMessage />
@@ -198,12 +196,14 @@ const NewProjectPage: React.FC = () => {
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/dashboard/my-projects')}
+                  className={isMobile ? "h-11 flex-1" : ""}
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit"
                   disabled={isSubmitting}
+                  className={isMobile ? "h-11 flex-1" : ""}
                 >
                   {isSubmitting ? 'Saving...' : 'Continue to Form Builder'}
                 </Button>
