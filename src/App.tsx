@@ -26,6 +26,8 @@ import JoinProjectPage from '@/pages/dashboard/JoinProjectPage';
 import MyProjectsPage from '@/pages/dashboard/MyProjectsPage';
 import NewProjectPage from '@/pages/dashboard/NewProjectPage';
 import FormBuilderPage from '@/pages/dashboard/FormBuilderPage';
+import ReviewFormPage from '@/pages/dashboard/ReviewFormPage';
+import SecuritySettingsPage from '@/pages/dashboard/SecuritySettingsPage';
 import ProfilePage from '@/pages/dashboard/ProfilePage';
 import NotFound from '@/pages/NotFound';
 
@@ -82,6 +84,8 @@ const App: React.FC = () => {
                 <Route path="my-projects" element={<MyProjectsPage />} />
                 <Route path="new-project" element={<NewProjectPage />} />
                 <Route path="form-builder" element={<FormBuilderPage />} />
+                <Route path="review-form" element={<ReviewFormPage />} />
+                <Route path="security-settings" element={<SecuritySettingsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
               

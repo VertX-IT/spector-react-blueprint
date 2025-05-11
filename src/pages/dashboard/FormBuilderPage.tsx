@@ -193,10 +193,17 @@ const FormBuilderPage: React.FC = () => {
   }, [location.search]);
 
   const handleNext = () => {
-    // Store form field data (would be implemented in a real app)
+    // Store form fields in URL params to pass to review page
+    const searchParams = new URLSearchParams(location.search);
+    
+    // Save form field data in localStorage for the review page
+    localStorage.setItem('formFields', JSON.stringify(fields));
+    localStorage.setItem('projectData', JSON.stringify(projectData));
+    
     toast.success('Form template saved! Ready for review.');
-    // Navigate to review page (would be implemented in a real app)
-    navigate('/dashboard/review-form');
+    
+    // Navigate to review page with the same URL parameters
+    navigate(`/dashboard/review-form?${searchParams.toString()}`);
   };
   
   const handleRemoveField = (index: number) => {
