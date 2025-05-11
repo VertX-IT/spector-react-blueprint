@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,8 +18,6 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { Edit, Trash2, Plus, ToggleLeft, ToggleRight, Check } from 'lucide-react';
-import { useMobile } from '@/contexts/MobileContext';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 // Template types for different asset categories
 interface FieldTemplate {
@@ -143,7 +142,6 @@ const FormBuilderPage: React.FC = () => {
     assetName: '',
     description: ''
   });
-  const { isMobile } = useMobile();
   
   // Custom field state
   const [newField, setNewField] = useState<FieldTemplate>({
@@ -154,7 +152,6 @@ const FormBuilderPage: React.FC = () => {
   
   // Edit mode state
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   // This would be populated from the previous step in a real implementation
   useEffect(() => {
@@ -185,6 +182,7 @@ const FormBuilderPage: React.FC = () => {
 
   const handleNext = () => {
     // Store form field data (would be implemented in a real app)
+    toast.success('Form template saved! Ready for review.');
     // Navigate to review page (would be implemented in a real app)
     navigate('/dashboard/review-form');
   };
@@ -192,12 +190,14 @@ const FormBuilderPage: React.FC = () => {
   const handleRemoveField = (index: number) => {
     // Don't allow removing common fields (first 3)
     if (index < 3) {
+      toast.error('Cannot remove mandatory system fields');
       return;
     }
     
     const newFields = [...fields];
     newFields.splice(index, 1);
     setFields(newFields);
+    toast.success('Field removed');
   };
   
   const handleToggleRequired = (index: number) => {
@@ -209,13 +209,11 @@ const FormBuilderPage: React.FC = () => {
   const handleEditField = (index: number) => {
     setEditingIndex(index);
     setNewField({...fields[index]});
-    if (isMobile) {
-      setIsSheetOpen(true);
-    }
   };
   
   const handleSaveEdit = () => {
     if (!newField.name.trim()) {
+      toast.error('Field name cannot be empty');
       return;
     }
     
@@ -225,127 +223,29 @@ const FormBuilderPage: React.FC = () => {
       setFields(newFields);
       setEditingIndex(null);
       setNewField({ name: '', type: 'text', required: false });
-      setIsSheetOpen(false);
+      toast.success('Field updated');
     }
   };
   
   const handleCancelEdit = () => {
     setEditingIndex(null);
     setNewField({ name: '', type: 'text', required: false });
-    setIsSheetOpen(false);
   };
   
   const handleAddField = () => {
     if (!newField.name.trim()) {
+      toast.error('Please enter a field name');
       return;
     }
     
     setFields([...fields, {...newField}]);
     setNewField({ name: '', type: 'text', required: false });
-    setIsSheetOpen(false);
+    toast.success('Custom field added');
   };
 
   const getDataTypeName = (typeId: string) => {
     return dataTypes.find(t => t.id === typeId)?.name || typeId;
   };
-
-  const renderEditForm = () => (
-    <div className="w-full space-y-3">
-      <div className={`flex ${isMobile ? "flex-col" : "flex-row"} gap-3`}>
-        <Input 
-          value={newField.name} 
-          onChange={(e) => setNewField({...newField, name: e.target.value})}
-          placeholder="Field name"
-          className="flex-1"
-        />
-        <Select 
-          value={newField.type}
-          onValueChange={(value) => setNewField({...newField, type: value})}
-        >
-          <SelectTrigger className={isMobile ? "w-full h-11" : "w-[180px]"}>
-            <SelectValue placeholder="Select data type" />
-          </SelectTrigger>
-          <SelectContent>
-            {dataTypes.map((type) => (
-              <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm">Required</span>
-          <Switch 
-            checked={newField.required}
-            onCheckedChange={(checked) => setNewField({...newField, required: checked})}
-          />
-        </div>
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={handleCancelEdit}>Cancel</Button>
-        <Button size="sm" onClick={handleSaveEdit}>Save</Button>
-      </div>
-    </div>
-  );
-
-  const renderMobileAddFieldSheet = () => (
-    <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-      <SheetContent side="bottom" className="h-auto max-h-[75vh]">
-        <SheetHeader>
-          <SheetTitle>{editingIndex !== null ? "Edit Field" : "Add Custom Field"}</SheetTitle>
-        </SheetHeader>
-        <div className="py-6 space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Field Name</label>
-            <Input 
-              value={newField.name} 
-              onChange={(e) => setNewField({...newField, name: e.target.value})}
-              placeholder="Enter field name"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Data Type</label>
-            <Select 
-              value={newField.type}
-              onValueChange={(value) => setNewField({...newField, type: value})}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select data type" />
-              </SelectTrigger>
-              <SelectContent>
-                {dataTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <span>Required</span>
-            <Switch 
-              checked={newField.required}
-              onCheckedChange={(checked) => setNewField({...newField, required: checked})}
-            />
-          </div>
-          
-          <div className="flex gap-2 pt-4">
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={handleCancelEdit}
-            >
-              Cancel
-            </Button>
-            <Button 
-              className="flex-1"
-              onClick={editingIndex !== null ? handleSaveEdit : handleAddField}
-            >
-              {editingIndex !== null ? "Save Changes" : "Add Field"}
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
 
   return (
     <>
@@ -362,11 +262,11 @@ const FormBuilderPage: React.FC = () => {
         />
       </div>
 
-      <Card className={`mb-6 ${isMobile ? "mx-0 p-0" : ""}`}>
-        <CardContent className={`pt-4 ${isMobile ? "p-3" : ""}`}>
+      <Card className="mb-6">
+        <CardContent className="pt-4">
           <div className="space-y-4">
             <h2 className="text-lg font-medium">Project Information</h2>
-            <div className={`grid grid-cols-1 ${!isMobile ? "md:grid-cols-2" : ""} gap-4`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm font-semibold">Project Name</p>
                 <p className="text-sm text-muted-foreground">{projectData.name}</p>
@@ -382,7 +282,7 @@ const FormBuilderPage: React.FC = () => {
                 <p className="text-sm text-muted-foreground">{projectData.assetName}</p>
               </div>
               {projectData.description && (
-                <div className={!isMobile ? "md:col-span-2" : ""}>
+                <div className="md:col-span-2">
                   <p className="text-sm font-semibold">Description</p>
                   <p className="text-sm text-muted-foreground">{projectData.description}</p>
                 </div>
@@ -392,8 +292,8 @@ const FormBuilderPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card className={isMobile ? "mx-0 p-0" : ""}>
-        <CardContent className={`pt-4 ${isMobile ? "p-3" : ""}`}>
+      <Card>
+        <CardContent className="pt-4">
           <h2 className="text-lg font-medium mb-4">Form Template</h2>
           <p className="text-sm text-muted-foreground mb-4">
             This template includes standard fields for your selected asset type. You can customize the fields below.
@@ -405,15 +305,48 @@ const FormBuilderPage: React.FC = () => {
                 key={index} 
                 className={`flex items-center justify-between p-3 border rounded-md ${editingIndex === index ? 'border-brand-green bg-gray-50' : ''}`}
               >
-                {editingIndex === index && !isMobile ? (
-                  renderEditForm()
+                {editingIndex === index ? (
+                  <div className="w-full space-y-3">
+                    <div className="flex gap-3">
+                      <Input 
+                        value={newField.name} 
+                        onChange={(e) => setNewField({...newField, name: e.target.value})}
+                        placeholder="Field name"
+                        className="flex-1"
+                      />
+                      <Select 
+                        value={newField.type}
+                        onValueChange={(value) => setNewField({...newField, type: value})}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Select data type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {dataTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">Required</span>
+                        <Switch 
+                          checked={newField.required}
+                          onCheckedChange={(checked) => setNewField({...newField, required: checked})}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={handleCancelEdit}>Cancel</Button>
+                      <Button size="sm" onClick={handleSaveEdit}>Save</Button>
+                    </div>
+                  </div>
                 ) : (
                   <>
-                    <div className={isMobile ? "flex-1" : ""}>
+                    <div>
                       <p className="font-medium">{field.name}</p>
                       <p className="text-xs text-muted-foreground">{getDataTypeName(field.type)}</p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       {field.required ? (
                         <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded-full">Required</span>
                       ) : (
@@ -424,7 +357,7 @@ const FormBuilderPage: React.FC = () => {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => handleToggleRequired(index)}
-                        className={`${isMobile ? "h-7 w-7" : "h-8 w-8"}`}
+                        className="h-8 w-8"
                         title={field.required ? "Make optional" : "Make required"}
                       >
                         {field.required ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
@@ -434,7 +367,7 @@ const FormBuilderPage: React.FC = () => {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => handleEditField(index)}
-                        className={`${isMobile ? "h-7 w-7" : "h-8 w-8"}`}
+                        className="h-8 w-8"
                         title="Edit field"
                       >
                         <Edit className="h-4 w-4" />
@@ -444,7 +377,7 @@ const FormBuilderPage: React.FC = () => {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => handleRemoveField(index)}
-                        className={`${isMobile ? "h-7 w-7" : "h-8 w-8"} text-red-500`}
+                        className="h-8 w-8 text-red-500"
                         disabled={index < 3} // Don't allow removing system fields
                         title={index < 3 ? "Cannot remove system field" : "Remove field"}
                       >
@@ -457,83 +390,60 @@ const FormBuilderPage: React.FC = () => {
             ))}
           </div>
 
-          {isMobile ? (
-            <>
-              {/* Mobile "Add Custom Field" button */}
+          <div className="border rounded-md p-4 mb-6">
+            <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
+            <div className="flex flex-wrap gap-3 items-end">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-sm mb-1 block">Field Name</label>
+                <Input 
+                  value={newField.name} 
+                  onChange={(e) => setNewField({...newField, name: e.target.value})}
+                  placeholder="Enter field name"
+                />
+              </div>
+              <div className="w-[180px]">
+                <label className="text-sm mb-1 block">Data Type</label>
+                <Select 
+                  value={newField.type}
+                  onValueChange={(value) => setNewField({...newField, type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select data type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dataTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Required</span>
+                <Switch 
+                  checked={newField.required}
+                  onCheckedChange={(checked) => setNewField({...newField, required: checked})}
+                />
+              </div>
               <Button 
-                variant="outline"
-                className="w-full mb-6 flex items-center justify-center gap-2"
-                onClick={() => {
-                  setEditingIndex(null);
-                  setNewField({ name: '', type: 'text', required: false });
-                  setIsSheetOpen(true);
-                }}
+                variant="outline" 
+                className="flex items-center gap-1"
+                onClick={handleAddField}
               >
                 <Plus className="h-4 w-4" />
-                Add Custom Field
+                Add Field
               </Button>
-              
-              {renderMobileAddFieldSheet()}
-            </>
-          ) : (
-            /* Desktop add field form */
-            <div className="border rounded-md p-4 mb-6">
-              <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
-              <div className="flex flex-wrap gap-3 items-end">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="text-sm mb-1 block">Field Name</label>
-                  <Input 
-                    value={newField.name} 
-                    onChange={(e) => setNewField({...newField, name: e.target.value})}
-                    placeholder="Enter field name"
-                  />
-                </div>
-                <div className="w-[180px]">
-                  <label className="text-sm mb-1 block">Data Type</label>
-                  <Select 
-                    value={newField.type}
-                    onValueChange={(value) => setNewField({...newField, type: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select data type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dataTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">Required</span>
-                  <Switch 
-                    checked={newField.required}
-                    onCheckedChange={(checked) => setNewField({...newField, required: checked})}
-                  />
-                </div>
-                <Button 
-                  variant="outline" 
-                  className="flex items-center gap-1"
-                  onClick={handleAddField}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Field
-                </Button>
-              </div>
             </div>
-          )}
+          </div>
           
           <div className="flex gap-2">
             <Button 
               variant="outline"
               onClick={() => navigate('/dashboard/new-project')}
-              className={isMobile ? "flex-1 h-11" : ""}
             >
               Back
             </Button>
             <Button 
               onClick={handleNext}
-              className={isMobile ? "flex-1 h-11" : ""}
             >
               Continue to Review
             </Button>
