@@ -26,18 +26,16 @@ export const MobileNavBar: React.FC = () => {
         <span>Projects</span>
       </NavLink>
       
-      {isDesigner && (
-        <NavLink 
-          to="/dashboard/new-project"
-          className={({ isActive }) => cn(
-            "flex flex-col items-center justify-center w-16 h-full text-xs",
-            isActive ? "text-primary" : "text-muted-foreground"
-          )}
-        >
-          <Plus className="h-5 w-5 mb-1" />
-          <span>Create</span>
-        </NavLink>
-      )}
+      <NavLink 
+        to="/dashboard/new-project"
+        className={({ isActive }) => cn(
+          "flex flex-col items-center justify-center w-16 h-full text-xs",
+          isActive ? "text-primary" : "text-muted-foreground"
+        )}
+      >
+        <Plus className="h-5 w-5 mb-1" />
+        <span>Create</span>
+      </NavLink>
       
       <NavLink 
         to="/dashboard/join-project"
