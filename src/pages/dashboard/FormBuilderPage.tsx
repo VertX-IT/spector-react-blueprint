@@ -17,7 +17,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Edit, Trash2, Plus, ToggleLeft, ToggleRight, Check } from 'lucide-react';
+import { Edit, Trash2, Plus, ToggleLeft, ToggleRight, Check, X } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 // Template types for different asset categories
 interface FieldTemplate {
@@ -143,6 +145,8 @@ const FormBuilderPage: React.FC = () => {
     description: ''
   });
   
+  const isMobile = useIsMobile();
+  
   // Custom field state
   const [newField, setNewField] = useState<FieldTemplate>({
     name: '',
@@ -152,7 +156,8 @@ const FormBuilderPage: React.FC = () => {
   
   // Edit mode state
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  
   // This would be populated from the previous step in a real implementation
   useEffect(() => {
     // Get category from URL params
@@ -209,6 +214,11 @@ const FormBuilderPage: React.FC = () => {
   const handleEditField = (index: number) => {
     setEditingIndex(index);
     setNewField({...fields[index]});
+    
+    // Open sheet on mobile
+    if (isMobile) {
+      setIsSheetOpen(true);
+    }
   };
   
   const handleSaveEdit = () => {
@@ -223,6 +233,7 @@ const FormBuilderPage: React.FC = () => {
       setFields(newFields);
       setEditingIndex(null);
       setNewField({ name: '', type: 'text', required: false });
+      setIsSheetOpen(false);
       toast.success('Field updated');
     }
   };
@@ -230,6 +241,7 @@ const FormBuilderPage: React.FC = () => {
   const handleCancelEdit = () => {
     setEditingIndex(null);
     setNewField({ name: '', type: 'text', required: false });
+    setIsSheetOpen(false);
   };
   
   const handleAddField = () => {
@@ -249,7 +261,7 @@ const FormBuilderPage: React.FC = () => {
 
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-4 px-1">
         <h1 className="text-xl font-bold tracking-tight">Create Form Fields</h1>
         <p className="text-sm text-muted-foreground mb-4">
           Define the data you want to collect in this project
@@ -262,11 +274,11 @@ const FormBuilderPage: React.FC = () => {
         />
       </div>
 
-      <Card className="mb-6">
-        <CardContent className="pt-4">
-          <div className="space-y-4">
+      <Card className={`mb-4 ${isMobile ? 'mx-1 shadow-sm' : ''}`}>
+        <CardContent className={`${isMobile ? 'p-3' : 'pt-4'}`}>
+          <div className="space-y-3">
             <h2 className="text-lg font-medium">Project Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-2">
               <div>
                 <p className="text-sm font-semibold">Project Name</p>
                 <p className="text-sm text-muted-foreground">{projectData.name}</p>
@@ -282,7 +294,7 @@ const FormBuilderPage: React.FC = () => {
                 <p className="text-sm text-muted-foreground">{projectData.assetName}</p>
               </div>
               {projectData.description && (
-                <div className="md:col-span-2">
+                <div>
                   <p className="text-sm font-semibold">Description</p>
                   <p className="text-sm text-muted-foreground">{projectData.description}</p>
                 </div>
@@ -292,22 +304,22 @@ const FormBuilderPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="pt-4">
-          <h2 className="text-lg font-medium mb-4">Form Template</h2>
+      <Card className={isMobile ? 'mx-1 shadow-sm' : ''}>
+        <CardContent className={`${isMobile ? 'p-3' : 'pt-4'}`}>
+          <h2 className="text-lg font-medium mb-3">Form Template</h2>
           <p className="text-sm text-muted-foreground mb-4">
             This template includes standard fields for your selected asset type. You can customize the fields below.
           </p>
           
-          <div className="space-y-4 mb-6">
+          <div className={`space-y-3 mb-5 ${isMobile ? 'max-h-[60vh] overflow-y-auto pb-2' : ''}`}>
             {fields.map((field, index) => (
               <div 
                 key={index} 
-                className={`flex items-center justify-between p-3 border rounded-md ${editingIndex === index ? 'border-brand-green bg-gray-50' : ''}`}
+                className={`flex flex-col ${isMobile ? 'p-2' : 'p-3'} border rounded-md ${editingIndex === index && !isMobile ? 'border-brand-green bg-gray-50' : ''}`}
               >
-                {editingIndex === index ? (
+                {editingIndex === index && !isMobile ? (
                   <div className="w-full space-y-3">
-                    <div className="flex gap-3">
+                    <div className="flex flex-col md:flex-row gap-3">
                       <Input 
                         value={newField.name} 
                         onChange={(e) => setNewField({...newField, name: e.target.value})}
@@ -318,7 +330,7 @@ const FormBuilderPage: React.FC = () => {
                         value={newField.type}
                         onValueChange={(value) => setNewField({...newField, type: value})}
                       >
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full md:w-[180px]">
                           <SelectValue placeholder="Select data type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -342,72 +354,113 @@ const FormBuilderPage: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    <div>
-                      <p className="font-medium">{field.name}</p>
-                      <p className="text-xs text-muted-foreground">{getDataTypeName(field.type)}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className={`font-medium ${isMobile ? 'text-base' : ''}`}>{field.name}</p>
+                        <p className="text-xs text-muted-foreground">{getDataTypeName(field.type)}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {field.required ? (
+                          <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded-full">Required</span>
+                        ) : (
+                          <span className="text-xs px-2 py-1 bg-gray-50 text-gray-700 rounded-full">Optional</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {field.required ? (
-                        <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded-full">Required</span>
-                      ) : (
-                        <span className="text-xs px-2 py-1 bg-gray-50 text-gray-700 rounded-full">Optional</span>
-                      )}
-                      
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleToggleRequired(index)}
-                        className="h-8 w-8"
-                        title={field.required ? "Make optional" : "Make required"}
-                      >
-                        {field.required ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-                      </Button>
-                      
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleEditField(index)}
-                        className="h-8 w-8"
-                        title="Edit field"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleRemoveField(index)}
-                        className="h-8 w-8 text-red-500"
-                        disabled={index < 3} // Don't allow removing system fields
-                        title={index < 3 ? "Cannot remove system field" : "Remove field"}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    
+                    {isMobile && (
+                      <div className="flex mt-2 border-t pt-2 justify-between">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleToggleRequired(index)}
+                          className="flex-1 text-xs h-8"
+                          disabled={index < 3} // Don't allow changing system fields
+                        >
+                          {field.required ? "Make Optional" : "Make Required"}
+                        </Button>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditField(index)}
+                          className="flex-1 text-xs h-8"
+                          disabled={index < 3} // Don't allow editing system fields
+                        >
+                          Edit
+                        </Button>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleRemoveField(index)}
+                          className="flex-1 text-xs h-8 text-red-500"
+                          disabled={index < 3} // Don't allow removing system fields
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {!isMobile && (
+                      <div className="flex items-center gap-2 mt-2 justify-end">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleToggleRequired(index)}
+                          className="h-8 w-8"
+                          title={field.required ? "Make optional" : "Make required"}
+                        >
+                          {field.required ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                        </Button>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleEditField(index)}
+                          className="h-8 w-8"
+                          title="Edit field"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleRemoveField(index)}
+                          className="h-8 w-8 text-red-500"
+                          disabled={index < 3} // Don't allow removing system fields
+                          title={index < 3 ? "Cannot remove system field" : "Remove field"}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
             ))}
           </div>
 
-          <div className="border rounded-md p-4 mb-6">
+          <div className={`border rounded-md p-3 mb-5 ${isMobile ? 'space-y-3' : ''}`}>
             <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
-            <div className="flex flex-wrap gap-3 items-end">
-              <div className="flex-1 min-w-[200px]">
+            <div className={`flex ${isMobile ? 'flex-col' : 'flex-wrap'} gap-3 items-end`}>
+              <div className={`${isMobile ? 'w-full' : 'flex-1 min-w-[200px]'}`}>
                 <label className="text-sm mb-1 block">Field Name</label>
                 <Input 
                   value={newField.name} 
                   onChange={(e) => setNewField({...newField, name: e.target.value})}
                   placeholder="Enter field name"
+                  className={isMobile ? "h-10 text-base" : ""}
                 />
               </div>
-              <div className="w-[180px]">
+              <div className={isMobile ? 'w-full' : 'w-[180px]'}>
                 <label className="text-sm mb-1 block">Data Type</label>
                 <Select 
                   value={newField.type}
                   onValueChange={(value) => setNewField({...newField, type: value})}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={isMobile ? "h-10 text-base" : ""}>
                     <SelectValue placeholder="Select data type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -426,7 +479,7 @@ const FormBuilderPage: React.FC = () => {
               </div>
               <Button 
                 variant="outline" 
-                className="flex items-center gap-1"
+                className={`flex items-center gap-1 ${isMobile ? 'w-full h-10 text-base' : ''}`}
                 onClick={handleAddField}
               >
                 <Plus className="h-4 w-4" />
@@ -435,21 +488,87 @@ const FormBuilderPage: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
             <Button 
               variant="outline"
               onClick={() => navigate('/dashboard/new-project')}
+              className={isMobile ? 'h-12 text-base w-full' : ''}
             >
               Back
             </Button>
             <Button 
               onClick={handleNext}
+              className={isMobile ? 'h-12 text-base w-full' : ''}
             >
               Continue to Review
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Edit Sheet */}
+      {isMobile && (
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <SheetContent className="h-[80vh] w-full">
+            <SheetHeader className="pb-4">
+              <SheetTitle>Edit Field</SheetTitle>
+            </SheetHeader>
+            
+            <div className="space-y-5 pt-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Field Name</label>
+                <Input 
+                  value={newField.name} 
+                  onChange={(e) => setNewField({...newField, name: e.target.value})}
+                  placeholder="Field name"
+                  className="text-base h-12"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Data Type</label>
+                <Select 
+                  value={newField.type}
+                  onValueChange={(value) => setNewField({...newField, type: value})}
+                >
+                  <SelectTrigger className="text-base h-12">
+                    <SelectValue placeholder="Select data type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dataTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id} className="text-base">{type.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center justify-between py-2">
+                <span className="text-base font-medium">Required Field</span>
+                <Switch 
+                  checked={newField.required}
+                  onCheckedChange={(checked) => setNewField({...newField, required: checked})}
+                />
+              </div>
+              
+              <div className="flex flex-col gap-3 pt-4">
+                <Button 
+                  onClick={handleSaveEdit}
+                  className="h-12 text-base"
+                >
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCancelEdit}
+                  className="h-12 text-base"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </>
   );
 };

@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { ProgressSteps } from '@/components/ui/progress-steps';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Form Schema for project creation
 const formSchema = z.object({
@@ -54,6 +55,7 @@ const NewProjectPage: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const isMobile = useIsMobile();
   
   // Initialize the form
   const form = useForm<FormValues>({
@@ -91,7 +93,7 @@ const NewProjectPage: React.FC = () => {
 
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-4 px-1">
         <h1 className="text-xl font-bold tracking-tight">Create New Project</h1>
         <p className="text-sm text-muted-foreground mb-4">
           Set up a new data collection project
@@ -104,20 +106,20 @@ const NewProjectPage: React.FC = () => {
         />
       </div>
 
-      <Card>
-        <CardContent className="pt-4">
+      <Card className={`${isMobile ? 'mx-1 shadow-sm' : ''}`}>
+        <CardContent className={`pt-4 ${isMobile ? 'px-3' : ''}`}>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Project Name</FormLabel>
+                    <FormLabel className="text-base">Project Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="E.g., Land Asset Survey" {...field} />
+                      <Input placeholder="E.g., Land Asset Survey" {...field} className={isMobile ? 'text-base h-12' : ''} />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className={isMobile ? 'text-xs' : ''}>
                       Give your data collection project a descriptive name.
                     </FormDescription>
                     <FormMessage />
@@ -130,17 +132,17 @@ const NewProjectPage: React.FC = () => {
                 name="category"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Category</FormLabel>
+                    <FormLabel className="text-base">Asset Category</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className={isMobile ? 'text-base h-12' : ''}>
                           <SelectValue placeholder="Select asset category" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className={isMobile ? 'text-base' : ''}>
                         {categories.map((category) => (
                           <SelectItem key={category.id} value={category.id}>
                             {category.name}
@@ -148,7 +150,7 @@ const NewProjectPage: React.FC = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
+                    <FormDescription className={isMobile ? 'text-xs' : ''}>
                       Select the type of assets this project will track.
                     </FormDescription>
                     <FormMessage />
@@ -161,11 +163,11 @@ const NewProjectPage: React.FC = () => {
                 name="assetName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Name</FormLabel>
+                    <FormLabel className="text-base">Asset Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="E.g., Main Building, Company Vehicle" {...field} />
+                      <Input placeholder="E.g., Main Building, Company Vehicle" {...field} className={isMobile ? 'text-base h-12' : ''} />
                     </FormControl>
-                    <FormDescription>
+                    <FormDescription className={isMobile ? 'text-xs' : ''}>
                       Enter a name for the specific asset being tracked.
                     </FormDescription>
                     <FormMessage />
@@ -178,11 +180,11 @@ const NewProjectPage: React.FC = () => {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormLabel className="text-base">Description (Optional)</FormLabel>
                     <FormControl>
                       <Textarea 
                         placeholder="Brief description of this project's purpose..." 
-                        className="resize-none" 
+                        className={`resize-none ${isMobile ? 'text-base' : ''}`}
                         {...field} 
                       />
                     </FormControl>
@@ -193,17 +195,19 @@ const NewProjectPage: React.FC = () => {
               
               <Separator />
               
-              <div className="flex gap-2">
+              <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
                 <Button 
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/dashboard/my-projects')}
+                  className={isMobile ? 'h-12 text-base w-full' : ''}
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit"
                   disabled={isSubmitting}
+                  className={isMobile ? 'h-12 text-base w-full' : ''}
                 >
                   {isSubmitting ? 'Saving...' : 'Continue to Form Builder'}
                 </Button>
