@@ -1,14 +1,16 @@
-
 import { db } from './firebase';
 import { 
   collection, 
   addDoc, 
   getDocs, 
+  getDoc,
   doc, 
   deleteDoc, 
   query,
   where,
-  serverTimestamp
+  serverTimestamp,
+  updateDoc,
+  increment
 } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,6 +25,15 @@ export interface Project {
   createdBy?: string;
   formFields?: any[];
   description?: string;
+}
+
+// Interface for Record data
+export interface ProjectRecord {
+  id?: string;
+  projectId: string;
+  data: Record<string, any>;
+  createdAt: string;
+  createdBy: string;
 }
 
 // Verify Firebase connection
@@ -155,5 +166,97 @@ export const findProjectByPin = async (pin: string) => {
   } catch (error: any) {
     console.error('Error finding project by PIN:', error);
     throw new Error(`Failed to find project: ${error.message || 'Unknown error'}`);
+  }
+};
+
+// Get a project by ID
+export const getProjectById = async (projectId: string) => {
+  try {
+    console.log('Fetching project with ID:', projectId);
+    const projectRef = doc(db, 'projects', projectId);
+    const projectSnapshot = await getDoc(projectRef);
+    
+    if (projectSnapshot.exists()) {
+      const data = projectSnapshot.data();
+      console.log('Project found:', data);
+      
+      return {
+        id: projectSnapshot.id,
+        name: data.name,
+        category: data.category,
+        createdAt: new Date(data.createdAt),
+        recordCount: data.recordCount,
+        projectPin: data.projectPin,
+        formFields: data.formFields || [],
+        description: data.description || '',
+        createdBy: data.createdBy,
+      };
+    }
+    
+    console.log('No project found with this ID');
+    return null;
+  } catch (error: any) {
+    console.error('Error finding project by ID:', error);
+    throw new Error(`Failed to find project: ${error.message || 'Unknown error'}`);
+  }
+};
+
+// Submit form data for a project
+export const submitFormData = async (projectId: string, data: Record<string, any>, userId: string) => {
+  try {
+    console.log('Submitting form data for project:', projectId);
+    
+    // Create the record
+    const recordData: Omit<ProjectRecord, 'id'> = {
+      projectId,
+      data,
+      createdAt: new Date().toISOString(),
+      createdBy: userId || 'anonymous',
+    };
+    
+    const recordsRef = collection(db, 'records');
+    const docRef = await addDoc(recordsRef, recordData);
+    console.log('Form data submitted with ID:', docRef.id);
+    
+    // Update the record count for the project
+    const projectRef = doc(db, 'projects', projectId);
+    await updateDoc(projectRef, {
+      recordCount: increment(1)
+    });
+    console.log('Project record count updated');
+    
+    return { id: docRef.id, ...recordData };
+  } catch (error: any) {
+    console.error('Error submitting form data:', error);
+    throw new Error(`Failed to submit form: ${error.message || 'Unknown error'}`);
+  }
+};
+
+// Get all records for a project
+export const getProjectRecords = async (projectId: string) => {
+  try {
+    console.log('Fetching records for project ID:', projectId);
+    const recordsRef = collection(db, 'records');
+    const q = query(recordsRef, where("projectId", "==", projectId));
+    const querySnapshot = await getDocs(q);
+    
+    console.log('Records fetched successfully. Count:', querySnapshot.size);
+    
+    const records: ProjectRecord[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      records.push({
+        id: doc.id,
+        projectId: data.projectId,
+        data: data.data,
+        createdAt: data.createdAt,
+        createdBy: data.createdBy,
+      });
+    });
+    
+    return records;
+  } catch (error: any) {
+    console.error('Error getting project records:', error);
+    throw new Error(`Failed to get project records: ${error.message || 'Unknown error'}`);
   }
 };

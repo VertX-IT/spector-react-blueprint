@@ -13,6 +13,7 @@ interface ProjectCardProps {
   category: string;
   createdAt: Date;
   recordCount: number;
+  projectPin?: string;
   onDelete?: (id: string) => void;
 }
 
@@ -22,6 +23,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   category,
   createdAt,
   recordCount,
+  projectPin,
   onDelete,
 }) => {
   const navigate = useNavigate();
@@ -45,6 +47,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         <div className="text-xs text-muted-foreground mb-2">
           {formattedDate} • {recordCount} {recordCount === 1 ? 'record' : 'records'} collected
         </div>
+        
+        {projectPin && (
+          <div className="mt-2 mb-2">
+            <Badge variant="secondary" className="text-xs">PIN: {projectPin}</Badge>
+          </div>
+        )}
       </CardContent>
       
       <CardFooter className="flex justify-between pt-0 px-4 pb-4 gap-2">
@@ -52,7 +60,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           variant="default"
           size="sm"
           className="flex-1"
-          onClick={() => navigate(`/dashboard/projects/${id}`)}
+          onClick={() => navigate(`/dashboard/projects/${id}/form`)}
         >
           <FolderOpen className="h-4 w-4 mr-1" />
           Open

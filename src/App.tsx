@@ -29,6 +29,7 @@ import FormBuilderPage from '@/pages/dashboard/FormBuilderPage';
 import ReviewFormPage from '@/pages/dashboard/ReviewFormPage';
 import SecuritySettingsPage from '@/pages/dashboard/SecuritySettingsPage';
 import ProfilePage from '@/pages/dashboard/ProfilePage';
+import ProjectFormPage from '@/pages/dashboard/ProjectFormPage';
 import NotFound from '@/pages/NotFound';
 
 const App: React.FC = () => {
@@ -87,6 +88,7 @@ const App: React.FC = () => {
                 <Route path="review-form" element={<ReviewFormPage />} />
                 <Route path="security-settings" element={<SecuritySettingsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
+                <Route path="projects/:projectId/form" element={<ProjectFormPage />} />
               </Route>
               
               {/* Redirect /dashboard to /dashboard */}

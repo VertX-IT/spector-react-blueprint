@@ -91,8 +91,9 @@ const MyProjectsPage: React.FC = () => {
               id={project.id || ''}
               name={project.name}
               category={project.category}
-              createdAt={new Date(project.createdAt)} // Ensure we always pass a Date object
+              createdAt={new Date(project.createdAt)}
               recordCount={project.recordCount}
+              projectPin={project.projectPin}
               onDelete={isDesigner ? handleDeleteProject : undefined}
             />
           ))}
