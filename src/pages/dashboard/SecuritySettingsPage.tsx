@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Copy } from 'lucide-react';
+import { Copy, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveProject } from '@/lib/projectOperations';
+import { saveProject, verifyFirebaseConnection } from '@/lib/projectOperations';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // Steps for project creation
 const steps = [
@@ -31,13 +32,40 @@ const SecuritySettingsPage: React.FC = () => {
   
   const [projectPin, setProjectPin] = useState<string>('');
   const [isDeploying, setIsDeploying] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [firebaseStatus, setFirebaseStatus] = useState<{ connected: boolean, message: string | null }>({
+    connected: true,
+    message: null
+  });
   
   const isMobile = useIsMobile();
   
   // Generate a unique 6-digit PIN when component loads
   useEffect(() => {
     generateProjectPin();
+    checkFirebaseConnection();
   }, []);
+  
+  // Check Firebase connection on page load
+  const checkFirebaseConnection = async () => {
+    try {
+      const result = await verifyFirebaseConnection();
+      setFirebaseStatus({
+        connected: result.success,
+        message: result.success ? null : (result.error || 'Unable to connect to Firebase')
+      });
+      
+      if (!result.success) {
+        toast.error(`Firebase connection issue: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Firebase connection check failed:', error);
+      setFirebaseStatus({
+        connected: false,
+        message: error.message || 'Failed to check Firebase connection'
+      });
+    }
+  };
   
   // Retrieve project data from localStorage
   useEffect(() => {
@@ -65,8 +93,17 @@ const SecuritySettingsPage: React.FC = () => {
   
   const handleFinish = async () => {
     setIsDeploying(true);
+    setDeployError(null);
     
     try {
+      // First verify Firebase connection
+      const connectionCheck = await verifyFirebaseConnection();
+      if (!connectionCheck.success) {
+        throw new Error(`Firebase connection issue: ${connectionCheck.error}`);
+      }
+      
+      console.log('Starting project deployment process');
+      
       // Get all project data
       const formFields = localStorage.getItem('formFields') 
         ? JSON.parse(localStorage.getItem('formFields') || '[]') 
@@ -84,8 +121,12 @@ const SecuritySettingsPage: React.FC = () => {
         createdBy: userData?.uid || 'anonymous',
       };
       
+      console.log('Prepared project data for saving:', completeProjectData);
+      
       // Save to Firebase
-      await saveProject(completeProjectData);
+      console.log('Saving project to Firebase...');
+      const savedProject = await saveProject(completeProjectData);
+      console.log('Project saved to Firebase:', savedProject);
       
       // Keep localStorage for backward compatibility
       const existingProjects = localStorage.getItem('myProjects')
@@ -93,7 +134,7 @@ const SecuritySettingsPage: React.FC = () => {
         : [];
         
       const newProject = {
-        id: Date.now().toString(),
+        id: savedProject.id || Date.now().toString(),
         name: completeProjectData.name,
         category: completeProjectData.category,
         createdAt: new Date().toISOString(),
@@ -110,9 +151,11 @@ const SecuritySettingsPage: React.FC = () => {
       
       toast.success('Project successfully deployed to Firebase!');
       navigate('/dashboard/my-projects');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deploying project:', error);
-      toast.error('Failed to deploy project. Please try again.');
+      const errorMessage = error.message || 'Unknown error occurred';
+      setDeployError(errorMessage);
+      toast.error(`Failed to deploy project: ${errorMessage}`);
     } finally {
       setIsDeploying(false);
     }
@@ -132,6 +175,16 @@ const SecuritySettingsPage: React.FC = () => {
           labels={steps}
         />
       </div>
+
+      {!firebaseStatus.connected && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Firebase connection issue: {firebaseStatus.message}. 
+            Your project may not save correctly.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className={`mb-4 ${isMobile ? 'mx-1 shadow-sm' : ''}`}>
         <CardContent className={`${isMobile ? 'p-3' : 'pt-4'}`}>
@@ -182,6 +235,15 @@ const SecuritySettingsPage: React.FC = () => {
             Your project is ready to be deployed. Team members can join your project using the PIN code.
           </p>
           
+          {deployError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {deployError}
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
             <Button 
               variant="outline"
@@ -192,7 +254,7 @@ const SecuritySettingsPage: React.FC = () => {
             </Button>
             <Button 
               onClick={handleFinish}
-              disabled={isDeploying}
+              disabled={isDeploying || !firebaseStatus.connected}
               className={isMobile ? 'h-12 text-base w-full' : ''}
             >
               {isDeploying ? 'Deploying...' : 'Finish & Deploy'}
