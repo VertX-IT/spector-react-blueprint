@@ -6,46 +6,62 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Project {
-  id: string;
-  name: string;
-  category: string;
-  createdAt: string | Date; // String from localStorage, Date when created
-  recordCount: number;
-  projectPin?: string;
-}
+import { getUserProjects, deleteProject, Project } from '@/lib/projectOperations';
 
 const MyProjectsPage: React.FC = () => {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const isDesigner = userData?.role === 'designer';
   const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  // Load projects from localStorage on component mount
+  // Load projects from Firebase on component mount
   useEffect(() => {
-    const storedProjects = localStorage.getItem('myProjects');
-    
-    if (storedProjects) {
+    const loadProjects = async () => {
       try {
-        const parsedProjects = JSON.parse(storedProjects);
-        // Convert string dates back to Date objects
-        const projectsWithDates = parsedProjects.map((project: any) => ({
-          ...project,
-          createdAt: new Date(project.createdAt)
-        }));
-        setProjects(projectsWithDates);
+        if (userData?.uid) {
+          const userProjects = await getUserProjects(userData.uid);
+          setProjects(userProjects);
+        } else {
+          // Fallback to localStorage if user is not authenticated properly
+          const storedProjects = localStorage.getItem('myProjects');
+          if (storedProjects) {
+            const parsedProjects = JSON.parse(storedProjects);
+            const projectsWithDates = parsedProjects.map((project: any) => ({
+              ...project,
+              createdAt: new Date(project.createdAt)
+            }));
+            setProjects(projectsWithDates);
+          }
+        }
       } catch (error) {
-        console.error('Error parsing projects from localStorage:', error);
-        setProjects([]);
+        console.error('Error loading projects:', error);
+        toast.error('Failed to load projects');
+      } finally {
+        setLoading(false);
       }
-    }
-  }, []);
+    };
+    
+    loadProjects();
+  }, [userData]);
 
-  const handleDeleteProject = (id: string) => {
+  const handleDeleteProject = async (id: string) => {
     try {
+      // Delete from Firebase if it's a Firebase project (has Firebase ID format)
+      if (id && id.length > 10) {
+        await deleteProject(id);
+      }
+      
+      // Also delete from localStorage for backward compatibility
+      const storedProjects = localStorage.getItem('myProjects');
+      if (storedProjects) {
+        const parsedProjects = JSON.parse(storedProjects);
+        const updatedProjects = parsedProjects.filter((p: any) => p.id !== id);
+        localStorage.setItem('myProjects', JSON.stringify(updatedProjects));
+      }
+      
+      // Update state
       const updatedProjects = projects.filter(project => project.id !== id);
-      localStorage.setItem('myProjects', JSON.stringify(updatedProjects));
       setProjects(updatedProjects);
       toast.success('Project deleted successfully');
     } catch (error) {
@@ -63,12 +79,16 @@ const MyProjectsPage: React.FC = () => {
         </p>
       </div>
 
-      {projects.length > 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center p-8">
+          <p>Loading projects...</p>
+        </div>
+      ) : projects.length > 0 ? (
         <div className="space-y-3">
           {projects.map(project => (
             <ProjectCard
               key={project.id}
-              id={project.id}
+              id={project.id || ''}
               name={project.name}
               category={project.category}
               createdAt={new Date(project.createdAt)} // Ensure we always pass a Date object

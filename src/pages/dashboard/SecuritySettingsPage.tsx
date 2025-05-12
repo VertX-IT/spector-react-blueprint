@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,6 +6,8 @@ import { ProgressSteps } from '@/components/ui/progress-steps';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Copy } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { saveProject } from '@/lib/projectOperations';
 
 // Steps for project creation
 const steps = [
@@ -19,6 +20,7 @@ const steps = [
 const SecuritySettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { userData } = useAuth();
   const [currentStep] = useState(4); // Security is step 4
   const [projectData, setProjectData] = useState({
     category: '',
@@ -61,59 +63,59 @@ const SecuritySettingsPage: React.FC = () => {
     toast.success('Project PIN copied to clipboard');
   };
   
-  const handleFinish = () => {
+  const handleFinish = async () => {
     setIsDeploying(true);
     
-    // Get all project data
-    const formFields = localStorage.getItem('formFields') 
-      ? JSON.parse(localStorage.getItem('formFields') || '[]') 
-      : [];
+    try {
+      // Get all project data
+      const formFields = localStorage.getItem('formFields') 
+        ? JSON.parse(localStorage.getItem('formFields') || '[]') 
+        : [];
+        
+      // Combine all project data
+      const completeProjectData = {
+        name: projectData.name,
+        category: projectData.category,
+        description: projectData.description || '',
+        formFields,
+        projectPin,
+        createdAt: new Date(),
+        recordCount: 0,
+        createdBy: userData?.uid || 'anonymous',
+      };
       
-    // Combine all project data
-    const completeProjectData = {
-      ...projectData,
-      formFields,
-      projectPin,
-      createdAt: new Date(),
-      recordCount: 0,
-    };
-    
-    // In a real application, you would save this to your database
-    setTimeout(() => {
-      // Simulating API call delay
-      console.log('Project data to be saved:', completeProjectData);
+      // Save to Firebase
+      await saveProject(completeProjectData);
       
-      try {
-        // Save project to localStorage for demo purposes
-        // In production, this would be saved to a database
-        const existingProjects = localStorage.getItem('myProjects')
-          ? JSON.parse(localStorage.getItem('myProjects') || '[]')
-          : [];
-          
-        const newProject = {
-          id: Date.now().toString(),
-          name: completeProjectData.name,
-          category: completeProjectData.category,
-          createdAt: new Date(),
-          recordCount: 0,
-          projectPin,
-        };
+      // Keep localStorage for backward compatibility
+      const existingProjects = localStorage.getItem('myProjects')
+        ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+        : [];
         
-        existingProjects.push(newProject);
-        localStorage.setItem('myProjects', JSON.stringify(existingProjects));
-        
-        // Clear form data from localStorage
-        localStorage.removeItem('formFields');
-        localStorage.removeItem('projectData');
-        
-        toast.success('Project successfully deployed!');
-        navigate('/dashboard/my-projects');
-      } catch (error) {
-        console.error('Error deploying project:', error);
-        toast.error('Failed to deploy project. Please try again.');
-        setIsDeploying(false);
-      }
-    }, 1000);
+      const newProject = {
+        id: Date.now().toString(),
+        name: completeProjectData.name,
+        category: completeProjectData.category,
+        createdAt: new Date().toISOString(),
+        recordCount: 0,
+        projectPin,
+      };
+      
+      existingProjects.push(newProject);
+      localStorage.setItem('myProjects', JSON.stringify(existingProjects));
+      
+      // Clear form data from localStorage
+      localStorage.removeItem('formFields');
+      localStorage.removeItem('projectData');
+      
+      toast.success('Project successfully deployed to Firebase!');
+      navigate('/dashboard/my-projects');
+    } catch (error) {
+      console.error('Error deploying project:', error);
+      toast.error('Failed to deploy project. Please try again.');
+    } finally {
+      setIsDeploying(false);
+    }
   };
 
   return (
