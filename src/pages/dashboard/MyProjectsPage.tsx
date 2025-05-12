@@ -94,6 +94,7 @@ const MyProjectsPage: React.FC = () => {
               createdAt={new Date(project.createdAt)}
               recordCount={project.recordCount}
               projectPin={project.projectPin}
+              status={project.status}
               onDelete={isDesigner ? handleDeleteProject : undefined}
             />
           ))}

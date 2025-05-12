@@ -14,6 +14,7 @@ interface ProjectCardProps {
   createdAt: Date;
   recordCount: number;
   projectPin?: string;
+  status?: 'active' | 'inactive';
   onDelete?: (id: string) => void;
 }
 
@@ -24,6 +25,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   createdAt,
   recordCount,
   projectPin,
+  status = 'active',
   onDelete,
 }) => {
   const navigate = useNavigate();
@@ -35,6 +37,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     month: 'short',
     year: 'numeric',
   }).format(createdAt);
+
+  const isInactive = status === 'inactive';
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-md">
@@ -48,11 +52,15 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           {formattedDate} • {recordCount} {recordCount === 1 ? 'record' : 'records'} collected
         </div>
         
-        {projectPin && (
-          <div className="mt-2 mb-2">
+        <div className="mt-2 mb-2 flex flex-wrap gap-2">
+          {projectPin && (
             <Badge variant="secondary" className="text-xs">PIN: {projectPin}</Badge>
-          </div>
-        )}
+          )}
+          
+          {isInactive && (
+            <Badge variant="destructive" className="text-xs">Survey Ended</Badge>
+          )}
+        </div>
       </CardContent>
       
       <CardFooter className="flex justify-between pt-0 px-4 pb-4 gap-2">

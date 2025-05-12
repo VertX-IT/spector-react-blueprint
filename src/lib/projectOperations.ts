@@ -1,3 +1,4 @@
+
 import { db } from './firebase';
 import { 
   collection, 
@@ -25,6 +26,8 @@ export interface Project {
   createdBy?: string;
   formFields?: any[];
   description?: string;
+  status?: 'active' | 'inactive';
+  endedAt?: string;
 }
 
 // Interface for Record data
@@ -73,6 +76,7 @@ export const saveProject = async (projectData: Omit<Project, 'id'>) => {
       ...projectData,
       createdAt: projectData.createdAt.toISOString(), // Convert Date to string for Firestore
       serverTimestamp: serverTimestamp(), // Add a server timestamp
+      status: 'active', // Default status for new projects
     };
     
     console.log('Prepared data for Firestore:', firestoreData);
@@ -190,6 +194,8 @@ export const getProjectById = async (projectId: string) => {
         formFields: data.formFields || [],
         description: data.description || '',
         createdBy: data.createdBy,
+        status: data.status || 'active',
+        endedAt: data.endedAt,
       };
     }
     
