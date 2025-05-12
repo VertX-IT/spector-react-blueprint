@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const joinProjectSchema = z.object({
   projectPin: z.string().length(6, { message: "Project PIN must be exactly 6 characters" })
@@ -17,6 +18,7 @@ type JoinProjectFormValues = z.infer<typeof joinProjectSchema>;
 
 export const JoinProjectForm: React.FC = () => {
   const navigate = useNavigate();
+  const [isJoining, setIsJoining] = useState(false);
 
   const form = useForm<JoinProjectFormValues>({
     resolver: zodResolver(joinProjectSchema),
@@ -27,13 +29,31 @@ export const JoinProjectForm: React.FC = () => {
 
   const onSubmit = async (values: JoinProjectFormValues) => {
     try {
-      // TODO: Implement Firebase logic to join a project
-      console.log('Joining project with PIN:', values.projectPin);
+      setIsJoining(true);
       
-      // Navigate to the joined project
-      navigate('/dashboard/my-projects');
+      // In a real application, this would validate the PIN against your database
+      // For demo purposes, we'll check against localStorage
+      const existingProjects = localStorage.getItem('myProjects')
+        ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+        : [];
+      
+      const projectToJoin = existingProjects.find(
+        (project: any) => project.projectPin === values.projectPin
+      );
+      
+      if (projectToJoin) {
+        // In a real app, you would add this project to the user's projects in the database
+        // For now, we'll just show a success message and redirect
+        toast.success('Successfully joined project!');
+        navigate('/dashboard/my-projects');
+      } else {
+        toast.error('Invalid project PIN. Please try again.');
+      }
     } catch (error) {
       console.error('Error joining project:', error);
+      toast.error('Failed to join project. Please try again.');
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -70,8 +90,13 @@ export const JoinProjectForm: React.FC = () => {
         </Form>
       </CardContent>
       <CardFooter>
-        <Button type="submit" form="join-project-form" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? "Joining..." : "Join Project"}
+        <Button 
+          type="submit" 
+          form="join-project-form" 
+          className="w-full" 
+          disabled={isJoining}
+        >
+          {isJoining ? "Joining..." : "Join Project"}
         </Button>
       </CardFooter>
     </Card>

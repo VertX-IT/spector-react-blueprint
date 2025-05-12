@@ -1,51 +1,57 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProjectCard } from '@/components/dashboard/ProjectCard';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FolderOpen } from 'lucide-react';
+import { toast } from 'sonner';
 
-// Temporary dummy data for demonstration
-const dummyProjects = [
-  {
-    id: '1',
-    name: 'Land Asset Survey',
-    category: 'Land',
-    createdAt: new Date(Date.now() - 86400000 * 2), // 2 days ago
-    recordCount: 24
-  },
-  {
-    id: '2',
-    name: 'Equipment Inventory',
-    category: 'Equipment',
-    createdAt: new Date(Date.now() - 86400000 * 7), // 7 days ago
-    recordCount: 12
-  },
-  {
-    id: '3',
-    name: 'Vehicle Assessment',
-    category: 'Motor Vehicles',
-    createdAt: new Date(Date.now() - 86400000 * 14), // 14 days ago
-    recordCount: 5
-  },
-  {
-    id: '4',
-    name: 'Building Condition Survey',
-    category: 'Buildings',
-    createdAt: new Date(Date.now() - 86400000 * 21), // 21 days ago
-    recordCount: 8
-  }
-];
+interface Project {
+  id: string;
+  name: string;
+  category: string;
+  createdAt: string | Date; // String from localStorage, Date when created
+  recordCount: number;
+  projectPin?: string;
+}
 
 const MyProjectsPage: React.FC = () => {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const isDesigner = userData?.role === 'designer';
+  const [projects, setProjects] = useState<Project[]>([]);
+  
+  // Load projects from localStorage on component mount
+  useEffect(() => {
+    const storedProjects = localStorage.getItem('myProjects');
+    
+    if (storedProjects) {
+      try {
+        const parsedProjects = JSON.parse(storedProjects);
+        // Convert string dates back to Date objects
+        const projectsWithDates = parsedProjects.map((project: any) => ({
+          ...project,
+          createdAt: new Date(project.createdAt)
+        }));
+        setProjects(projectsWithDates);
+      } catch (error) {
+        console.error('Error parsing projects from localStorage:', error);
+        setProjects([]);
+      }
+    }
+  }, []);
 
   const handleDeleteProject = (id: string) => {
-    // TODO: Implement project deletion
-    console.log('Delete project with ID:', id);
+    try {
+      const updatedProjects = projects.filter(project => project.id !== id);
+      localStorage.setItem('myProjects', JSON.stringify(updatedProjects));
+      setProjects(updatedProjects);
+      toast.success('Project deleted successfully');
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error('Failed to delete project');
+    }
   };
 
   return (
@@ -57,9 +63,9 @@ const MyProjectsPage: React.FC = () => {
         </p>
       </div>
 
-      {dummyProjects.length > 0 ? (
+      {projects.length > 0 ? (
         <div className="space-y-3">
-          {dummyProjects.map(project => (
+          {projects.map(project => (
             <ProjectCard
               key={project.id}
               id={project.id}

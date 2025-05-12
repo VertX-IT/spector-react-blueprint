@@ -5,16 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { toast } from 'sonner';
-import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Copy } from 'lucide-react';
 
 // Steps for project creation
 const steps = [
@@ -35,13 +27,15 @@ const SecuritySettingsPage: React.FC = () => {
     description: ''
   });
   
+  const [projectPin, setProjectPin] = useState<string>('');
+  const [isDeploying, setIsDeploying] = useState(false);
+  
   const isMobile = useIsMobile();
   
-  // Form states
-  const [requireLogin, setRequireLogin] = useState(true);
-  const [publicAccess, setPublicAccess] = useState(false);
-  const [dataAccessLevel, setDataAccessLevel] = useState('team');
-  const [emailDomainRestriction, setEmailDomainRestriction] = useState('');
+  // Generate a unique 6-digit PIN when component loads
+  useEffect(() => {
+    generateProjectPin();
+  }, []);
   
   // Retrieve project data from localStorage
   useEffect(() => {
@@ -52,14 +46,74 @@ const SecuritySettingsPage: React.FC = () => {
     }
   }, []);
 
+  const generateProjectPin = () => {
+    // Generate a random 6-digit number (100000-999999)
+    const pin = Math.floor(100000 + Math.random() * 900000).toString();
+    setProjectPin(pin);
+  };
+
   const handleBack = () => {
     navigate(`/dashboard/review-form${location.search}`);
   };
   
+  const handleCopyPin = () => {
+    navigator.clipboard.writeText(projectPin);
+    toast.success('Project PIN copied to clipboard');
+  };
+  
   const handleFinish = () => {
-    // Here you would save all the project data to your backend
-    toast.success('Project successfully deployed!');
-    navigate('/dashboard/my-projects');
+    setIsDeploying(true);
+    
+    // Get all project data
+    const formFields = localStorage.getItem('formFields') 
+      ? JSON.parse(localStorage.getItem('formFields') || '[]') 
+      : [];
+      
+    // Combine all project data
+    const completeProjectData = {
+      ...projectData,
+      formFields,
+      projectPin,
+      createdAt: new Date(),
+      recordCount: 0,
+    };
+    
+    // In a real application, you would save this to your database
+    setTimeout(() => {
+      // Simulating API call delay
+      console.log('Project data to be saved:', completeProjectData);
+      
+      try {
+        // Save project to localStorage for demo purposes
+        // In production, this would be saved to a database
+        const existingProjects = localStorage.getItem('myProjects')
+          ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+          : [];
+          
+        const newProject = {
+          id: Date.now().toString(),
+          name: completeProjectData.name,
+          category: completeProjectData.category,
+          createdAt: new Date(),
+          recordCount: 0,
+          projectPin,
+        };
+        
+        existingProjects.push(newProject);
+        localStorage.setItem('myProjects', JSON.stringify(existingProjects));
+        
+        // Clear form data from localStorage
+        localStorage.removeItem('formFields');
+        localStorage.removeItem('projectData');
+        
+        toast.success('Project successfully deployed!');
+        navigate('/dashboard/my-projects');
+      } catch (error) {
+        console.error('Error deploying project:', error);
+        toast.error('Failed to deploy project. Please try again.');
+        setIsDeploying(false);
+      }
+    }, 1000);
   };
 
   return (
@@ -67,7 +121,7 @@ const SecuritySettingsPage: React.FC = () => {
       <div className="mb-4 px-1">
         <h1 className="text-xl font-bold tracking-tight">Security Settings</h1>
         <p className="text-sm text-muted-foreground mb-4">
-          Configure access control for your project
+          Configure access for your project
         </p>
         
         <ProgressSteps 
@@ -97,60 +151,24 @@ const SecuritySettingsPage: React.FC = () => {
 
       <Card className={`mb-4 ${isMobile ? 'mx-1 shadow-sm' : ''}`}>
         <CardContent className={`${isMobile ? 'p-3' : 'pt-4'}`}>
-          <h2 className="text-lg font-medium mb-3">Access Control</h2>
+          <h2 className="text-lg font-medium mb-3">Project PIN</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Share this 6-digit PIN with team members to allow them to join the project
+          </p>
           
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium">Require Login</p>
-                <p className="text-sm text-muted-foreground">Users must authenticate to access the form</p>
-              </div>
-              <Switch 
-                checked={requireLogin}
-                onCheckedChange={setRequireLogin}
-              />
+          <div className="flex flex-col items-center space-y-4">
+            <div className="text-3xl font-mono tracking-widest border border-dashed border-gray-300 rounded-md py-3 px-6 bg-muted/20">
+              {projectPin}
             </div>
             
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium">Public Access</p>
-                <p className="text-sm text-muted-foreground">Allow anyone with the link to access</p>
-              </div>
-              <Switch 
-                checked={publicAccess}
-                onCheckedChange={setPublicAccess}
-                disabled={requireLogin}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <p className="font-medium">Data Access Level</p>
-              <Select
-                value={dataAccessLevel}
-                onValueChange={setDataAccessLevel}
-              >
-                <SelectTrigger className={isMobile ? "h-10 text-base" : ""}>
-                  <SelectValue placeholder="Select access level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="owner">Owner Only</SelectItem>
-                  <SelectItem value="team">Team Members</SelectItem>
-                  <SelectItem value="organization">Organization</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <p className="font-medium">Email Domain Restriction</p>
-              <p className="text-sm text-muted-foreground">Limit access to specific email domains (e.g., company.com)</p>
-              <Input
-                value={emailDomainRestriction}
-                onChange={(e) => setEmailDomainRestriction(e.target.value)}
-                placeholder="e.g., company.com"
-                className={isMobile ? "h-10 text-base" : ""}
-              />
-            </div>
+            <Button 
+              variant="outline" 
+              onClick={handleCopyPin}
+              className="flex gap-2 items-center"
+            >
+              <Copy className="h-4 w-4" />
+              Copy PIN
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -159,7 +177,7 @@ const SecuritySettingsPage: React.FC = () => {
         <CardContent className={`${isMobile ? 'p-3' : 'pt-4'}`}>
           <h2 className="text-lg font-medium mb-3">Ready to Finish</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Your project is ready to be deployed. Users will be able to access it according to your security settings.
+            Your project is ready to be deployed. Team members can join your project using the PIN code.
           </p>
           
           <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
@@ -172,9 +190,10 @@ const SecuritySettingsPage: React.FC = () => {
             </Button>
             <Button 
               onClick={handleFinish}
+              disabled={isDeploying}
               className={isMobile ? 'h-12 text-base w-full' : ''}
             >
-              Finish & Deploy
+              {isDeploying ? 'Deploying...' : 'Finish & Deploy'}
             </Button>
           </div>
         </CardContent>
