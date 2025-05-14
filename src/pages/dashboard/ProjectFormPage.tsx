@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge'; 
-import { toast } from '@/components/ui/sonner';
+import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertCircle, Download } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -104,7 +104,11 @@ const ProjectFormPage: React.FC = () => {
       } catch (error: any) {
         console.error('Error fetching project:', error);
         setError(error.message || 'Failed to load project');
-        toast.error('Failed to load project');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: 'Failed to load project'
+        });
       } finally {
         setLoading(false);
       }
@@ -185,7 +189,10 @@ const ProjectFormPage: React.FC = () => {
         } : null);
       }
       
-      toast.success('Form submitted successfully');
+      toast({
+        title: "Success",
+        description: 'Form submitted successfully'
+      });
       
       // Reset form
       const resetData: Record<string, string> = {};
@@ -197,11 +204,19 @@ const ProjectFormPage: React.FC = () => {
       // Refresh data records if we're on the data tab
       if (activeTab === 'data') {
         fetchProjectRecords();
+      } else {
+        // Switch to data tab to show the submitted data
+        setActiveTab('data');
+        fetchProjectRecords();
       }
     } catch (error: any) {
       console.error('Error submitting form:', error);
       setError(error.message || 'Failed to submit form');
-      toast.error(error.message || 'Failed to submit form');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || 'Failed to submit form'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -232,7 +247,11 @@ const ProjectFormPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error fetching records:', error);
-      toast.error('Failed to load project data');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: 'Failed to load project data'
+      });
     } finally {
       setLoadingRecords(false);
     }
@@ -260,11 +279,18 @@ const ProjectFormPage: React.FC = () => {
       // Delete all records for this project
       localStorage.removeItem(`records_${projectId}`);
       
-      toast.success('Project deleted successfully');
+      toast({
+        title: "Success",
+        description: 'Project deleted successfully'
+      });
       navigate('/dashboard/my-projects');
     } catch (error: any) {
       console.error('Error deleting project:', error);
-      toast.error('Failed to delete project');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: 'Failed to delete project'
+      });
     } finally {
       setIsDeleteDialogOpen(false);
     }
@@ -292,10 +318,17 @@ const ProjectFormPage: React.FC = () => {
       }
       
       setProject(prev => prev ? {...prev, status: 'inactive'} : null);
-      toast.success('Survey ended successfully');
+      toast({
+        title: "Success",
+        description: 'Survey ended successfully'
+      });
     } catch (error: any) {
       console.error('Error ending survey:', error);
-      toast.error('Failed to end survey');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: 'Failed to end survey'
+      });
     } finally {
       setIsEndSurveyDialogOpen(false);
     }
@@ -308,7 +341,11 @@ const ProjectFormPage: React.FC = () => {
       // Get records for export
       const storedRecords = localStorage.getItem(`records_${project.id}`);
       if (!storedRecords) {
-        toast.error('No data to export');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: 'No data to export'
+        });
         return;
       }
       
@@ -320,7 +357,11 @@ const ProjectFormPage: React.FC = () => {
         parsedRecords;
       
       if (recordsToExport.length === 0) {
-        toast.error('No data to export');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: 'No data to export'
+        });
         return;
       }
       
@@ -364,10 +405,17 @@ const ProjectFormPage: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       
-      toast.success('Data exported successfully');
+      toast({
+        title: "Success",
+        description: 'Data exported successfully'
+      });
     } catch (error: any) {
       console.error('Error exporting data:', error);
-      toast.error('Failed to export data');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: 'Failed to export data'
+      });
     }
   };
   
