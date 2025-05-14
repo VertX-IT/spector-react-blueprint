@@ -7,14 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge'; // Added Badge import
-import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge'; 
+import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Download } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Project, getProjectById, submitFormData, getProjectRecords } from '@/lib/projectOperations';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   AlertDialog,
@@ -28,11 +25,25 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface ProjectRecord {
-  id?: string;
+  id: string;
   projectId: string;
   data: Record<string, any>;
   createdAt: string;
   createdBy: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  category: string;
+  createdAt: Date;
+  recordCount: number;
+  projectPin: string;
+  formFields?: any[];
+  description?: string;
+  status?: 'active' | 'inactive';
+  endedAt?: string;
+  createdBy?: string;
 }
 
 const ProjectFormPage: React.FC = () => {
@@ -62,20 +73,33 @@ const ProjectFormPage: React.FC = () => {
           throw new Error('Project ID is missing');
         }
         
-        const projectData = await getProjectById(projectId);
-        if (projectData) {
-          setProject(projectData);
+        // For now, load from localStorage
+        const storedProjects = localStorage.getItem('myProjects');
+        if (storedProjects) {
+          const parsedProjects = JSON.parse(storedProjects);
+          const foundProject = parsedProjects.find((p: any) => p.id === projectId);
           
-          // Initialize form data with empty values
-          const initialData: Record<string, string> = {};
-          if (projectData.formFields && Array.isArray(projectData.formFields)) {
-            projectData.formFields.forEach((field: any) => {
-              initialData[field.id] = '';
+          if (foundProject) {
+            setProject({
+              ...foundProject,
+              createdAt: new Date(foundProject.createdAt),
+              recordCount: foundProject.recordCount || 0,
+              status: foundProject.status || 'active'
             });
+            
+            // Initialize form data with empty values
+            const initialData: Record<string, string> = {};
+            if (foundProject.formFields && Array.isArray(foundProject.formFields)) {
+              foundProject.formFields.forEach((field: any) => {
+                initialData[field.id] = '';
+              });
+            }
+            setFormData(initialData);
+          } else {
+            throw new Error('Project not found');
           }
-          setFormData(initialData);
         } else {
-          throw new Error('Project not found');
+          throw new Error('No projects found');
         }
       } catch (error: any) {
         console.error('Error fetching project:', error);
@@ -119,7 +143,47 @@ const ProjectFormPage: React.FC = () => {
         throw new Error(`Please fill in all required fields: ${requiredFields.join(', ')}`);
       }
       
-      await submitFormData(project.id, formData, userData?.uid || 'anonymous');
+      // Create the record
+      const newRecord: ProjectRecord = {
+        id: `record_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        projectId: project.id,
+        data: { ...formData },
+        createdAt: new Date().toISOString(),
+        createdBy: userData?.uid || 'anonymous',
+      };
+      
+      // Get existing records for this project
+      let projectRecords: ProjectRecord[] = [];
+      const storedRecords = localStorage.getItem(`records_${project.id}`);
+      if (storedRecords) {
+        projectRecords = JSON.parse(storedRecords);
+      }
+      
+      // Add the new record
+      projectRecords.push(newRecord);
+      localStorage.setItem(`records_${project.id}`, JSON.stringify(projectRecords));
+      
+      // Update project record count
+      const storedProjects = localStorage.getItem('myProjects');
+      if (storedProjects) {
+        const parsedProjects = JSON.parse(storedProjects);
+        const updatedProjects = parsedProjects.map((p: any) => {
+          if (p.id === project.id) {
+            return {
+              ...p,
+              recordCount: (p.recordCount || 0) + 1
+            };
+          }
+          return p;
+        });
+        localStorage.setItem('myProjects', JSON.stringify(updatedProjects));
+        
+        // Update current project state
+        setProject(prev => prev ? {
+          ...prev,
+          recordCount: (prev.recordCount || 0) + 1
+        } : null);
+      }
       
       toast.success('Form submitted successfully');
       
@@ -148,8 +212,24 @@ const ProjectFormPage: React.FC = () => {
     
     setLoadingRecords(true);
     try {
-      const records = await getProjectRecords(project.id);
-      setProjectRecords(records);
+      // Get records from localStorage
+      const storedRecords = localStorage.getItem(`records_${project.id}`);
+      if (storedRecords) {
+        const parsedRecords = JSON.parse(storedRecords);
+        
+        // Filter by current user if collector
+        if (!isDesigner && userData?.uid) {
+          const userRecords = parsedRecords.filter((record: ProjectRecord) => 
+            record.createdBy === userData.uid
+          );
+          setProjectRecords(userRecords);
+        } else {
+          // Show all records for designers
+          setProjectRecords(parsedRecords);
+        }
+      } else {
+        setProjectRecords([]);
+      }
     } catch (error: any) {
       console.error('Error fetching records:', error);
       toast.error('Failed to load project data');
@@ -160,33 +240,25 @@ const ProjectFormPage: React.FC = () => {
   
   // Load data records when switching to the data tab
   useEffect(() => {
-    if (activeTab === 'data' && project?.id && isDesigner) {
+    if (activeTab === 'data' && project?.id) {
       fetchProjectRecords();
     }
-  }, [activeTab, project?.id, isDesigner]);
+  }, [activeTab, project?.id]);
   
   const handleDeleteProject = async () => {
     if (!projectId) return;
     
     try {
-      // Delete the project
-      const projectRef = doc(db, 'projects', projectId);
-      await deleteDoc(projectRef);
+      // Delete the project from localStorage
+      const storedProjects = localStorage.getItem('myProjects');
+      if (storedProjects) {
+        const parsedProjects = JSON.parse(storedProjects);
+        const updatedProjects = parsedProjects.filter((p: any) => p.id !== projectId);
+        localStorage.setItem('myProjects', JSON.stringify(updatedProjects));
+      }
       
       // Delete all records for this project
-      const recordsCollection = collection(db, 'records');
-      const projectRecords = await getProjectRecords(projectId);
-      
-      // Delete each record
-      const deletePromises = projectRecords.map(record => {
-        if (record.id) {
-          const recordRef = doc(db, 'records', record.id);
-          return deleteDoc(recordRef);
-        }
-        return Promise.resolve();
-      });
-      
-      await Promise.all(deletePromises);
+      localStorage.removeItem(`records_${projectId}`);
       
       toast.success('Project deleted successfully');
       navigate('/dashboard/my-projects');
@@ -202,12 +274,22 @@ const ProjectFormPage: React.FC = () => {
     if (!project?.id) return;
     
     try {
-      // Mark project as inactive in Firestore
-      const projectRef = doc(db, 'projects', project.id);
-      await updateDoc(projectRef, {
-        status: 'inactive',
-        endedAt: new Date().toISOString()
-      });
+      // Mark project as inactive in localStorage
+      const storedProjects = localStorage.getItem('myProjects');
+      if (storedProjects) {
+        const parsedProjects = JSON.parse(storedProjects);
+        const updatedProjects = parsedProjects.map((p: any) => {
+          if (p.id === project.id) {
+            return {
+              ...p,
+              status: 'inactive',
+              endedAt: new Date().toISOString()
+            };
+          }
+          return p;
+        });
+        localStorage.setItem('myProjects', JSON.stringify(updatedProjects));
+      }
       
       setProject(prev => prev ? {...prev, status: 'inactive'} : null);
       toast.success('Survey ended successfully');
@@ -216,6 +298,76 @@ const ProjectFormPage: React.FC = () => {
       toast.error('Failed to end survey');
     } finally {
       setIsEndSurveyDialogOpen(false);
+    }
+  };
+  
+  const handleExportData = () => {
+    if (!project?.id) return;
+    
+    try {
+      // Get records for export
+      const storedRecords = localStorage.getItem(`records_${project.id}`);
+      if (!storedRecords) {
+        toast.error('No data to export');
+        return;
+      }
+      
+      const parsedRecords = JSON.parse(storedRecords);
+      
+      // Filter by current user if collector
+      const recordsToExport = !isDesigner && userData?.uid ? 
+        parsedRecords.filter((record: ProjectRecord) => record.createdBy === userData.uid) : 
+        parsedRecords;
+      
+      if (recordsToExport.length === 0) {
+        toast.error('No data to export');
+        return;
+      }
+      
+      // Format records for CSV export
+      const headers = ['Record ID', 'Created At', 'Created By'];
+      
+      // Add form field headers
+      if (project.formFields && project.formFields.length > 0) {
+        project.formFields.forEach(field => {
+          headers.push(field.label);
+        });
+      }
+      
+      // Create CSV rows
+      const rows = recordsToExport.map((record: ProjectRecord) => {
+        const row = [record.id, record.createdAt, record.createdBy];
+        
+        // Add form field values
+        if (project.formFields && project.formFields.length > 0) {
+          project.formFields.forEach(field => {
+            row.push(record.data[field.id] || '');
+          });
+        }
+        
+        return row;
+      });
+      
+      // Convert to CSV
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+      ].join('\n');
+      
+      // Create download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${project.name}_data_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Data exported successfully');
+    } catch (error: any) {
+      console.error('Error exporting data:', error);
+      toast.error('Failed to export data');
     }
   };
   
@@ -248,9 +400,12 @@ const ProjectFormPage: React.FC = () => {
           <p className="text-sm text-muted-foreground">
             {project.description || `Data collection form for ${project.category}`}
           </p>
-          {isProjectInactive && (
-            <Badge variant="destructive" className="mt-2">Survey Ended</Badge>
-          )}
+          <div className="flex items-center gap-2 mt-1">
+            <Badge variant="outline" className="text-xs">PIN: {project.projectPin}</Badge>
+            {isProjectInactive && (
+              <Badge variant="destructive" className="text-xs">Survey Ended</Badge>
+            )}
+          </div>
         </div>
         
         {isDesigner && (
@@ -283,248 +438,198 @@ const ProjectFormPage: React.FC = () => {
         )}
       </div>
       
-      {isDesigner ? (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="form">Form</TabsTrigger>
-            <TabsTrigger value="data">View Data</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="form">
-            <Card>
-              <CardHeader>
-                <CardTitle>Data Collection Form</CardTitle>
-                <CardDescription>Fill this form to collect data for this project</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleFormSubmit} className="space-y-4">
-                  {project.formFields && project.formFields.length > 0 ? (
-                    project.formFields.map((field: any) => (
-                      <div key={field.id} className="space-y-2">
-                        <label 
-                          htmlFor={field.id} 
-                          className="text-sm font-medium flex items-center"
-                        >
-                          {field.label}
-                          {field.required && <span className="text-red-500 ml-1">*</span>}
-                        </label>
-                        
-                        {field.type === 'text' && (
-                          <Input
-                            id={field.id}
-                            value={formData[field.id] || ''}
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                            placeholder={field.placeholder || ''}
-                            required={field.required}
-                            disabled={isProjectInactive}
-                          />
-                        )}
-                        
-                        {field.type === 'textarea' && (
-                          <Textarea
-                            id={field.id}
-                            value={formData[field.id] || ''}
-                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                            placeholder={field.placeholder || ''}
-                            required={field.required}
-                            disabled={isProjectInactive}
-                          />
-                        )}
-                        
-                        {field.type === 'select' && (
-                          <Select 
-                            value={formData[field.id] || ''} 
-                            onValueChange={(value) => handleInputChange(field.id, value)}
-                            disabled={isProjectInactive}
-                          >
-                            <SelectTrigger id={field.id}>
-                              <SelectValue placeholder={field.placeholder || 'Select an option'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {field.options?.map((option: string) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-8 text-center text-muted-foreground">
-                      <p>No form fields found for this project.</p>
-                    </div>
-                  )}
-                  
-                  {project.formFields && project.formFields.length > 0 && !isProjectInactive && (
-                    <div className="pt-4 flex justify-end space-x-2">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => navigate('/dashboard/my-projects')}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="form">Form</TabsTrigger>
+          <TabsTrigger value="data">View Data</TabsTrigger>
+          {(!isDesigner || (isDesigner && projectRecords.length > 0)) && (
+            <TabsTrigger value="export" className="ml-auto">
+              Export Data
+            </TabsTrigger>
+          )}
+        </TabsList>
+        
+        <TabsContent value="form">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Collection Form</CardTitle>
+              <CardDescription>Fill this form to collect data for this project</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                {project.formFields && project.formFields.length > 0 ? (
+                  project.formFields.map((field: any) => (
+                    <div key={field.id} className="space-y-2">
+                      <label 
+                        htmlFor={field.id} 
+                        className="text-sm font-medium flex items-center"
                       >
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={submitting || isProjectInactive}>
-                        {submitting ? 'Submitting...' : 'Submit Form'}
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {isProjectInactive && (
-                    <Alert variant="destructive" className="mt-4">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        This survey has been closed and is no longer accepting submissions.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="data">
-            <Card>
-              <CardHeader>
-                <CardTitle>Collected Data</CardTitle>
-                <CardDescription>View all submitted data for this project</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingRecords ? (
-                  <div className="py-8 text-center">
-                    <p>Loading records...</p>
-                  </div>
-                ) : projectRecords.length > 0 ? (
-                  <div className="rounded-md border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          {project.formFields?.map((field: any) => (
-                            <TableHead key={field.id}>{field.label}</TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {projectRecords.map((record, index) => (
-                          <TableRow key={record.id || index}>
-                            <TableCell>
-                              {new Date(record.createdAt).toLocaleDateString()}
-                            </TableCell>
-                            {project.formFields?.map((field: any) => (
-                              <TableCell key={field.id}>
-                                {record.data[field.id] || '-'}
-                              </TableCell>
+                        {field.label}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      
+                      {field.type === 'text' && (
+                        <Input
+                          id={field.id}
+                          value={formData[field.id] || ''}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          placeholder={field.placeholder || ''}
+                          required={field.required}
+                          disabled={isProjectInactive}
+                        />
+                      )}
+                      
+                      {field.type === 'textarea' && (
+                        <Textarea
+                          id={field.id}
+                          value={formData[field.id] || ''}
+                          onChange={(e) => handleInputChange(field.id, e.target.value)}
+                          placeholder={field.placeholder || ''}
+                          required={field.required}
+                          disabled={isProjectInactive}
+                        />
+                      )}
+                      
+                      {field.type === 'select' && (
+                        <Select 
+                          value={formData[field.id] || ''} 
+                          onValueChange={(value) => handleInputChange(field.id, value)}
+                          disabled={isProjectInactive}
+                        >
+                          <SelectTrigger id={field.id}>
+                            <SelectValue placeholder={field.placeholder || 'Select an option'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {field.options?.map((option: string) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
                             ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  ))
                 ) : (
                   <div className="py-8 text-center text-muted-foreground">
-                    <p>No data has been collected for this project yet.</p>
+                    <p>No form fields found for this project.</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Enter Data</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleFormSubmit} className="space-y-4">
-              {project.formFields && project.formFields.length > 0 ? (
-                project.formFields.map((field: any) => (
-                  <div key={field.id} className="space-y-2">
-                    <label 
-                      htmlFor={field.id} 
-                      className="text-sm font-medium flex items-center"
+                
+                {project.formFields && project.formFields.length > 0 && !isProjectInactive && (
+                  <div className="pt-4 flex justify-end space-x-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => navigate('/dashboard/my-projects')}
                     >
-                      {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    
-                    {field.type === 'text' && (
-                      <Input
-                        id={field.id}
-                        value={formData[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
-                        placeholder={field.placeholder || ''}
-                        required={field.required}
-                        disabled={isProjectInactive}
-                      />
-                    )}
-                    
-                    {field.type === 'textarea' && (
-                      <Textarea
-                        id={field.id}
-                        value={formData[field.id] || ''}
-                        onChange={(e) => handleInputChange(field.id, e.target.value)}
-                        placeholder={field.placeholder || ''}
-                        required={field.required}
-                        disabled={isProjectInactive}
-                      />
-                    )}
-                    
-                    {field.type === 'select' && (
-                      <Select 
-                        value={formData[field.id] || ''} 
-                        onValueChange={(value) => handleInputChange(field.id, value)}
-                        disabled={isProjectInactive}
-                      >
-                        <SelectTrigger id={field.id}>
-                          <SelectValue placeholder={field.placeholder || 'Select an option'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {field.options?.map((option: string) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={submitting || isProjectInactive}>
+                      {submitting ? 'Submitting...' : 'Submit Form'}
+                    </Button>
                   </div>
-                ))
+                )}
+                
+                {isProjectInactive && (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      This survey has been closed and is no longer accepting submissions.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="data">
+          <Card>
+            <CardHeader>
+              <CardTitle>Collected Data</CardTitle>
+              <CardDescription>
+                {isDesigner 
+                  ? "View all submitted data for this project" 
+                  : "View your submitted data for this project"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingRecords ? (
+                <div className="py-8 text-center">
+                  <p>Loading records...</p>
+                </div>
+              ) : projectRecords.length > 0 ? (
+                <div className="rounded-md border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        {project.formFields?.map((field: any) => (
+                          <TableHead key={field.id}>{field.label}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {projectRecords.map((record, index) => (
+                        <TableRow key={record.id || index}>
+                          <TableCell>
+                            {new Date(record.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          {project.formFields?.map((field: any) => (
+                            <TableCell key={field.id}>
+                              {record.data[field.id] || '-'}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
-                  <p>No form fields found for this project.</p>
+                  <p>No data has been collected for this project yet.</p>
                 </div>
               )}
-              
-              {project.formFields && project.formFields.length > 0 && !isProjectInactive && (
-                <div className="pt-4 flex justify-end space-x-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => navigate('/dashboard/my-projects')}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={submitting || isProjectInactive}>
-                    {submitting ? 'Submitting...' : 'Submit Form'}
-                  </Button>
-                </div>
-              )}
-              
-              {isProjectInactive && (
-                <Alert variant="destructive" className="mt-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    This survey has been closed and is no longer accepting submissions.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </form>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="export">
+          <Card>
+            <CardHeader>
+              <CardTitle>Export Data</CardTitle>
+              <CardDescription>
+                {isDesigner 
+                  ? "Export all collected data for this project" 
+                  : "Export your submitted data for this project"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="py-8 flex flex-col items-center justify-center space-y-4">
+                <p className="text-center text-muted-foreground max-w-md">
+                  Click the button below to export the data as a CSV file. The file will contain all 
+                  {isDesigner ? "" : " your"} data collected for this project.
+                </p>
+                <Button 
+                  onClick={handleExportData} 
+                  className="mt-4"
+                  disabled={projectRecords.length === 0}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export CSV
+                </Button>
+                
+                {projectRecords.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    No data available to export
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
       
       {/* Delete Project Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
