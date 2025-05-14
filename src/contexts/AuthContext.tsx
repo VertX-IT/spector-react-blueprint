@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { 
   User, 
@@ -7,7 +6,10 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -32,6 +34,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   logOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -162,6 +165,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      if (!currentUser || !currentUser.email) {
+        throw new Error("No authenticated user found");
+      }
+      
+      // Reauthenticate user before changing password
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        currentPassword
+      );
+      
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Change password
+      await updatePassword(currentUser, newPassword);
+      
+      toast({
+        title: "Password updated",
+        description: "Your password has been changed successfully.",
+      });
+    } catch (error: any) {
+      let errorMessage = "Failed to change password";
+      
+      if (error.code === 'auth/wrong-password') {
+        errorMessage = "Current password is incorrect";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "New password is too weak";
+      } else if (error.code === 'auth/requires-recent-login') {
+        errorMessage = "Please sign in again before changing your password";
+      }
+      
+      toast({
+        title: "Error changing password",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw error;
+    }
+  };
+
   const value: AuthContextType = {
     currentUser,
     userData,
@@ -169,7 +214,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signIn,
     logOut,
-    resetPassword
+    resetPassword,
+    changePassword
   };
 
   return (

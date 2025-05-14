@@ -11,13 +11,13 @@ import { Input } from '@/components/ui/input';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useToast } from '@/hooks/use-toast';
-import { LogOut, Database, CreditCard } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { LogOut, Database, CreditCard, Lock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 
-// Define the form schema
+// Define the profile form schema
 const profileFormSchema = z.object({
   displayName: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
@@ -26,9 +26,22 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
+// Define the password change form schema
+const passwordFormSchema = z.object({
+  currentPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type PasswordFormValues = z.infer<typeof passwordFormSchema>;
+
 const ProfilePage: React.FC = () => {
-  const { userData, logOut, currentUser } = useAuth();
+  const { userData, logOut, currentUser, changePassword } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -39,6 +52,16 @@ const ProfilePage: React.FC = () => {
       displayName: userData?.displayName || '',
       email: userData?.email || '',
       phoneNumber: userData?.phoneNumber || '',
+    },
+  });
+  
+  // Setup password form
+  const passwordForm = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
     },
   });
   
@@ -58,6 +81,18 @@ const ProfilePage: React.FC = () => {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  // Handle password change
+  const onPasswordSubmit = async (data: PasswordFormValues) => {
+    try {
+      await changePassword(data.currentPassword, data.newPassword);
+      setIsPasswordDialogOpen(false);
+      passwordForm.reset();
+    } catch (error) {
+      console.error("Password change error:", error);
+      // Error handling is done in the auth context
     }
   };
   
@@ -133,7 +168,14 @@ const ProfilePage: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 Last changed: Never
               </p>
-              <Button variant="outline" className="w-full">Change Password</Button>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setIsPasswordDialogOpen(true)}
+              >
+                <Lock className="mr-2 h-4 w-4" />
+                Change Password
+              </Button>
             </div>
             
             <div className="pt-4 border-t">
@@ -334,6 +376,69 @@ const ProfilePage: React.FC = () => {
               
               <DialogFooter>
                 <Button type="submit">Save changes</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Change Password Dialog */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and a new password below.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+              <FormField
+                control={passwordForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Current Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={passwordForm.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={passwordForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter>
+                <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
+                  {passwordForm.formState.isSubmitting ? "Updating..." : "Update Password"}
+                </Button>
               </DialogFooter>
             </form>
           </Form>
