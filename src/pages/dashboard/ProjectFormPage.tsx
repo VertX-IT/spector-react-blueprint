@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { LocationSelector } from '@/components/survey/LocationSelector';
 
 interface Section {
   id: string;
@@ -307,6 +307,19 @@ const ProjectFormPage: React.FC = () => {
       fetchProjectRecords();
     }
   }, [activeTab, project?.id]);
+  
+  // Helper function to format location data for display
+  const formatLocationForDisplay = (locationValue: string): string => {
+    try {
+      const location = JSON.parse(locationValue);
+      if (location.province && location.district) {
+        return `${location.district}, ${location.province}`;
+      }
+      return locationValue;
+    } catch (e) {
+      return locationValue || '-';
+    }
+  };
   
   const handleDeleteProject = async () => {
     if (!projectId) return;
@@ -645,8 +658,15 @@ const ProjectFormPage: React.FC = () => {
                                 </SelectContent>
                               </Select>
                             )}
-
-                            {/* Add other field types as needed */}
+                            
+                            {field.type === 'location' && (
+                              <LocationSelector
+                                value={formData[field.id] || ''}
+                                onChange={(value) => handleInputChange(field.id, value)}
+                                placeholder={field.placeholder || 'Enter location'}
+                                disabled={isProjectInactive}
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -722,7 +742,9 @@ const ProjectFormPage: React.FC = () => {
                             </TableCell>
                             {project.formFields?.map((field: any) => (
                               <TableCell key={field.id}>
-                                {record.data[field.id] || '-'}
+                                {field.type === 'location' 
+                                  ? formatLocationForDisplay(record.data[field.id] || '')
+                                  : record.data[field.id] || '-'}
                               </TableCell>
                             ))}
                           </TableRow>

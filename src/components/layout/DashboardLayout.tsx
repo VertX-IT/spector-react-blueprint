@@ -33,7 +33,7 @@ export const DashboardLayout: React.FC = () => {
           <DashboardHeader />
           
           <ScrollArea className="h-[calc(100vh-64px-env(safe-area-inset-bottom,0px))] overflow-auto">
-            <main className="p-3 sm:p-4 animate-fade-in pb-24"> {/* Increased bottom padding for mobile */}
+            <main className="p-3 sm:p-4 animate-fade-in pb-24 max-w-full"> {/* Ensure content fits on mobile */}
               <Outlet />
             </main>
           </ScrollArea>

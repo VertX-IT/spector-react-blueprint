@@ -23,6 +23,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         isMobile && !noBottomPadding && "pb-[calc(64px+env(safe-area-inset-bottom,0px))]", // Add padding bottom for mobile navigation
         className
       )}
+      style={{ maxWidth: '100%', overflowX: 'hidden' }} // Ensure content doesn't overflow on mobile
     >
       {children}
     </div>
