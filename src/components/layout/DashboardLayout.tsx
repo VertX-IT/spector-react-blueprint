@@ -19,7 +19,7 @@ export const DashboardLayout: React.FC = () => {
             <DashboardHeader />
             
             <ScrollArea className="flex-1 overflow-auto">
-              <main className="flex-1 p-4 md:p-6">
+              <main className="flex-1 p-4 md:p-6 animate-fade-in">
                 <Outlet />
               </main>
             </ScrollArea>
@@ -33,7 +33,7 @@ export const DashboardLayout: React.FC = () => {
           <DashboardHeader />
           
           <ScrollArea className="h-[calc(100vh-64px)] overflow-auto">
-            <main className="p-4">
+            <main className="p-4 animate-fade-in">
               <Outlet />
             </main>
           </ScrollArea>

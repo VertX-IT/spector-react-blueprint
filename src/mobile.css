@@ -1,5 +1,4 @@
 
-
 /* Mobile-specific styles */
 :root {
   --ion-color-primary: #1D3557;
@@ -105,6 +104,24 @@ button, a, .btn, [role="button"] {
   h2 {
     font-size: 1.25rem;
   }
+  
+  /* Improve project card layout */
+  .card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  /* Better form spacing */
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+  
+  /* Improve card readability */
+  .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
 }
 
 /* Adjust form input sizes for better touch targets */
@@ -112,6 +129,19 @@ button, a, .btn, [role="button"] {
   input, select, textarea, .btn {
     font-size: 16px; /* Prevents iOS zoom on focus */
     padding: 0.75rem;
+  }
+  
+  /* Improve button spacing in mobile forms */
+  .button-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  
+  /* Better spacing for form labels */
+  label {
+    margin-bottom: 0.5rem;
+    display: block;
   }
 }
 
@@ -137,3 +167,44 @@ button, a, .btn, [role="button"] {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+/* New modern mobile styles */
+.modern-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.modern-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.modern-card:active {
+  transform: scale(0.98);
+}
+
+/* Improve form UI */
+.modern-form-field {
+  margin-bottom: 1.25rem;
+}
+
+.modern-form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+/* Better mobile padding for main content */
+.mobile-main-content {
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .mobile-main-content {
+    padding: 1.5rem;
+  }
+}
