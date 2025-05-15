@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, Edit, Trash } from 'lucide-react';
+import { FolderOpen, Edit, Trash, Copy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ProjectCardProps {
@@ -16,6 +16,7 @@ interface ProjectCardProps {
   projectPin?: string;
   status?: 'active' | 'inactive';
   onDelete?: (id: string) => void;
+  onDuplicate?: (id: string) => void;
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -27,6 +28,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   projectPin,
   status = 'active',
   onDelete,
+  onDuplicate,
 }) => {
   const navigate = useNavigate();
   const { userData } = useAuth();
@@ -85,6 +87,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               <Edit className="h-4 w-4 mr-1" />
               Edit
             </Button>
+            
+            {onDuplicate && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => onDuplicate(id)}
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Duplicate
+              </Button>
+            )}
             
             {onDelete && (
               <Button

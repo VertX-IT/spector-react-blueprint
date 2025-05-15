@@ -11,7 +11,9 @@ import {
   where,
   serverTimestamp,
   updateDoc,
-  increment
+  increment,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -38,6 +40,50 @@ export interface ProjectRecord {
   createdAt: string;
   createdBy: string;
 }
+
+// Generate a sequential PIN code
+export const generateSequentialPin = async () => {
+  try {
+    // Get the project with the highest PIN code
+    const projectsRef = collection(db, 'projects');
+    const q = query(projectsRef, orderBy('projectPin', 'desc'), limit(1));
+    const querySnapshot = await getDocs(q);
+    
+    // If no projects exist, start with 000000
+    if (querySnapshot.empty) {
+      return '000000';
+    }
+    
+    // Get the highest PIN and increment it
+    const highestPin = querySnapshot.docs[0].data().projectPin;
+    
+    // If the highest PIN is not numeric for some reason, start from 000000
+    if (!highestPin || isNaN(parseInt(highestPin))) {
+      return '000000';
+    }
+    
+    // Convert to integer, increment, and format back to 6-digit string
+    const nextPinNumber = parseInt(highestPin) + 1;
+    const nextPin = nextPinNumber.toString().padStart(6, '0');
+    
+    // Verify this PIN doesn't already exist (double-check)
+    const pinCheckQuery = query(projectsRef, where("projectPin", "==", nextPin));
+    const pinCheckSnapshot = await getDocs(pinCheckQuery);
+    
+    if (!pinCheckSnapshot.empty) {
+      // If by some chance the PIN already exists, recursively try the next one
+      return generateSequentialPin();
+    }
+    
+    return nextPin;
+  } catch (error) {
+    console.error('Error generating sequential PIN:', error);
+    
+    // Fallback to a random PIN if there's an error
+    const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+    return randomPin;
+  }
+};
 
 // Verify Firebase connection
 export const verifyFirebaseConnection = async () => {
@@ -91,6 +137,45 @@ export const saveProject = async (projectData: Omit<Project, 'id'>) => {
     
     // Throw a more descriptive error
     throw new Error(`Failed to save project: ${errorMessage}`);
+  }
+};
+
+// Duplicate a project
+export const duplicateProject = async (projectId: string, newName?: string) => {
+  try {
+    console.log('Attempting to duplicate project with ID:', projectId);
+    
+    // Get the original project data
+    const originalProject = await getProjectById(projectId);
+    
+    if (!originalProject) {
+      throw new Error('Project not found');
+    }
+    
+    // Generate a new sequential PIN
+    const newPin = await generateSequentialPin();
+    
+    // Create a new project based on the original project
+    const duplicatedProjectData: Omit<Project, 'id'> = {
+      name: newName || `${originalProject.name} (Copy)`,
+      category: originalProject.category,
+      createdAt: new Date(),
+      recordCount: 0, // Start with 0 records
+      projectPin: newPin,
+      createdBy: originalProject.createdBy,
+      formFields: originalProject.formFields || [],
+      description: originalProject.description || '',
+      status: 'active', // Always start as active
+    };
+    
+    // Save the duplicated project
+    const newProject = await saveProject(duplicatedProjectData);
+    console.log('Project duplicated successfully with ID:', newProject.id);
+    
+    return newProject;
+  } catch (error: any) {
+    console.error('Error duplicating project:', error);
+    throw new Error(`Failed to duplicate project: ${error.message || 'Unknown error'}`);
   }
 };
 
