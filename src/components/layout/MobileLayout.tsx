@@ -15,7 +15,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({ children, className 
     <div 
       className={cn(
         "mobile-container w-full h-full",
-        isMobile && "pb-16", // Add padding bottom for mobile navigation
+        isMobile && "pb-[calc(64px+env(safe-area-inset-bottom,0px))]", // Add padding bottom for mobile navigation
         className
       )}
     >

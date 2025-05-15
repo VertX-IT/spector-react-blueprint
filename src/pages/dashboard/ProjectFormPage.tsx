@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -442,13 +441,14 @@ const ProjectFormPage: React.FC = () => {
   
   return (
     <>
-      <div className="mb-4 flex justify-between items-start">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">{project.name}</h1>
+      {/* Project Header - Responsive Layout */}
+      <div className="mb-4 space-y-3">
+        <div className="flex flex-col">
+          <h1 className="text-xl font-bold tracking-tight line-clamp-2">{project.name}</h1>
           <p className="text-sm text-muted-foreground">
             {project.description || `Data collection form for ${project.category}`}
           </p>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex flex-wrap items-center gap-2 mt-1">
             <Badge variant="outline" className="text-xs">PIN: {project.projectPin}</Badge>
             {isProjectInactive && (
               <Badge variant="destructive" className="text-xs">Survey Ended</Badge>
@@ -456,19 +456,21 @@ const ProjectFormPage: React.FC = () => {
           </div>
         </div>
         
+        {/* Action Buttons - Moved to a separate row for mobile */}
         {isDesigner && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate(`/dashboard/projects/${projectId}/edit`)}
+              className="flex-1 min-w-[80px] sm:flex-none"
             >
               Edit Survey
             </Button>
             <Button
               variant="outline"
               size="sm" 
-              className="text-amber-500 hover:text-amber-600"
+              className="flex-1 min-w-[80px] sm:flex-none text-amber-500 hover:text-amber-600"
               onClick={() => setIsEndSurveyDialogOpen(true)}
               disabled={isProjectInactive}
             >
@@ -477,7 +479,7 @@ const ProjectFormPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              className="text-destructive hover:text-destructive"
+              className="flex-1 min-w-[80px] sm:flex-none text-destructive hover:text-destructive"
               onClick={() => setIsDeleteDialogOpen(true)}
             >
               Delete
@@ -487,18 +489,16 @@ const ProjectFormPage: React.FC = () => {
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="form">Form</TabsTrigger>
-          <TabsTrigger value="data">View Data</TabsTrigger>
+        <TabsList className="mb-4 w-full">
+          <TabsTrigger value="form" className="flex-1">Form</TabsTrigger>
+          <TabsTrigger value="data" className="flex-1">View Data</TabsTrigger>
           {(!isDesigner || (isDesigner && projectRecords.length > 0)) && (
-            <TabsTrigger value="export" className="ml-auto">
-              Export Data
-            </TabsTrigger>
+            <TabsTrigger value="export" className="flex-1">Export</TabsTrigger>
           )}
         </TabsList>
         
         <TabsContent value="form">
-          <Card>
+          <Card className="mb-4">
             <CardHeader>
               <CardTitle>Data Collection Form</CardTitle>
               <CardDescription>Fill this form to collect data for this project</CardDescription>
@@ -565,15 +565,20 @@ const ProjectFormPage: React.FC = () => {
                 )}
                 
                 {project.formFields && project.formFields.length > 0 && !isProjectInactive && (
-                  <div className="pt-4 flex justify-end space-x-2">
+                  <div className="pt-4 flex flex-wrap gap-2 justify-end">
                     <Button 
                       type="button" 
-                      variant="outline" 
+                      variant="outline"
+                      className="flex-1 sm:flex-none"
                       onClick={() => navigate('/dashboard/my-projects')}
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={submitting || isProjectInactive}>
+                    <Button 
+                      type="submit" 
+                      disabled={submitting || isProjectInactive}
+                      className="flex-1 sm:flex-none"
+                    >
                       {submitting ? 'Submitting...' : 'Submit Form'}
                     </Button>
                   </div>
@@ -593,7 +598,7 @@ const ProjectFormPage: React.FC = () => {
         </TabsContent>
         
         <TabsContent value="data">
-          <Card>
+          <Card className="mb-4 overflow-hidden">
             <CardHeader>
               <CardTitle>Collected Data</CardTitle>
               <CardDescription>
@@ -608,31 +613,33 @@ const ProjectFormPage: React.FC = () => {
                   <p>Loading records...</p>
                 </div>
               ) : projectRecords.length > 0 ? (
-                <div className="rounded-md border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        {project.formFields?.map((field: any) => (
-                          <TableHead key={field.id}>{field.label}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {projectRecords.map((record, index) => (
-                        <TableRow key={record.id || index}>
-                          <TableCell>
-                            {new Date(record.createdAt).toLocaleDateString()}
-                          </TableCell>
+                <div className="overflow-auto -mx-5 px-5">
+                  <div className="rounded-md border overflow-hidden mb-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="whitespace-nowrap">Date</TableHead>
                           {project.formFields?.map((field: any) => (
-                            <TableCell key={field.id}>
-                              {record.data[field.id] || '-'}
-                            </TableCell>
+                            <TableHead key={field.id} className="whitespace-nowrap">{field.label}</TableHead>
                           ))}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {projectRecords.map((record, index) => (
+                          <TableRow key={record.id || index}>
+                            <TableCell className="whitespace-nowrap">
+                              {new Date(record.createdAt).toLocaleDateString()}
+                            </TableCell>
+                            {project.formFields?.map((field: any) => (
+                              <TableCell key={field.id}>
+                                {record.data[field.id] || '-'}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
@@ -644,7 +651,7 @@ const ProjectFormPage: React.FC = () => {
         </TabsContent>
         
         <TabsContent value="export">
-          <Card>
+          <Card className="mb-4">
             <CardHeader>
               <CardTitle>Export Data</CardTitle>
               <CardDescription>
@@ -654,14 +661,14 @@ const ProjectFormPage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="py-8 flex flex-col items-center justify-center space-y-4">
+              <div className="py-6 flex flex-col items-center justify-center space-y-4">
                 <p className="text-center text-muted-foreground max-w-md">
                   Click the button below to export the data as a CSV file. The file will contain all 
                   {isDesigner ? "" : " your"} data collected for this project.
                 </p>
                 <Button 
                   onClick={handleExportData} 
-                  className="mt-4"
+                  className="mt-4 w-full sm:w-auto"
                   disabled={projectRecords.length === 0}
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -688,9 +695,9 @@ const ProjectFormPage: React.FC = () => {
               This action cannot be undone. This will permanently delete the project and all associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteProject} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteProject} className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -706,9 +713,9 @@ const ProjectFormPage: React.FC = () => {
               This will close the survey and prevent any further submissions. You will still be able to view collected data.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleEndSurvey}>
+          <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleEndSurvey} className="w-full sm:w-auto">
               End Survey
             </AlertDialogAction>
           </AlertDialogFooter>

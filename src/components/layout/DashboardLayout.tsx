@@ -32,8 +32,8 @@ export const DashboardLayout: React.FC = () => {
         <MobileLayout className="has-bottom-tabs">
           <DashboardHeader />
           
-          <ScrollArea className="h-[calc(100vh-64px)] overflow-auto">
-            <main className="p-4 animate-fade-in">
+          <ScrollArea className="h-[calc(100vh-64px-env(safe-area-inset-bottom,0px))] overflow-auto">
+            <main className="p-3 sm:p-4 animate-fade-in pb-20">
               <Outlet />
             </main>
           </ScrollArea>
