@@ -6,16 +6,21 @@ import { cn } from '@/lib/utils';
 interface MobileLayoutProps {
   children: React.ReactNode;
   className?: string;
+  noBottomPadding?: boolean;
 }
 
-export const MobileLayout: React.FC<MobileLayoutProps> = ({ children, className }) => {
+export const MobileLayout: React.FC<MobileLayoutProps> = ({ 
+  children, 
+  className,
+  noBottomPadding = false
+}) => {
   const { isMobile } = useMobile();
   
   return (
     <div 
       className={cn(
         "mobile-container w-full h-full",
-        isMobile && "pb-[calc(64px+env(safe-area-inset-bottom,0px))]", // Add padding bottom for mobile navigation
+        isMobile && !noBottomPadding && "pb-[calc(64px+env(safe-area-inset-bottom,0px))]", // Add padding bottom for mobile navigation
         className
       )}
     >

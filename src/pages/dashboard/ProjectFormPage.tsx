@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -22,6 +23,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Separator } from '@/components/ui/separator';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+
+interface Section {
+  id: string;
+  name: string;
+  order: number;
+}
+
+interface FieldTemplate {
+  id: string;
+  name?: string;
+  label?: string;
+  type: string;
+  required: boolean;
+  sectionId?: string;
+  options?: string[];
+  placeholder?: string;
+}
 
 interface ProjectRecord {
   id: string;
@@ -38,7 +58,8 @@ interface Project {
   createdAt: Date;
   recordCount: number;
   projectPin: string;
-  formFields?: any[];
+  formFields?: FieldTemplate[];
+  formSections?: Section[];
   description?: string;
   status?: 'active' | 'inactive';
   endedAt?: string;
@@ -61,6 +82,7 @@ const ProjectFormPage: React.FC = () => {
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEndSurveyDialogOpen, setIsEndSurveyDialogOpen] = useState(false);
+  const [sections, setSections] = useState<Section[]>([]);
   
   useEffect(() => {
     const fetchProject = async () => {
@@ -79,11 +101,28 @@ const ProjectFormPage: React.FC = () => {
           const foundProject = parsedProjects.find((p: any) => p.id === projectId);
           
           if (foundProject) {
+            // Load sections if available
+            let projectSections: Section[] = [];
+            
+            if (foundProject.formSections && Array.isArray(foundProject.formSections)) {
+              projectSections = foundProject.formSections;
+            } else {
+              // Create a default section if none exists
+              projectSections = [{
+                id: 'section_default',
+                name: 'General Information',
+                order: 0
+              }];
+            }
+            
+            setSections(projectSections);
+            
             setProject({
               ...foundProject,
               createdAt: new Date(foundProject.createdAt),
               recordCount: foundProject.recordCount || 0,
-              status: foundProject.status || 'active'
+              status: foundProject.status || 'active',
+              formSections: projectSections
             });
             
             // Initialize form data with empty values
@@ -138,7 +177,7 @@ const ProjectFormPage: React.FC = () => {
       const requiredFields: string[] = [];
       project.formFields?.forEach((field: any) => {
         if (field.required && !formData[field.id]) {
-          requiredFields.push(field.label);
+          requiredFields.push(field.label || field.name);
         }
       });
       
@@ -256,6 +295,12 @@ const ProjectFormPage: React.FC = () => {
     }
   };
   
+  // Group fields by section
+  const getFieldsBySection = (sectionId: string) => {
+    if (!project?.formFields) return [];
+    return project.formFields.filter(field => field.sectionId === sectionId);
+  };
+  
   // Load data records when switching to the data tab
   useEffect(() => {
     if (activeTab === 'data' && project?.id) {
@@ -370,7 +415,7 @@ const ProjectFormPage: React.FC = () => {
       // Add form field headers
       if (project.formFields && project.formFields.length > 0) {
         project.formFields.forEach(field => {
-          headers.push(field.label);
+          headers.push(field.label || field.name || '');
         });
       }
       
@@ -438,6 +483,11 @@ const ProjectFormPage: React.FC = () => {
   }
 
   const isProjectInactive = project.status === 'inactive';
+  const projectSections = sections.length > 0 ? sections : [{
+    id: 'section_default',
+    name: 'General Information',
+    order: 0
+  }];
   
   return (
     <>
@@ -505,65 +555,105 @@ const ProjectFormPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleFormSubmit} className="space-y-4">
-                {project.formFields && project.formFields.length > 0 ? (
-                  project.formFields.map((field: any) => (
-                    <div key={field.id} className="space-y-2">
-                      <label 
-                        htmlFor={field.id} 
-                        className="text-sm font-medium flex items-center"
-                      >
-                        {field.label}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
+                {projectSections.sort((a, b) => a.order - b.order).map((section) => {
+                  const sectionFields = getFieldsBySection(section.id);
+                  
+                  if (sectionFields.length === 0) return null;
+                  
+                  return (
+                    <div key={section.id} className="mb-6">
+                      <div className="mb-4">
+                        <h3 className="text-lg font-medium">{section.name}</h3>
+                        <Separator className="mt-2" />
+                      </div>
                       
-                      {field.type === 'text' && (
-                        <Input
-                          id={field.id}
-                          value={formData[field.id] || ''}
-                          onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          placeholder={field.placeholder || ''}
-                          required={field.required}
-                          disabled={isProjectInactive}
-                        />
-                      )}
-                      
-                      {field.type === 'textarea' && (
-                        <Textarea
-                          id={field.id}
-                          value={formData[field.id] || ''}
-                          onChange={(e) => handleInputChange(field.id, e.target.value)}
-                          placeholder={field.placeholder || ''}
-                          required={field.required}
-                          disabled={isProjectInactive}
-                        />
-                      )}
-                      
-                      {field.type === 'select' && (
-                        <Select 
-                          value={formData[field.id] || ''} 
-                          onValueChange={(value) => handleInputChange(field.id, value)}
-                          disabled={isProjectInactive}
-                        >
-                          <SelectTrigger id={field.id}>
-                            <SelectValue placeholder={field.placeholder || 'Select an option'} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {field.options?.map((option: string) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
+                      <div className="space-y-4 pl-0 sm:pl-2">
+                        {sectionFields.map((field: any) => (
+                          <div key={field.id} className="space-y-2">
+                            <label 
+                              htmlFor={field.id} 
+                              className="text-sm font-medium flex items-center"
+                            >
+                              {field.label || field.name}
+                              {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            
+                            {field.type === 'text' && (
+                              <Input
+                                id={field.id}
+                                value={formData[field.id] || ''}
+                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                placeholder={field.placeholder || ''}
+                                required={field.required}
+                                disabled={isProjectInactive}
+                                className={`${isProjectInactive ? 'bg-gray-100' : ''}`}
+                              />
+                            )}
+                            
+                            {field.type === 'textAndNumbers' && (
+                              <Input
+                                id={field.id}
+                                value={formData[field.id] || ''}
+                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                placeholder={field.placeholder || ''}
+                                required={field.required}
+                                disabled={isProjectInactive}
+                                className={`${isProjectInactive ? 'bg-gray-100' : ''}`}
+                              />
+                            )}
+                            
+                            {field.type === 'numbers' && (
+                              <Input
+                                id={field.id}
+                                type="number"
+                                value={formData[field.id] || ''}
+                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                placeholder={field.placeholder || ''}
+                                required={field.required}
+                                disabled={isProjectInactive}
+                                className={`${isProjectInactive ? 'bg-gray-100' : ''}`}
+                              />
+                            )}
+                            
+                            {field.type === 'textarea' && (
+                              <Textarea
+                                id={field.id}
+                                value={formData[field.id] || ''}
+                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                placeholder={field.placeholder || ''}
+                                required={field.required}
+                                disabled={isProjectInactive}
+                                className={`${isProjectInactive ? 'bg-gray-100' : ''}`}
+                              />
+                            )}
+                            
+                            {field.type === 'definedList' && (
+                              <Select 
+                                value={formData[field.id] || ''} 
+                                onValueChange={(value) => handleInputChange(field.id, value)}
+                                disabled={isProjectInactive}
+                              >
+                                <SelectTrigger id={field.id} className={`${isProjectInactive ? 'bg-gray-100' : ''}`}>
+                                  <SelectValue placeholder={field.placeholder || 'Select an option'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {field.options?.map((option: string) => (
+                                    <SelectItem key={option} value={option}>
+                                      {option}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+
+                            {/* Add other field types as needed */}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="py-8 text-center text-muted-foreground">
-                    <p>No form fields found for this project.</p>
-                  </div>
-                )}
-                
+                  );
+                })}
+
                 {project.formFields && project.formFields.length > 0 && !isProjectInactive && (
                   <div className="pt-4 flex flex-wrap gap-2 justify-end">
                     <Button 
@@ -620,7 +710,7 @@ const ProjectFormPage: React.FC = () => {
                         <TableRow>
                           <TableHead className="whitespace-nowrap">Date</TableHead>
                           {project.formFields?.map((field: any) => (
-                            <TableHead key={field.id} className="whitespace-nowrap">{field.label}</TableHead>
+                            <TableHead key={field.id} className="whitespace-nowrap">{field.label || field.name}</TableHead>
                           ))}
                         </TableRow>
                       </TableHeader>
