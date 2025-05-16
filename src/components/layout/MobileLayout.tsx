@@ -7,12 +7,14 @@ interface MobileLayoutProps {
   children: React.ReactNode;
   className?: string;
   noBottomPadding?: boolean;
+  noScroll?: boolean;
 }
 
 export const MobileLayout: React.FC<MobileLayoutProps> = ({ 
   children, 
   className,
-  noBottomPadding = false
+  noBottomPadding = false,
+  noScroll = false
 }) => {
   const { isMobile } = useMobile();
   
@@ -21,6 +23,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
       className={cn(
         "mobile-container w-full h-full",
         isMobile && !noBottomPadding && "pb-[calc(64px+env(safe-area-inset-bottom,0px))]", // Add padding bottom for mobile navigation
+        noScroll && "overflow-hidden",
         className
       )}
       style={{ maxWidth: '100%', overflowX: 'hidden' }} // Ensure content doesn't overflow on mobile

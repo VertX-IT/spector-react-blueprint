@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'; 
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { AlertCircle, Download } from 'lucide-react';
+import { AlertCircle, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -83,7 +83,8 @@ const ProjectFormPage: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEndSurveyDialogOpen, setIsEndSurveyDialogOpen] = useState(false);
   const [sections, setSections] = useState<Section[]>([]);
-  
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     const fetchProject = async () => {
       try {
@@ -476,6 +477,11 @@ const ProjectFormPage: React.FC = () => {
     }
   };
   
+  const handleNavigateToEditForm = () => {
+    if (!projectId) return;
+    navigate(`/dashboard/projects/${projectId}/edit`);
+  };
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -525,7 +531,7 @@ const ProjectFormPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/dashboard/projects/${projectId}/edit`)}
+              onClick={handleNavigateToEditForm}
               className="flex-1 min-w-[80px] sm:flex-none"
             >
               Edit Survey
@@ -723,34 +729,45 @@ const ProjectFormPage: React.FC = () => {
                   <p>Loading records...</p>
                 </div>
               ) : projectRecords.length > 0 ? (
-                <div className="overflow-auto -mx-5 px-5">
-                  <div className="rounded-md border overflow-hidden mb-4">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="whitespace-nowrap">Date</TableHead>
-                          {project.formFields?.map((field: any) => (
-                            <TableHead key={field.id} className="whitespace-nowrap">{field.label || field.name}</TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {projectRecords.map((record, index) => (
-                          <TableRow key={record.id || index}>
-                            <TableCell className="whitespace-nowrap">
-                              {new Date(record.createdAt).toLocaleDateString()}
-                            </TableCell>
-                            {project.formFields?.map((field: any) => (
-                              <TableCell key={field.id}>
-                                {field.type === 'location' 
-                                  ? formatLocationForDisplay(record.data[field.id] || '')
-                                  : record.data[field.id] || '-'}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                <div className="overflow-auto">
+                  {/* Using responsive cards instead of a table for mobile */}
+                  <div className="space-y-4">
+                    {projectRecords.map((record, index) => (
+                      <Card key={record.id || index} className="border">
+                        <div 
+                          className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50"
+                          onClick={() => toggleRowExpand(record.id)}
+                        >
+                          <div>
+                            <p className="font-medium text-sm">
+                              Record {index + 1} - {new Date(record.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            {expandedRows.has(record.id) ? 
+                              <ChevronUp className="h-4 w-4" /> : 
+                              <ChevronDown className="h-4 w-4" />
+                            }
+                          </Button>
+                        </div>
+                        {expandedRows.has(record.id) && (
+                          <CardContent className="pt-0 border-t">
+                            <div className="space-y-2">
+                              {project.formFields?.map((field: any) => (
+                                <div key={field.id} className="grid grid-cols-2 gap-2 text-sm">
+                                  <div className="font-medium text-muted-foreground">{field.label || field.name}:</div>
+                                  <div>
+                                    {field.type === 'location' 
+                                      ? formatLocationForDisplay(record.data[field.id] || '')
+                                      : record.data[field.id] || '-'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                    ))}
                   </div>
                 </div>
               ) : (
