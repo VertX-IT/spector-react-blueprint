@@ -482,6 +482,16 @@ const ProjectFormPage: React.FC = () => {
     navigate(`/dashboard/projects/${projectId}/edit`);
   };
   
+  const handleToggleRowExpand = (recordId: string) => {
+    setExpandedRows((prev) => {
+      // If the row is already expanded, remove it (collapse)
+      // Otherwise add it to the expanded rows (expand)
+      return prev.includes(recordId) 
+        ? prev.filter(id => id !== recordId) 
+        : [...prev, recordId];
+    });
+  };
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -736,7 +746,7 @@ const ProjectFormPage: React.FC = () => {
                       <Card key={record.id || index} className="border">
                         <div 
                           className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50"
-                          onClick={() => toggleRowExpand(record.id)}
+                          onClick={() => handleToggleRowExpand(record.id)}
                         >
                           <div>
                             <p className="font-medium text-sm">
