@@ -83,7 +83,7 @@ const ProjectFormPage: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEndSurveyDialogOpen, setIsEndSurveyDialogOpen] = useState(false);
   const [sections, setSections] = useState<Section[]>([]);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -754,13 +754,13 @@ const ProjectFormPage: React.FC = () => {
                             </p>
                           </div>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
-                            {expandedRows.has(record.id) ? 
+                            {expandedRows.includes(record.id) ? 
                               <ChevronUp className="h-4 w-4" /> : 
                               <ChevronDown className="h-4 w-4" />
                             }
                           </Button>
                         </div>
-                        {expandedRows.has(record.id) && (
+                        {expandedRows.includes(record.id) && (
                           <CardContent className="pt-0 border-t">
                             <div className="space-y-2">
                               {project.formFields?.map((field: any) => (
