@@ -76,6 +76,14 @@ const NewProjectPage: React.FC = () => {
       // Store form data for next steps
       console.log('Project details:', data);
       
+      // Store project data in localStorage for the multi-step form process
+      localStorage.setItem('projectData', JSON.stringify({
+        name: data.name,
+        assetName: data.assetName,
+        description: data.description || '',
+        category: data.category
+      }));
+
       // Move to next step
       setCurrentStep(2);
       
