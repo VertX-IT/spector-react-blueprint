@@ -16,9 +16,13 @@ const steps = [
 ];
 
 interface FieldTemplate {
+  id: string;
   name: string;
+  label: string;
   type: string;
   required: boolean;
+  options?: string[];
+  placeholder?: string;
 }
 
 // Data types available for form fields
@@ -26,13 +30,9 @@ const dataTypes = [
   { id: 'text', name: 'Text' },
   { id: 'numbers', name: 'Numbers' },
   { id: 'textAndNumbers', name: 'Text and Numbers' },
-  { id: 'coordinates', name: 'Geographical Coordinates' },
-  { id: 'image', name: 'Image (Take new, Add existing)' },
-  { id: 'definedList', name: 'Defined List (Select One)' },
-  { id: 'checkbox', name: 'Checkbox (Yes/No)' },
-  { id: 'multipleChoice', name: 'Multiple Choice' },
-  { id: 'qrBarcode', name: 'QR/Barcode Reader' },
-  { id: 'dateTime', name: 'Date and Time' },
+  { id: 'textarea', name: 'Long Text' },
+  { id: 'definedList', name: 'Dropdown List' },
+  { id: 'location', name: 'Location' }
 ];
 
 const ReviewFormPage: React.FC = () => {
@@ -49,8 +49,9 @@ const ReviewFormPage: React.FC = () => {
   
   const isMobile = useIsMobile();
   
-  // Retrieve form data from localStorage
+  // Retrieve form data from localStorage and URL params
   useEffect(() => {
+    // Get data from localStorage
     const storedFields = localStorage.getItem('formFields');
     const storedProjectData = localStorage.getItem('projectData');
     
@@ -60,8 +61,22 @@ const ReviewFormPage: React.FC = () => {
     
     if (storedProjectData) {
       setProjectData(JSON.parse(storedProjectData));
+    } else {
+      // Fall back to URL params if localStorage is not available
+      const params = new URLSearchParams(location.search);
+      const category = params.get('category') || '';
+      const name = params.get('name') || '';
+      const assetName = params.get('assetName') || '';
+      const description = params.get('description') || '';
+      
+      setProjectData({
+        category,
+        name,
+        assetName,
+        description
+      });
     }
-  }, []);
+  }, [location.search]);
 
   const handleBack = () => {
     navigate(`/dashboard/form-builder${location.search}`);
@@ -72,7 +87,7 @@ const ReviewFormPage: React.FC = () => {
     navigate(`/dashboard/security-settings${location.search}`);
   };
 
-  const getDataTypeName = (typeId: string) => {
+  const getDataTypeName = (typeId: string): string => {
     return dataTypes.find(t => t.id === typeId)?.name || typeId;
   };
 
@@ -130,20 +145,16 @@ const ReviewFormPage: React.FC = () => {
             {fields.map((field, index) => (
               <div key={index} className="space-y-1">
                 <label className="block text-sm font-medium">
-                  {field.name} {field.required && <span className="text-red-500">*</span>}
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
                 </label>
                 
                 <div className="h-10 border rounded-md px-3 bg-muted/30 flex items-center text-sm text-muted-foreground">
                   {field.type === 'text' && <span>Text input</span>}
                   {field.type === 'numbers' && <span>Numeric input</span>}
                   {field.type === 'textAndNumbers' && <span>Alphanumeric input</span>}
-                  {field.type === 'coordinates' && <span>Map selection</span>}
-                  {field.type === 'image' && <span>Image upload</span>}
+                  {field.type === 'textarea' && <span>Text area input</span>}
+                  {field.type === 'location' && <span>Location selection</span>}
                   {field.type === 'definedList' && <span>Dropdown selection</span>}
-                  {field.type === 'checkbox' && <span>Checkbox input</span>}
-                  {field.type === 'multipleChoice' && <span>Multiple choice selection</span>}
-                  {field.type === 'qrBarcode' && <span>Scanner input</span>}
-                  {field.type === 'dateTime' && <span>Date/time picker</span>}
                 </div>
                 
                 <p className="text-xs text-muted-foreground">
@@ -174,7 +185,7 @@ const ReviewFormPage: React.FC = () => {
               onClick={handleDeploy}
               className={isMobile ? 'h-12 text-base w-full' : ''}
             >
-              Deploy Project
+              Continue to Security
             </Button>
           </div>
         </CardContent>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -73,8 +74,22 @@ const SecuritySettingsPage: React.FC = () => {
     
     if (storedProjectData) {
       setProjectData(JSON.parse(storedProjectData));
+    } else {
+      // Fall back to URL params if localStorage is not available
+      const params = new URLSearchParams(location.search);
+      const category = params.get('category') || '';
+      const name = params.get('name') || '';
+      const assetName = params.get('assetName') || '';
+      const description = params.get('description') || '';
+      
+      setProjectData({
+        category,
+        name,
+        assetName,
+        description
+      });
     }
-  }, []);
+  }, [location.search]);
 
   const generateProjectPin = () => {
     // Generate a random 6-digit number (100000-999999)
@@ -113,6 +128,7 @@ const SecuritySettingsPage: React.FC = () => {
       const completeProjectData = {
         name: projectData.name,
         category: projectData.category,
+        assetName: projectData.assetName,
         description: projectData.description || '',
         formFields,
         projectPin,
@@ -137,8 +153,11 @@ const SecuritySettingsPage: React.FC = () => {
         id: savedProject.id || Date.now().toString(),
         name: completeProjectData.name,
         category: completeProjectData.category,
+        assetName: completeProjectData.assetName,
+        description: completeProjectData.description,
         createdAt: new Date().toISOString(),
         recordCount: 0,
+        formFields,
         projectPin,
       };
       
@@ -149,7 +168,7 @@ const SecuritySettingsPage: React.FC = () => {
       localStorage.removeItem('formFields');
       localStorage.removeItem('projectData');
       
-      toast.success('Project successfully deployed to Firebase!');
+      toast.success('Project successfully deployed!');
       navigate('/dashboard/my-projects');
     } catch (error: any) {
       console.error('Error deploying project:', error);
@@ -198,6 +217,10 @@ const SecuritySettingsPage: React.FC = () => {
               <div>
                 <p className="text-sm font-semibold">Asset Type</p>
                 <p className="text-sm text-muted-foreground">{projectData.category}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Asset Name</p>
+                <p className="text-sm text-muted-foreground">{projectData.assetName}</p>
               </div>
             </div>
           </div>
