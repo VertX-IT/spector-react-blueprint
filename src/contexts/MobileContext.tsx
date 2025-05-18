@@ -1,6 +1,5 @@
-
-import React, { createContext, useContext } from 'react';
-import { useIsMobile } from '@/hooks/use-mobile';
+import React, { createContext, useContext } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface MobileContextProps {
   isMobile: boolean;
@@ -8,7 +7,9 @@ interface MobileContextProps {
 
 const MobileContext = createContext<MobileContextProps | undefined>(undefined);
 
-export const MobileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const MobileProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const isMobile = useIsMobile();
 
   return (
@@ -20,10 +21,10 @@ export const MobileProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const useMobile = (): MobileContextProps => {
   const context = useContext(MobileContext);
-  
+
   if (context === undefined) {
-    throw new Error('useMobile must be used within a MobileProvider');
+    throw new Error("useMobile must be used within a MobileProvider");
   }
-  
+
   return context;
 };

@@ -1,21 +1,21 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { 
-  User, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
+import React, { createContext, useState, useContext, useEffect } from "react";
+import {
+  User,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   updateProfile,
   sendPasswordResetEmail,
   updatePassword,
   EmailAuthProvider,
-  reauthenticateWithCredential
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-import { useToast } from '@/components/ui/use-toast';
+  reauthenticateWithCredential,
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { useToast } from "@/components/ui/use-toast";
 
-export type UserRole = 'designer' | 'collector';
+export type UserRole = "designer" | "collector";
 
 export interface UserData {
   uid: string;
@@ -30,18 +30,29 @@ interface AuthContextType {
   currentUser: User | null;
   userData: UserData | null;
   isLoading: boolean;
-  signUp: (email: string, password: string, displayName: string, phoneNumber: string, role: UserRole) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    displayName: string,
+    phoneNumber: string,
+    role: UserRole
+  ) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,13 +61,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      
+
       if (user) {
         // Fetch additional user data from Firestore
         try {
-          const userDocRef = doc(db, 'users', user.uid);
+          const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
-          
+
           if (userDocSnap.exists()) {
             setUserData(userDocSnap.data() as UserData);
           }
@@ -66,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUserData(null);
       }
-      
+
       setIsLoading(false);
     });
 
@@ -74,19 +85,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (
-    email: string, 
-    password: string, 
-    displayName: string, 
+    email: string,
+    password: string,
+    displayName: string,
     phoneNumber: string,
     role: UserRole
   ) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       const user = userCredential.user;
-      
+
       // Update profile display name
       await updateProfile(user, { displayName });
-      
+
       // Save additional user data to Firestore
       const userData: UserData = {
         uid: user.uid,
@@ -96,10 +111,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         createdAt: Date.now(),
       };
-      
-      await setDoc(doc(db, 'users', user.uid), userData);
+
+      await setDoc(doc(db, "users", user.uid), userData);
       setUserData(userData);
-      
+
       toast({
         title: "Account created successfully!",
         description: "Welcome to SurveySync Nexus",
@@ -165,44 +180,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const changePassword = async (currentPassword: string, newPassword: string) => {
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ) => {
     try {
       if (!currentUser || !currentUser.email) {
         throw new Error("No authenticated user found");
       }
-      
+
       // Reauthenticate user before changing password
       const credential = EmailAuthProvider.credential(
         currentUser.email,
         currentPassword
       );
-      
+
       await reauthenticateWithCredential(currentUser, credential);
-      
+
       // Change password
       await updatePassword(currentUser, newPassword);
-      
+
       toast({
         title: "Password updated",
         description: "Your password has been changed successfully.",
       });
     } catch (error: any) {
       let errorMessage = "Failed to change password";
-      
-      if (error.code === 'auth/wrong-password') {
+
+      if (error.code === "auth/wrong-password") {
         errorMessage = "Current password is incorrect";
-      } else if (error.code === 'auth/weak-password') {
+      } else if (error.code === "auth/weak-password") {
         errorMessage = "New password is too weak";
-      } else if (error.code === 'auth/requires-recent-login') {
+      } else if (error.code === "auth/requires-recent-login") {
         errorMessage = "Please sign in again before changing your password";
       }
-      
+
       toast({
         title: "Error changing password",
         description: errorMessage,
         variant: "destructive",
       });
-      
+
       throw error;
     }
   };
@@ -215,7 +233,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     logOut,
     resetPassword,
-    changePassword
+    changePassword,
   };
 
   return (

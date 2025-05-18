@@ -1,392 +1,673 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ProgressSteps } from "@/components/ui/progress-steps";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Edit,
+  Trash2,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+  Check,
+  X,
+} from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { AlertCircle, Plus, Trash } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { v4 as uuidv4 } from 'uuid';
-import { ProgressSteps } from '@/components/ui/progress-steps';
-import { useIsMobile } from '@/hooks/use-mobile';
+// Template types for different asset categories
+interface FieldTemplate {
+  name: string;
+  type: string;
+  required: boolean;
+}
 
-// Field types
-const FIELD_TYPES = [
-  { value: 'text', label: 'Text' },
-  { value: 'textAndNumbers', label: 'Text & Numbers' },
-  { value: 'numbers', label: 'Numbers Only' },
-  { value: 'textarea', label: 'Long Text' },
-  { value: 'definedList', label: 'Dropdown List' },
-  { value: 'location', label: 'Location' }
+// Data types available for form fields
+const dataTypes = [
+  { id: "text", name: "Text" },
+  { id: "numbers", name: "Numbers" },
+  { id: "textAndNumbers", name: "Text and Numbers" },
+  { id: "coordinates", name: "Geographical Coordinates" },
+  { id: "image", name: "Image (Take new, Add existing)" },
+  { id: "definedList", name: "Defined List (Select One)" },
+  { id: "checkbox", name: "Checkbox (Yes/No)" },
+  { id: "multipleChoice", name: "Multiple Choice" },
+  { id: "qrBarcode", name: "QR/Barcode Reader" },
+  { id: "dateTime", name: "Date and Time" },
 ];
+
+// Asset categories
+const categories = [
+  { id: "land", name: "Land" },
+  { id: "buildings", name: "Buildings" },
+  { id: "biological", name: "Biological Assets" },
+  { id: "machinery", name: "Machinery" },
+  { id: "furniture", name: "Furniture & Fixtures" },
+  { id: "equipment", name: "Equipment" },
+  { id: "vehicles", name: "Motor Vehicles" },
+  { id: "other", name: "Other" },
+];
+
+// Template definitions for each asset category
+const templatesByCategory: Record<string, FieldTemplate[]> = {
+  land: [
+    { name: "Land Name", type: "text", required: true },
+    { name: "Address", type: "textAndNumbers", required: true },
+    { name: "Geographic Coordinates", type: "coordinates", required: true },
+    { name: "Inspection Images", type: "image", required: true },
+    { name: "Comments", type: "text", required: false },
+  ],
+  buildings: [
+    { name: "Building Name", type: "text", required: true },
+    { name: "Address", type: "textAndNumbers", required: true },
+    { name: "Geographic Coordinates", type: "coordinates", required: true },
+    { name: "Year of Construction", type: "numbers", required: false },
+    { name: "Building Area", type: "definedList", required: true },
+    { name: "Inspection Images", type: "image", required: true },
+    { name: "Condition", type: "definedList", required: true },
+    { name: "Comments", type: "text", required: false },
+  ],
+  biological: [
+    { name: "Location", type: "text", required: true },
+    { name: "Field Name", type: "text", required: true },
+    { name: "Geographic Coordinates", type: "coordinates", required: true },
+    { name: "Species", type: "text", required: true },
+    { name: "Inspection Image", type: "image", required: true },
+    { name: "Diameter", type: "numbers", required: false },
+    { name: "Comments", type: "text", required: false },
+  ],
+  machinery: [
+    { name: "Machine Name", type: "text", required: true },
+    { name: "Brand", type: "text", required: true },
+    { name: "Asset Code", type: "qrBarcode", required: true },
+    { name: "Model Number", type: "textAndNumbers", required: true },
+    { name: "Quantity", type: "numbers", required: true },
+    { name: "Inspection Images", type: "image", required: true },
+    { name: "Comments", type: "text", required: false },
+  ],
+  furniture: [
+    { name: "Furniture Name", type: "text", required: true },
+    { name: "Brand", type: "text", required: true },
+    { name: "Asset Code", type: "qrBarcode", required: true },
+    { name: "Model Number", type: "textAndNumbers", required: true },
+    { name: "Quantity", type: "numbers", required: true },
+    { name: "Inspection Images", type: "image", required: true },
+    { name: "Comments", type: "text", required: false },
+  ],
+  equipment: [
+    { name: "Equipment Name", type: "text", required: true },
+    { name: "Brand", type: "text", required: true },
+    { name: "Asset Code", type: "qrBarcode", required: true },
+    { name: "Model Number", type: "textAndNumbers", required: true },
+    { name: "Quantity", type: "numbers", required: true },
+    { name: "Inspection Images", type: "image", required: true },
+    { name: "Comments", type: "text", required: false },
+  ],
+  vehicles: [
+    { name: "Vehicle Name", type: "text", required: true },
+    { name: "Brand", type: "text", required: true },
+    { name: "Model", type: "text", required: true },
+    { name: "YOM", type: "numbers", required: true },
+    { name: "Quantity", type: "numbers", required: true },
+    { name: "Inspection Images", type: "image", required: true },
+    { name: "Comments", type: "text", required: false },
+  ],
+  other: [
+    { name: "Record No.", type: "textAndNumbers", required: true },
+    { name: "User ID", type: "textAndNumbers", required: true },
+    { name: "Date and Time", type: "dateTime", required: true },
+  ],
+};
 
 // Project creation steps
-const steps = [
-  "Basic Details",
-  "Form Fields",
-  "Review",
-  "Security"
-];
+const steps = ["Basic Details", "Form Fields", "Review", "Security"];
 
 const FormBuilderPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userData } = useAuth();
-  const isMobile = useIsMobile();
-  const [currentStep] = useState(2); // Form Builder is step 2
-  
-  const [formFields, setFormFields] = useState<Array<{
-    id: string;
-    name: string;
-    label: string;
-    type: string;
-    required: boolean;
-    options?: string[];
-    placeholder?: string;
-  }>>([]);
-  
+  const [currentStep] = useState(2);
+  const [fields, setFields] = useState<FieldTemplate[]>([]);
   const [projectData, setProjectData] = useState({
-    category: '',
-    name: '',
-    assetName: '',
-    description: ''
+    category: "",
+    name: "",
+    assetName: "",
+    description: "",
   });
-  
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // Parse query params on load to get project data
+  const isMobile = useIsMobile();
+
+  // Custom field state
+  const [newField, setNewField] = useState<FieldTemplate>({
+    name: "",
+    type: "text",
+    required: false,
+  });
+
+  // Edit mode state
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+
+  // This would be populated from the previous step in a real implementation
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const category = params.get('category') || '';
-    const name = params.get('name') || '';
-    const assetName = params.get('assetName') || '';
-    const description = params.get('description') || '';
-    
+    // Get category from URL params
+    const category =
+      new URLSearchParams(location.search).get("category") || "land";
+
+    // In a real app, you would fetch project data from context/state management
+    const urlParams = new URLSearchParams(location.search);
+
+    // Set project data from URL params
     setProjectData({
       category,
-      name,
-      assetName,
-      description
+      name: urlParams.get("name") || "Sample Project",
+      assetName: urlParams.get("assetName") || "Sample Asset",
+      description: urlParams.get("description") || "This is a sample project",
     });
-    
-    // Also try to load from localStorage in case we're returning to this page
-    const storedData = localStorage.getItem('projectData');
-    const storedFields = localStorage.getItem('formFields');
-    
-    if (storedData) {
-      setProjectData(JSON.parse(storedData));
-    }
-    
-    if (storedFields) {
-      setFormFields(JSON.parse(storedFields));
-    }
+
+    // Set initial fields based on category
+    setFields([
+      // Common fields for all forms
+      { name: "Record No.", type: "textAndNumbers", required: true },
+      { name: "User ID", type: "textAndNumbers", required: true },
+      { name: "Date and Time", type: "dateTime", required: true },
+      // Template-specific fields
+      ...(templatesByCategory[category] || []),
+    ]);
   }, [location.search]);
 
-  // Handle adding a new field
-  const handleAddField = () => {
-    const newField = {
-      id: `field_${uuidv4()}`,
-      name: `Field ${formFields.length + 1}`,
-      label: `Field ${formFields.length + 1}`,
-      type: 'text',
-      required: false,
-      placeholder: ''
-    };
-    
-    setFormFields([...formFields, newField]);
+  const handleNext = () => {
+    localStorage.setItem("formFields", JSON.stringify(fields));
+    localStorage.setItem("projectData", JSON.stringify(projectData));
+    toast.success("Form template saved! Ready for review.");
+    navigate("/dashboard/review-form");
   };
-  
-  // Handle deleting a field
-  const handleDeleteField = (id: string) => {
-    setFormFields(formFields.filter(field => field.id !== id));
-  };
-  
-  // Handle field property changes
-  const handleFieldChange = (id: string, key: string, value: string | boolean) => {
-    setFormFields(formFields.map(field => {
-      if (field.id === id) {
-        return { ...field, [key]: value };
-      }
-      return field;
-    }));
-  };
-  
-  // Handle adding an option to a dropdown field
-  const handleAddOption = (fieldId: string) => {
-    setFormFields(formFields.map(field => {
-      if (field.id === fieldId) {
-        const options = field.options || [];
-        return {
-          ...field,
-          options: [...options, `Option ${options.length + 1}`]
-        };
-      }
-      return field;
-    }));
-  };
-  
-  // Handle modifying an option in a dropdown field
-  const handleOptionChange = (fieldId: string, optionIndex: number, value: string) => {
-    setFormFields(formFields.map(field => {
-      if (field.id === fieldId && field.options) {
-        const newOptions = [...field.options];
-        newOptions[optionIndex] = value;
-        return { ...field, options: newOptions };
-      }
-      return field;
-    }));
-  };
-  
-  // Handle removing an option from a dropdown field
-  const handleRemoveOption = (fieldId: string, optionIndex: number) => {
-    setFormFields(formFields.map(field => {
-      if (field.id === fieldId && field.options && field.options.length > 1) {
-        const newOptions = [...field.options];
-        newOptions.splice(optionIndex, 1);
-        return { ...field, options: newOptions };
-      }
-      return field;
-    }));
-  };
-  
-  // Handle field type change
-  const handleFieldTypeChange = (id: string, type: string) => {
-    setFormFields(formFields.map(field => {
-      if (field.id === id) {
-        // If changing to a type that doesn't use options, remove them
-        if (type !== 'definedList') {
-          const { options, ...rest } = field;
-          return { ...rest, type };
-        }
-        
-        // If changing to dropdown and no options exist, add default options
-        if (type === 'definedList' && !field.options) {
-          return {
-            ...field,
-            type,
-            options: ['Option 1']
-          };
-        }
-        
-        return { ...field, type };
-      }
-      return field;
-    }));
-  };
-  
-  // Handle continuing to the review stage
-  const handleContinue = () => {
-    if (formFields.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "No fields added",
-        description: "Please add at least one form field"
-      });
+
+  const handleRemoveField = (index: number) => {
+    // Don't allow removing common fields (first 3)
+    if (index < 3) {
+      toast.error("Cannot remove mandatory system fields");
       return;
     }
-    
-    try {
-      // Save form fields to localStorage for the next step
-      localStorage.setItem('formFields', JSON.stringify(formFields));
-      
-      // Navigate to review page with project data as URL params
-      const params = new URLSearchParams();
-      params.append('category', projectData.category);
-      params.append('name', projectData.name);
-      params.append('assetName', projectData.assetName);
-      params.append('description', projectData.description);
-      
-      navigate(`/dashboard/review-form?${params.toString()}`);
-    } catch (error: any) {
-      console.error('Error saving form fields:', error);
-      setError(error.message || 'Failed to continue to review');
+
+    const newFields = [...fields];
+    newFields.splice(index, 1);
+    setFields(newFields);
+    toast.success("Field removed");
+  };
+
+  const handleToggleRequired = (index: number) => {
+    const newFields = [...fields];
+    newFields[index].required = !newFields[index].required;
+    setFields(newFields);
+  };
+
+  const handleEditField = (index: number) => {
+    setEditingIndex(index);
+    setNewField({ ...fields[index] });
+
+    // Open sheet on mobile
+    if (isMobile) {
+      setIsSheetOpen(true);
     }
   };
 
-  // Handle going back to project details
-  const handleBack = () => {
-    navigate('/dashboard/new-project');
+  const handleSaveEdit = () => {
+    if (!newField.name.trim()) {
+      toast.error("Field name cannot be empty");
+      return;
+    }
+
+    if (editingIndex !== null) {
+      const newFields = [...fields];
+      newFields[editingIndex] = { ...newField };
+      setFields(newFields);
+      setEditingIndex(null);
+      setNewField({ name: "", type: "text", required: false });
+      setIsSheetOpen(false);
+      toast.success("Field updated");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setNewField({ name: "", type: "text", required: false });
+    setIsSheetOpen(false);
+  };
+
+  const handleAddField = () => {
+    if (!newField.name.trim()) {
+      toast.error("Please enter a field name");
+      return;
+    }
+
+    setFields([...fields, { ...newField }]);
+    setNewField({ name: "", type: "text", required: false });
+    toast.success("Custom field added");
+  };
+
+  const getDataTypeName = (typeId: string) => {
+    return dataTypes.find((t) => t.id === typeId)?.name || typeId;
   };
 
   return (
     <>
       <div className="mb-4 px-1">
-        <h1 className="text-xl font-bold tracking-tight">Form Builder</h1>
+        <h1 className="text-xl font-bold tracking-tight">Create Form Fields</h1>
         <p className="text-sm text-muted-foreground mb-4">
-          Create the data collection form for your project
+          Define the data you want to collect in this project
         </p>
-        
-        <ProgressSteps 
+
+        <ProgressSteps
           currentStep={currentStep}
           totalSteps={steps.length}
           labels={steps}
         />
       </div>
-      
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      
-      <Card className={`mb-4 ${isMobile ? 'mx-1 shadow-sm' : ''}`}>
-        <CardHeader className="pb-2">
-          <CardTitle>Project: {projectData.name}</CardTitle>
-          <CardDescription>
-            {projectData.category} • {projectData.assetName}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium">Form Fields</h3>
-            <Button onClick={handleAddField} size="sm" className="h-8">
-              <Plus className="h-4 w-4 mr-1" /> Add Field
-            </Button>
-          </div>
-          
-          <div className="space-y-6">
-            {formFields.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">No fields added yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Click 'Add Field' to create your first form field</p>
+
+      <Card className={`mb-4 ${isMobile ? "mx-1 shadow-sm" : ""}`}>
+        <CardContent className={`${isMobile ? "p-3" : "pt-4"}`}>
+          <div className="space-y-3">
+            <h2 className="text-lg font-medium">Project Information</h2>
+            <div className="grid grid-cols-1 gap-2">
+              <div>
+                <p className="text-sm font-semibold">Project Name</p>
+                <p className="text-sm text-muted-foreground">
+                  {projectData.name}
+                </p>
               </div>
-            ) : (
-              formFields.map((field, index) => (
-                <Card key={field.id} className="relative border shadow-sm">
-                  <CardContent className="pt-4 pb-2">
-                    <div className="absolute top-2 right-2">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteField(field.id)}>
-                        <Trash className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor={`field-name-${field.id}`}>Field Label</Label>
-                          <Input 
-                            id={`field-name-${field.id}`}
-                            value={field.label} 
-                            onChange={(e) => handleFieldChange(field.id, 'label', e.target.value)} 
-                            placeholder="Enter field label"
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor={`field-type-${field.id}`}>Field Type</Label>
-                          <Select 
-                            value={field.type}
-                            onValueChange={(value) => handleFieldTypeChange(field.id, value)}
-                          >
-                            <SelectTrigger id={`field-type-${field.id}`}>
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FIELD_TYPES.map(type => (
-                                <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor={`field-placeholder-${field.id}`}>Placeholder Text</Label>
-                          <Input 
-                            id={`field-placeholder-${field.id}`}
-                            value={field.placeholder || ''} 
-                            onChange={(e) => handleFieldChange(field.id, 'placeholder', e.target.value)} 
-                            placeholder="Enter placeholder text"
-                          />
-                        </div>
-                        
-                        <div className="flex items-center space-x-2 h-full pt-6">
-                          <Switch 
-                            id={`field-required-${field.id}`}
-                            checked={field.required}
-                            onCheckedChange={(checked) => handleFieldChange(field.id, 'required', checked)}
-                          />
-                          <Label htmlFor={`field-required-${field.id}`}>Required Field</Label>
-                          
-                          {field.required && (
-                            <Badge className="ml-auto" variant="outline">Required</Badge>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {field.type === 'definedList' && (
-                        <div className="space-y-3 pt-2">
-                          <Label>Dropdown Options</Label>
-                          
-                          <div className="space-y-2">
-                            {field.options?.map((option, optIndex) => (
-                              <div key={optIndex} className="flex items-center space-x-2">
-                                <Input 
-                                  value={option}
-                                  onChange={(e) => handleOptionChange(field.id, optIndex, e.target.value)} 
-                                  placeholder={`Option ${optIndex + 1}`}
-                                />
-                                
-                                {(field.options && field.options.length > 1) && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-9 w-9 shrink-0"
-                                    onClick={() => handleRemoveOption(field.id, optIndex)}
-                                  >
-                                    <Trash className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            ))}
-                            
-                            <Button 
-                              variant="outline" 
-                              type="button" 
-                              size="sm" 
-                              className="mt-2"
-                              onClick={() => handleAddOption(field.id)}
-                            >
-                              Add Option
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+              <div>
+                <p className="text-sm font-semibold">Asset Type</p>
+                <p className="text-sm text-muted-foreground">
+                  {categories.find((c) => c.id === projectData.category)
+                    ?.name || projectData.category}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Asset Name</p>
+                <p className="text-sm text-muted-foreground">
+                  {projectData.assetName}
+                </p>
+              </div>
+              {projectData.description && (
+                <div>
+                  <p className="text-sm font-semibold">Description</p>
+                  <p className="text-sm text-muted-foreground">
+                    {projectData.description}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
-      
-      <div className={`flex gap-2 ${isMobile ? 'flex-col mx-1' : ''}`}>
-        <Button 
-          variant="outline" 
-          onClick={handleBack}
-          className={`${isMobile ? 'h-12 text-base' : ''}`}
-        >
-          Back
-        </Button>
-        <Button 
-          onClick={handleContinue}
-          disabled={isSaving || formFields.length === 0}
-          className={`${isMobile ? 'h-12 text-base' : ''}`}
-        >
-          {isSaving ? "Saving..." : "Continue to Review"}
-        </Button>
-      </div>
+
+      <Card className={isMobile ? "mx-1 shadow-sm" : ""}>
+        <CardContent className={`${isMobile ? "p-3" : "pt-4"}`}>
+          <h2 className="text-lg font-medium mb-3">Form Template</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            This template includes standard fields for your selected asset type.
+            You can customize the fields below.
+          </p>
+
+          <div
+            className={`space-y-3 mb-5 ${
+              isMobile ? "max-h-[60vh] overflow-y-auto pb-2" : ""
+            }`}
+          >
+            {fields.map((field, index) => (
+              <div
+                key={index}
+                className={`flex flex-col ${
+                  isMobile ? "p-2" : "p-3"
+                } border rounded-md ${
+                  editingIndex === index && !isMobile
+                    ? "border-brand-green bg-gray-50"
+                    : ""
+                }`}
+              >
+                {editingIndex === index && !isMobile ? (
+                  <div className="w-full space-y-3">
+                    <div className="flex flex-col md:flex-row gap-3">
+                      <Input
+                        value={newField.name}
+                        onChange={(e) =>
+                          setNewField({ ...newField, name: e.target.value })
+                        }
+                        placeholder="Field name"
+                        className="flex-1"
+                      />
+                      <Select
+                        value={newField.type}
+                        onValueChange={(value) =>
+                          setNewField({ ...newField, type: value })
+                        }
+                      >
+                        <SelectTrigger className="w-full md:w-[180px]">
+                          <SelectValue placeholder="Select data type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {dataTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">Required</span>
+                        <Switch
+                          checked={newField.required}
+                          onCheckedChange={(checked) =>
+                            setNewField({ ...newField, required: checked })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                      >
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={handleSaveEdit}>
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p
+                          className={`font-medium ${
+                            isMobile ? "text-base" : ""
+                          }`}
+                        >
+                          {field.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {getDataTypeName(field.type)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {field.required ? (
+                          <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded-full">
+                            Required
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-1 bg-gray-50 text-gray-700 rounded-full">
+                            Optional
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {isMobile && (
+                      <div className="flex mt-2 border-t pt-2 justify-between">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleToggleRequired(index)}
+                          className="flex-1 text-xs h-8"
+                          disabled={index < 3} // Don't allow changing system fields
+                        >
+                          {field.required ? "Make Optional" : "Make Required"}
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditField(index)}
+                          className="flex-1 text-xs h-8"
+                          disabled={index < 3} // Don't allow editing system fields
+                        >
+                          Edit
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveField(index)}
+                          className="flex-1 text-xs h-8 text-red-500"
+                          disabled={index < 3} // Don't allow removing system fields
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+
+                    {!isMobile && (
+                      <div className="flex items-center gap-2 mt-2 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleToggleRequired(index)}
+                          className="h-8 w-8"
+                          title={
+                            field.required ? "Make optional" : "Make required"
+                          }
+                        >
+                          {field.required ? (
+                            <ToggleRight className="h-4 w-4" />
+                          ) : (
+                            <ToggleLeft className="h-4 w-4" />
+                          )}
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditField(index)}
+                          className="h-8 w-8"
+                          title="Edit field"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveField(index)}
+                          className="h-8 w-8 text-red-500"
+                          disabled={index < 3} // Don't allow removing system fields
+                          title={
+                            index < 3
+                              ? "Cannot remove system field"
+                              : "Remove field"
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div
+            className={`border rounded-md p-3 mb-5 ${
+              isMobile ? "space-y-3" : ""
+            }`}
+          >
+            <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
+            <div
+              className={`flex ${
+                isMobile ? "flex-col" : "flex-wrap"
+              } gap-3 items-end`}
+            >
+              <div
+                className={`${isMobile ? "w-full" : "flex-1 min-w-[200px]"}`}
+              >
+                <label className="text-sm mb-1 block">Field Name</label>
+                <Input
+                  value={newField.name}
+                  onChange={(e) =>
+                    setNewField({ ...newField, name: e.target.value })
+                  }
+                  placeholder="Enter field name"
+                  className={isMobile ? "h-10 text-base" : ""}
+                />
+              </div>
+              <div className={isMobile ? "w-full" : "w-[180px]"}>
+                <label className="text-sm mb-1 block">Data Type</label>
+                <Select
+                  value={newField.type}
+                  onValueChange={(value) =>
+                    setNewField({ ...newField, type: value })
+                  }
+                >
+                  <SelectTrigger className={isMobile ? "h-10 text-base" : ""}>
+                    <SelectValue placeholder="Select data type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dataTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Required</span>
+                <Switch
+                  checked={newField.required}
+                  onCheckedChange={(checked) =>
+                    setNewField({ ...newField, required: checked })
+                  }
+                />
+              </div>
+              <Button
+                variant="outline"
+                className={`flex items-center gap-1 ${
+                  isMobile ? "w-full h-10 text-base" : ""
+                }`}
+                onClick={handleAddField}
+              >
+                <Plus className="h-4 w-4" />
+                Add Field
+              </Button>
+            </div>
+          </div>
+
+          <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/dashboard/new-project")}
+              className={isMobile ? "h-12 text-base w-full" : ""}
+            >
+              Back
+            </Button>
+            <Button
+              onClick={handleNext}
+              className={isMobile ? "h-12 text-base w-full" : ""}
+            >
+              Continue to Review
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Mobile Edit Sheet */}
+      {isMobile && (
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <SheetContent className="h-[80vh] w-full">
+            <SheetHeader className="pb-4">
+              <SheetTitle>Edit Field</SheetTitle>
+            </SheetHeader>
+
+            <div className="space-y-5 pt-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Field Name</label>
+                <Input
+                  value={newField.name}
+                  onChange={(e) =>
+                    setNewField({ ...newField, name: e.target.value })
+                  }
+                  placeholder="Field name"
+                  className="text-base h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Data Type</label>
+                <Select
+                  value={newField.type}
+                  onValueChange={(value) =>
+                    setNewField({ ...newField, type: value })
+                  }
+                >
+                  <SelectTrigger className="text-base h-12">
+                    <SelectValue placeholder="Select data type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dataTypes.map((type) => (
+                      <SelectItem
+                        key={type.id}
+                        value={type.id}
+                        className="text-base"
+                      >
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <span className="text-base font-medium">Required Field</span>
+                <Switch
+                  checked={newField.required}
+                  onCheckedChange={(checked) =>
+                    setNewField({ ...newField, required: checked })
+                  }
+                />
+              </div>
+
+              <div className="flex flex-col gap-3 pt-4">
+                <Button onClick={handleSaveEdit} className="h-12 text-base">
+                  Save Changes
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  className="h-12 text-base"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </>
   );
 };
