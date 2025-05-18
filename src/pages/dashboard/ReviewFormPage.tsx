@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,16 +10,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 // Steps for project creation
 const steps = ["Basic Details", "Form Fields", "Review", "Security"];
 
-interface FieldTemplate {
-  id: string;
-  name: string;
-  label: string;
-  type: string;
-  required: boolean;
-  options?: string[];
-  placeholder?: string;
-}
-
 // Data types available for form fields
 const dataTypes = [
   { id: "text", name: "Text" },
@@ -27,13 +18,32 @@ const dataTypes = [
   { id: "textarea", name: "Long Text" },
   { id: "definedList", name: "Dropdown List" },
   { id: "location", name: "Location" },
+  { id: "coordinates", name: "Geographical Coordinates" },
+  { id: "image", name: "Image (Take new, Add existing)" },
+  { id: "checkbox", name: "Checkbox (Yes/No)" },
+  { id: "multipleChoice", name: "Multiple Choice" },
+  { id: "qrBarcode", name: "QR/Barcode Reader" },
+  { id: "dateTime", name: "Date and Time" },
 ];
+
+// Section and Field types
+type FieldTemplate = {
+  name: string;
+  type: string;
+  required: boolean;
+};
+
+type FormSection = {
+  id: string;
+  name: string;
+  fields: FieldTemplate[];
+};
 
 const ReviewFormPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentStep] = useState(3); // Review is step 3
-  const [fields, setFields] = useState<FieldTemplate[]>([]);
+  const [sections, setSections] = useState<FormSection[]>([]);
   const [projectData, setProjectData] = useState({
     category: "",
     name: "",
@@ -45,18 +55,16 @@ const ReviewFormPage: React.FC = () => {
 
   // Retrieve form data from localStorage and URL params
   useEffect(() => {
-    // Get data from localStorage
-    const storedFields = localStorage.getItem("formFields");
+    // Look for section-wise storage
+    const storedSections = localStorage.getItem("formSections");
     const storedProjectData = localStorage.getItem("projectData");
-
-    if (storedFields) {
-      setFields(JSON.parse(storedFields));
+    if (storedSections) {
+      setSections(JSON.parse(storedSections));
     }
-
     if (storedProjectData) {
       setProjectData(JSON.parse(storedProjectData));
     } else {
-      // Fall back to URL params if localStorage is not available
+      // Fall back to url params
       const params = new URLSearchParams(location.search);
       const category = params.get("category") || "";
       const name = params.get("name") || "";
@@ -136,41 +144,50 @@ const ReviewFormPage: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Sectioned Form Preview */}
       <Card className={`mb-4 ${isMobile ? "mx-1 shadow-sm" : ""}`}>
         <CardContent className={`${isMobile ? "p-3" : "pt-4"}`}>
-          <h2 className="text-lg font-medium mb-3">Form Preview</h2>
+          <h2 className="text-lg font-medium mb-3">Form Preview (by Section)</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            This is how your form will appear to users.
+            This is how your form will appear to users, separated by section.
           </p>
-
           <div
-            className={`space-y-4 mb-5 ${
-              isMobile ? "max-h-[50vh] overflow-y-auto pb-4" : ""
+            className={`space-y-6 mb-5 ${
+              isMobile ? "max-h-[48vh] overflow-y-auto pb-4" : ""
             }`}
           >
-            {fields.map((field, index) => (
-              <div key={index} className="space-y-1">
-                <label className="block text-sm font-medium">
-                  {field.label || field.name}{" "}
-                  {field.required && <span className="text-red-500">*</span>}
-                </label>
-
-                <div className="h-10 border rounded-md px-3 bg-muted/30 flex items-center text-sm text-muted-foreground">
-                  {field.type === "text" && <span>Text input</span>}
-                  {field.type === "numbers" && <span>Numeric input</span>}
-                  {field.type === "textAndNumbers" && (
-                    <span>Alphanumeric input</span>
-                  )}
-                  {field.type === "textarea" && <span>Text area input</span>}
-                  {field.type === "location" && <span>Location selection</span>}
-                  {field.type === "definedList" && (
-                    <span>Dropdown selection</span>
-                  )}
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  Type: {getDataTypeName(field.type)}
-                </p>
+            {sections.map((section, secIdx) => (
+              <div key={section.id} className="border rounded-lg px-4 pb-2 pt-3 bg-gray-50">
+                <h3 className="text-base font-semibold mb-3 text-[#8B5CF6]">{section.name}</h3>
+                {section.fields.map((field, index) => (
+                  <div key={index} className="space-y-1 mb-4">
+                    <label className="block text-sm font-medium">
+                      {field.name}{" "}
+                      {field.required && <span className="text-red-500">*</span>}
+                    </label>
+                    <div className="h-10 border rounded-md px-3 bg-muted/30 flex items-center text-sm text-muted-foreground">
+                      {field.type === "text" && <span>Text input</span>}
+                      {field.type === "numbers" && <span>Numeric input</span>}
+                      {field.type === "textAndNumbers" && (
+                        <span>Alphanumeric input</span>
+                      )}
+                      {field.type === "textarea" && <span>Text area input</span>}
+                      {field.type === "location" && <span>Location selection</span>}
+                      {field.type === "definedList" && (
+                        <span>Dropdown selection</span>
+                      )}
+                      {field.type === "coordinates" && <span>Coordinates input</span>}
+                      {field.type === "image" && <span>Image capture/upload</span>}
+                      {field.type === "checkbox" && <span>Checkbox</span>}
+                      {field.type === "multipleChoice" && <span>Multiple choice</span>}
+                      {field.type === "qrBarcode" && <span>QR/Barcode input</span>}
+                      {field.type === "dateTime" && <span>Date/Time picker</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Type: {getDataTypeName(field.type)}
+                    </p>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -184,7 +201,6 @@ const ReviewFormPage: React.FC = () => {
             Once you're satisfied with your form layout, deploy the project to
             set up security and user permissions.
           </p>
-
           <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
             <Button
               variant="outline"

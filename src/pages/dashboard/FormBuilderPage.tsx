@@ -1,9 +1,9 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProgressSteps } from "@/components/ui/progress-steps";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,24 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Edit,
-  Trash2,
-  Plus,
-  ToggleLeft,
-  ToggleRight,
-  Check,
-  X,
-} from "lucide-react";
+import { Plus, Edit, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Sheet,
@@ -38,13 +22,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-
-// Template types for different asset categories
-interface FieldTemplate {
-  name: string;
-  type: string;
-  required: boolean;
-}
 
 // Data types available for form fields
 const dataTypes = [
@@ -72,8 +49,8 @@ const categories = [
   { id: "other", name: "Other" },
 ];
 
-// Template definitions for each asset category
-const templatesByCategory: Record<string, FieldTemplate[]> = {
+// Template fields per category
+const templatesByCategory = {
   land: [
     { name: "Land Name", type: "text", required: true },
     { name: "Address", type: "textAndNumbers", required: true },
@@ -143,14 +120,41 @@ const templatesByCategory: Record<string, FieldTemplate[]> = {
   ],
 };
 
+// Fields always included at top of every form section 1.
+const systemFields = [
+  { name: "Record No.", type: "textAndNumbers", required: true },
+  { name: "User ID", type: "textAndNumbers", required: true },
+  { name: "Date and Time", type: "dateTime", required: true },
+];
+
 // Project creation steps
 const steps = ["Basic Details", "Form Fields", "Review", "Security"];
+
+// Section and Field types
+type FieldTemplate = {
+  name: string;
+  type: string;
+  required: boolean;
+};
+
+type FormSection = {
+  id: string;     // Unique per section
+  name: string;   // Section title
+  fields: FieldTemplate[];
+};
 
 const FormBuilderPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentStep] = useState(2);
-  const [fields, setFields] = useState<FieldTemplate[]>([]);
+
+  // Sectioned state
+  const [sections, setSections] = useState<FormSection[]>([]);
+
+  // Index of the section being edited
+  const [activeSection, setActiveSection] = useState<number>(0);
+
+  // Project data for summary
   const [projectData, setProjectData] = useState({
     category: "",
     name: "",
@@ -160,27 +164,27 @@ const FormBuilderPage: React.FC = () => {
 
   const isMobile = useIsMobile();
 
-  // Custom field state
+  // Field being added/edited in the current section only
   const [newField, setNewField] = useState<FieldTemplate>({
     name: "",
     type: "text",
     required: false,
   });
 
-  // Edit mode state
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // Edit mode for fields in the current section
+  const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
-  // This would be populated from the previous step in a real implementation
+  // Section name editing
+  const [editingSectionName, setEditingSectionName] = useState<string>("");
+
+  // Load (and migrate) from params for the selected asset category,
+  // and always start with a single default section.
   useEffect(() => {
-    // Get category from URL params
     const category =
       new URLSearchParams(location.search).get("category") || "land";
-
-    // In a real app, you would fetch project data from context/state management
     const urlParams = new URLSearchParams(location.search);
 
-    // Set project data from URL params
     setProjectData({
       category,
       name: urlParams.get("name") || "Sample Project",
@@ -188,51 +192,96 @@ const FormBuilderPage: React.FC = () => {
       description: urlParams.get("description") || "This is a sample project",
     });
 
-    // Set initial fields based on category
-    setFields([
-      // Common fields for all forms
-      { name: "Record No.", type: "textAndNumbers", required: true },
-      { name: "User ID", type: "textAndNumbers", required: true },
-      { name: "Date and Time", type: "dateTime", required: true },
-      // Template-specific fields
+    // All default fields into section 1.
+    const sectionFields = [
+      ...systemFields,
       ...(templatesByCategory[category] || []),
+    ];
+
+    setSections([
+      {
+        id: crypto.randomUUID?.() ?? `${Date.now()}-default`,
+        name: "Section 1",
+        fields: sectionFields,
+      },
     ]);
+    setActiveSection(0);
+    setNewField({ name: "", type: "text", required: false });
+    setEditingFieldIndex(null);
+    setIsSheetOpen(false);
   }, [location.search]);
 
-  const handleNext = () => {
-    localStorage.setItem("formFields", JSON.stringify(fields));
-    localStorage.setItem("projectData", JSON.stringify(projectData));
-    toast.success("Form template saved! Ready for review.");
-    navigate("/dashboard/review-form");
+  // Field name prettifier
+  const getDataTypeName = (typeId: string) =>
+    dataTypes.find((t) => t.id === typeId)?.name || typeId;
+
+  // SECTION CRUD
+
+  // Add a new empty section at end, and activate it
+  const handleAddSection = () => {
+    setSections((prev) => {
+      const nextNum = prev.length + 1;
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID?.() ?? `${Date.now()}-sec${nextNum}`,
+          name: `Section ${nextNum}`,
+          fields: [],
+        },
+      ];
+    });
+    setActiveSection(sections.length); // Focus the new section
+    setNewField({ name: "", type: "text", required: false });
+    toast.success("Section added. Switch to the new section to add fields!");
   };
 
-  const handleRemoveField = (index: number) => {
-    // Don't allow removing common fields (first 3)
-    if (index < 3) {
-      toast.error("Cannot remove mandatory system fields");
+  // Rename an existing section
+  const handleRenameSection = (idx: number, newName: string) => {
+    setSections((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, name: newName.trim() || s.name } : s))
+    );
+    toast.success("Section renamed!");
+  };
+
+  // Remove a section (unless first)
+  const handleRemoveSection = (idx: number) => {
+    if (idx === 0) {
+      toast.error("Cannot remove the first section.");
       return;
     }
+    setSections((prev) => {
+      const newSections = prev.slice();
+      newSections.splice(idx, 1);
 
-    const newFields = [...fields];
-    newFields.splice(index, 1);
-    setFields(newFields);
-    toast.success("Field removed");
+      // Reselect to previous section or fallback
+      setActiveSection(Math.max(0, activeSection - 1));
+      return newSections;
+    });
+    toast.success("Section removed.");
   };
 
-  const handleToggleRequired = (index: number) => {
-    const newFields = [...fields];
-    newFields[index].required = !newFields[index].required;
-    setFields(newFields);
-  };
+  // FIELD CRUD (all operations are now specific to the currently selected section)
 
-  const handleEditField = (index: number) => {
-    setEditingIndex(index);
-    setNewField({ ...fields[index] });
-
-    // Open sheet on mobile
-    if (isMobile) {
-      setIsSheetOpen(true);
+  const handleAddField = () => {
+    if (!newField.name.trim()) {
+      toast.error("Please enter a field name");
+      return;
     }
+    setSections((prev) =>
+      prev.map((section, idx) =>
+        idx === activeSection
+          ? { ...section, fields: [...section.fields, { ...newField }] }
+          : section
+      )
+    );
+    setNewField({ name: "", type: "text", required: false });
+    toast.success("Custom field added");
+  };
+
+  const handleEditField = (fieldIdx: number) => {
+    setEditingFieldIndex(fieldIdx);
+    setNewField({ ...sections[activeSection].fields[fieldIdx] });
+    if (isMobile) setIsSheetOpen(true);
   };
 
   const handleSaveEdit = () => {
@@ -240,12 +289,20 @@ const FormBuilderPage: React.FC = () => {
       toast.error("Field name cannot be empty");
       return;
     }
-
-    if (editingIndex !== null) {
-      const newFields = [...fields];
-      newFields[editingIndex] = { ...newField };
-      setFields(newFields);
-      setEditingIndex(null);
+    if (editingFieldIndex !== null) {
+      setSections(prev =>
+        prev.map((section, idx) =>
+          idx === activeSection
+            ? {
+                ...section,
+                fields: section.fields.map((f, i) =>
+                  i === editingFieldIndex ? { ...newField } : f
+                ),
+              }
+            : section
+        )
+      );
+      setEditingFieldIndex(null);
       setNewField({ name: "", type: "text", required: false });
       setIsSheetOpen(false);
       toast.success("Field updated");
@@ -253,39 +310,147 @@ const FormBuilderPage: React.FC = () => {
   };
 
   const handleCancelEdit = () => {
-    setEditingIndex(null);
+    setEditingFieldIndex(null);
     setNewField({ name: "", type: "text", required: false });
     setIsSheetOpen(false);
   };
 
-  const handleAddField = () => {
-    if (!newField.name.trim()) {
-      toast.error("Please enter a field name");
+  const handleRemoveField = (fieldIdx: number) => {
+    // System fields (first 3) of section 1 (index 0) cannot be removed
+    if (activeSection === 0 && fieldIdx < 3) {
+      toast.error("Cannot remove mandatory system fields");
       return;
     }
-
-    setFields([...fields, { ...newField }]);
-    setNewField({ name: "", type: "text", required: false });
-    toast.success("Custom field added");
+    setSections((prev) =>
+      prev.map((section, idx) =>
+        idx === activeSection
+          ? {
+              ...section,
+              fields: section.fields.filter((_, i) => i !== fieldIdx),
+            }
+          : section
+      )
+    );
+    toast.success("Field removed");
   };
 
-  const getDataTypeName = (typeId: string) => {
-    return dataTypes.find((t) => t.id === typeId)?.name || typeId;
+  const handleToggleRequired = (fieldIdx: number) => {
+    setSections(prev =>
+      prev.map((section, idx) =>
+        idx === activeSection
+          ? {
+              ...section,
+              fields: section.fields.map((field, i) =>
+                i === fieldIdx
+                  ? { ...field, required: !field.required }
+                  : field
+              ),
+            }
+          : section
+      )
+    );
+  };
+
+  // Persist sections and projectData to localStorage as the new formFields structure
+  const handleNext = () => {
+    localStorage.setItem("formSections", JSON.stringify(sections));
+    localStorage.setItem("projectData", JSON.stringify(projectData));
+    toast.success("Form template (with sections) saved! Ready for review.");
+    navigate("/dashboard/review-form");
+  };
+
+  // UI -----------------------------------------------
+
+  // Section tab/accordion
+  const renderSectionsNav = () => (
+    <div className={`flex gap-2 flex-wrap mb-4 ${isMobile ? "overflow-x-auto" : ""}`}>
+      {sections.map((section, idx) => (
+        <div key={section.id} className="relative">
+          <Button
+            size={isMobile ? "sm" : "default"}
+            variant={activeSection === idx ? "default" : "outline"}
+            className={`rounded-full px-4 ${activeSection === idx ? "font-bold" : ""}`}
+            onClick={() => setActiveSection(idx)}
+          >
+            {section.name}
+          </Button>
+          {/* Edit section name button (except first section on mobile) */}
+          {activeSection === idx && (
+            <button
+              title="Rename section"
+              className="absolute right-0 top-0 bg-transparent p-1"
+              onClick={() => setEditingSectionName(section.name)}
+              style={{
+                display: isMobile && idx === 0 ? "none" : undefined,
+                marginLeft: "0.2rem"
+              }}
+            >
+              <Edit className="w-4 h-4 text-[#9b87f5]" />
+            </button>
+          )}
+          {/* Remove section button (not for first) */}
+          {idx !== 0 && (
+            <button
+              title="Remove section"
+              className="absolute right-0 top-7 bg-transparent text-red-500 p-1"
+              onClick={() => handleRemoveSection(idx)}
+              style={{display: isMobile ? "block" : undefined}}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      ))}
+      <Button
+        onClick={handleAddSection}
+        variant="ghost"
+        className="rounded-full px-3"
+        title="Add section"
+      >
+        <Plus className="h-4 w-4" /> <span className="sr-only">Add section</span>
+      </Button>
+    </div>
+  );
+
+  // Section name editor modal (inline for desktop, simple modal for mobile)
+  const renderSectionRenameEditor = () => {
+    if (!editingSectionName) return null;
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/30">
+        <div className="bg-white rounded-md p-6">
+          <h3 className="font-bold text-lg mb-2">Edit Section Name</h3>
+          <Input
+            autoFocus
+            value={editingSectionName}
+            onChange={(e) => setEditingSectionName(e.target.value)}
+            className="mb-3"
+          />
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                handleRenameSection(activeSection, editingSectionName);
+                setEditingSectionName("");
+              }}
+            >
+              Save
+            </Button>
+            <Button variant="outline" onClick={() => setEditingSectionName("")}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
     <>
       <div className="mb-4 px-1">
-        <h1 className="text-xl font-bold tracking-tight">Create Form Fields</h1>
+        <h1 className="text-xl font-bold tracking-tight">Create Form Sections & Fields</h1>
         <p className="text-sm text-muted-foreground mb-4">
-          Define the data you want to collect in this project
+          Define your form by sections (e.g., Personal Info, Equipment Details).
         </p>
-
-        <ProgressSteps
-          currentStep={currentStep}
-          totalSteps={steps.length}
-          labels={steps}
-        />
+        <ProgressSteps currentStep={currentStep} totalSteps={steps.length} labels={steps} />
       </div>
 
       <Card className={`mb-4 ${isMobile ? "mx-1 shadow-sm" : ""}`}>
@@ -302,15 +467,12 @@ const FormBuilderPage: React.FC = () => {
               <div>
                 <p className="text-sm font-semibold">Asset Type</p>
                 <p className="text-sm text-muted-foreground">
-                  {categories.find((c) => c.id === projectData.category)
-                    ?.name || projectData.category}
+                  {categories.find((c) => c.id === projectData.category)?.name || projectData.category}
                 </p>
               </div>
               <div>
                 <p className="text-sm font-semibold">Asset Name</p>
-                <p className="text-sm text-muted-foreground">
-                  {projectData.assetName}
-                </p>
+                <p className="text-sm text-muted-foreground">{projectData.assetName}</p>
               </div>
               {projectData.description && (
                 <div>
@@ -325,31 +487,37 @@ const FormBuilderPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card className={isMobile ? "mx-1 shadow-sm" : ""}>
-        <CardContent className={`${isMobile ? "p-3" : "pt-4"}`}>
-          <h2 className="text-lg font-medium mb-3">Form Template</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            This template includes standard fields for your selected asset type.
-            You can customize the fields below.
-          </p>
+      {renderSectionsNav()}
+      {renderSectionRenameEditor()}
 
+      <Card className={isMobile ? "mx-1 shadow-sm" : ""}>
+        <CardContent className={isMobile ? "p-3" : "pt-4"}>
+          <h2 className="text-lg font-medium mb-3">
+            {sections[activeSection]?.name ? `${sections[activeSection].name} Fields` : "Section Fields"}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            <span>
+              {activeSection === 0
+                ? "This is the first section (includes system fields)."
+                : "Custom section—add your specific fields here."}
+            </span>
+          </p>
+          {/* List of fields in this section */}
           <div
             className={`space-y-3 mb-5 ${
               isMobile ? "max-h-[60vh] overflow-y-auto pb-2" : ""
             }`}
           >
-            {fields.map((field, index) => (
+            {sections[activeSection]?.fields.map((field, i) => (
               <div
-                key={index}
-                className={`flex flex-col ${
-                  isMobile ? "p-2" : "p-3"
-                } border rounded-md ${
-                  editingIndex === index && !isMobile
+                key={i}
+                className={`flex flex-col ${isMobile ? "p-2" : "p-3"} border rounded-md ${
+                  editingFieldIndex === i && !isMobile
                     ? "border-brand-green bg-gray-50"
                     : ""
                 }`}
               >
-                {editingIndex === index && !isMobile ? (
+                {editingFieldIndex === i && !isMobile ? (
                   <div className="w-full space-y-3">
                     <div className="flex flex-col md:flex-row gap-3">
                       <Input
@@ -427,51 +595,48 @@ const FormBuilderPage: React.FC = () => {
                         )}
                       </div>
                     </div>
-
                     {isMobile && (
                       <div className="flex mt-2 border-t pt-2 justify-between">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleToggleRequired(index)}
+                          onClick={() => handleToggleRequired(i)}
                           className="flex-1 text-xs h-8"
-                          disabled={index < 3} // Don't allow changing system fields
+                          disabled={activeSection === 0 && i < 3}
                         >
                           {field.required ? "Make Optional" : "Make Required"}
                         </Button>
-
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleEditField(index)}
+                          onClick={() => handleEditField(i)}
                           className="flex-1 text-xs h-8"
-                          disabled={index < 3} // Don't allow editing system fields
+                          disabled={activeSection === 0 && i < 3}
                         >
                           Edit
                         </Button>
-
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveField(index)}
+                          onClick={() => handleRemoveField(i)}
                           className="flex-1 text-xs h-8 text-red-500"
-                          disabled={index < 3} // Don't allow removing system fields
+                          disabled={activeSection === 0 && i < 3}
                         >
                           Remove
                         </Button>
                       </div>
                     )}
-
                     {!isMobile && (
                       <div className="flex items-center gap-2 mt-2 justify-end">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleToggleRequired(index)}
+                          onClick={() => handleToggleRequired(i)}
                           className="h-8 w-8"
                           title={
                             field.required ? "Make optional" : "Make required"
                           }
+                          disabled={activeSection === 0 && i < 3}
                         >
                           {field.required ? (
                             <ToggleRight className="h-4 w-4" />
@@ -479,25 +644,24 @@ const FormBuilderPage: React.FC = () => {
                             <ToggleLeft className="h-4 w-4" />
                           )}
                         </Button>
-
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleEditField(index)}
+                          onClick={() => handleEditField(i)}
                           className="h-8 w-8"
+                          disabled={activeSection === 0 && i < 3}
                           title="Edit field"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
-
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleRemoveField(index)}
+                          onClick={() => handleRemoveField(i)}
                           className="h-8 w-8 text-red-500"
-                          disabled={index < 3} // Don't allow removing system fields
+                          disabled={activeSection === 0 && i < 3}
                           title={
-                            index < 3
+                            activeSection === 0 && i < 3
                               ? "Cannot remove system field"
                               : "Remove field"
                           }
@@ -511,7 +675,7 @@ const FormBuilderPage: React.FC = () => {
               </div>
             ))}
           </div>
-
+          {/* Add field box */}
           <div
             className={`border rounded-md p-3 mb-5 ${
               isMobile ? "space-y-3" : ""
@@ -519,13 +683,9 @@ const FormBuilderPage: React.FC = () => {
           >
             <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
             <div
-              className={`flex ${
-                isMobile ? "flex-col" : "flex-wrap"
-              } gap-3 items-end`}
+              className={`flex ${isMobile ? "flex-col" : "flex-wrap"} gap-3 items-end`}
             >
-              <div
-                className={`${isMobile ? "w-full" : "flex-1 min-w-[200px]"}`}
-              >
+              <div className={`${isMobile ? "w-full" : "flex-1 min-w-[200px]"}`}>
                 <label className="text-sm mb-1 block">Field Name</label>
                 <Input
                   value={newField.name}
@@ -577,7 +737,7 @@ const FormBuilderPage: React.FC = () => {
               </Button>
             </div>
           </div>
-
+          {/* Navigation buttons */}
           <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
             <Button
               variant="outline"
@@ -595,7 +755,6 @@ const FormBuilderPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-
       {/* Mobile Edit Sheet */}
       {isMobile && (
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
@@ -603,7 +762,6 @@ const FormBuilderPage: React.FC = () => {
             <SheetHeader className="pb-4">
               <SheetTitle>Edit Field</SheetTitle>
             </SheetHeader>
-
             <div className="space-y-5 pt-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Field Name</label>
@@ -616,7 +774,6 @@ const FormBuilderPage: React.FC = () => {
                   className="text-base h-12"
                 />
               </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-medium">Data Type</label>
                 <Select
@@ -641,7 +798,6 @@ const FormBuilderPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="flex items-center justify-between py-2">
                 <span className="text-base font-medium">Required Field</span>
                 <Switch
@@ -651,7 +807,6 @@ const FormBuilderPage: React.FC = () => {
                   }
                 />
               </div>
-
               <div className="flex flex-col gap-3 pt-4">
                 <Button onClick={handleSaveEdit} className="h-12 text-base">
                   Save Changes
