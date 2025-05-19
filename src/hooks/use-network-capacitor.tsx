@@ -23,13 +23,26 @@ export function useNetworkCapacitor() {
     checkNetworkStatus();
 
     // Listen for network status changes
-    const networkListener = Network.addListener('networkStatusChange', (status) => {
-      console.log('Network status changed:', status);
-      setNetworkStatus(status);
-    });
+    let listenerHandle: { remove: () => void } | null = null;
+    let isMounted = true;
+
+    const setupListener = async () => {
+      const handle = await Network.addListener('networkStatusChange', (status) => {
+        console.log('Network status changed:', status);
+        if (isMounted) {
+          setNetworkStatus(status);
+        }
+      });
+      listenerHandle = handle;
+    };
+
+    setupListener();
 
     return () => {
-      networkListener.remove();
+      isMounted = false;
+      if (listenerHandle) {
+        listenerHandle.remove();
+      }
     };
   }, []);
 
