@@ -487,16 +487,10 @@ const ProjectFormPage: React.FC = () => {
           </div>
         </div>
 
+        {/* REMOVE OUTER Edit Button (for designers) */}
         {isDesigner && (
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/dashboard/projects/${projectId}/edit`)}
-              className="flex-1 min-w-[80px] sm:flex-none"
-            >
-              Edit Survey
-            </Button>
+            {/* End survey and Delete only */}
             <Button
               variant="outline"
               size="sm"
@@ -562,131 +556,159 @@ const ProjectFormPage: React.FC = () => {
                     </button>
                   ))}
               </div>
+              {/* Editable Form - Designer can edit form directly here */}
+              {isDesigner ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    // You may want to add logic here to save form structure/fields
+                    toast({
+                      title: "Designer Save (not implemented)",
+                      description:
+                        "Saving form structure is not implemented in this snippet.",
+                    });
+                  }}
+                  className="space-y-4 border border-primary/30 p-4 rounded"
+                >
+                  <div>
+                    <h3 className="text-lg font-medium">
+                      Edit Project Form (Designer Only)
+                    </h3>
+                    <Separator className="mt-2" />
+                  </div>
+                  <div className="space-y-4 pl-0 sm:pl-2">
+                    {/* Need to implement form builder UI for editing fields/sections if required */}
+                    <div className="text-muted-foreground">
+                      <span>
+                        Editing of form structure is intended to be here. (Form Builder UI not shown here)
+                      </span>
+                    </div>
+                  </div>
+                  <Button type="submit">Save Changes</Button>
+                </form>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const section = projectSections[activeSectionIndex];
+                    const sectionFields = getFieldsBySection(section.id);
+                    handleSectionSubmit(section.id, sectionFields);
+                  }}
+                  className="space-y-4"
+                >
+                  {(() => {
+                    const section = projectSections[activeSectionIndex];
+                    const sectionFields = getFieldsBySection(section.id);
 
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const section = projectSections[activeSectionIndex];
-                  const sectionFields = getFieldsBySection(section.id);
-                  handleSectionSubmit(section.id, sectionFields);
-                }}
-                className="space-y-4"
-              >
-                {(() => {
-                  const section = projectSections[activeSectionIndex];
-                  const sectionFields = getFieldsBySection(section.id);
-
-                  return (
-                    <div className="mb-6">
-                      <div className="mb-4">
-                        <h3 className="text-lg font-medium">{section.name}</h3>
-                        <Separator className="mt-2" />
-                      </div>
-                      <div className="space-y-4 pl-0 sm:pl-2">
-                        {sectionFields.map((field: any) => (
-                          <div key={field.id} className="space-y-2">
-                            <label
-                              htmlFor={field.id}
-                              className="text-sm font-medium flex items-center"
-                            >
-                              {field.label || field.name}
-                              {field.required && (
-                                <span className="text-red-500 ml-1">*</span>
-                              )}
-                            </label>
-                            {field.type === "text" && (
-                              <Input
-                                id={field.id}
-                                value={formData[field.id] || ""}
-                                onChange={(e) =>
-                                  handleInputChange(field.id, e.target.value)
-                                }
-                                placeholder={field.placeholder || ""}
-                                required={field.required}
-                                disabled={isProjectInactive}
-                                className={`${
-                                  isProjectInactive ? "bg-gray-100" : ""
-                                }`}
-                              />
-                            )}
-
-                            {field.type === "textarea" && (
-                              <Textarea
-                                id={field.id}
-                                value={formData[field.id] || ""}
-                                onChange={(e) =>
-                                  handleInputChange(field.id, e.target.value)
-                                }
-                                placeholder={field.placeholder || ""}
-                                required={field.required}
-                                disabled={isProjectInactive}
-                                className={`${
-                                  isProjectInactive ? "bg-gray-100" : ""
-                                }`}
-                              />
-                            )}
-
-                            {field.type === "definedList" && (
-                              <Select
-                                value={formData[field.id] || ""}
-                                onValueChange={(value) =>
-                                  handleInputChange(field.id, value)
-                                }
-                                disabled={isProjectInactive}
+                    return (
+                      <div className="mb-6">
+                        <div className="mb-4">
+                          <h3 className="text-lg font-medium">{section.name}</h3>
+                          <Separator className="mt-2" />
+                        </div>
+                        <div className="space-y-4 pl-0 sm:pl-2">
+                          {sectionFields.map((field: any) => (
+                            <div key={field.id} className="space-y-2">
+                              <label
+                                htmlFor={field.id}
+                                className="text-sm font-medium flex items-center"
                               >
-                                <SelectTrigger
+                                {field.label || field.name}
+                                {field.required && (
+                                  <span className="text-red-500 ml-1">*</span>
+                                )}
+                              </label>
+                              {field.type === "text" && (
+                                <Input
                                   id={field.id}
+                                  value={formData[field.id] || ""}
+                                  onChange={(e) =>
+                                    handleInputChange(field.id, e.target.value)
+                                  }
+                                  placeholder={field.placeholder || ""}
+                                  required={field.required}
+                                  disabled={isProjectInactive}
                                   className={`${
                                     isProjectInactive ? "bg-gray-100" : ""
                                   }`}
+                                />
+                              )}
+                              {field.type === "textarea" && (
+                                <Textarea
+                                  id={field.id}
+                                  value={formData[field.id] || ""}
+                                  onChange={(e) =>
+                                    handleInputChange(field.id, e.target.value)
+                                  }
+                                  placeholder={field.placeholder || ""}
+                                  required={field.required}
+                                  disabled={isProjectInactive}
+                                  className={`${
+                                    isProjectInactive ? "bg-gray-100" : ""
+                                  }`}
+                                />
+                              )}
+                              {field.type === "definedList" && (
+                                <Select
+                                  value={formData[field.id] || ""}
+                                  onValueChange={(value) =>
+                                    handleInputChange(field.id, value)
+                                  }
+                                  disabled={isProjectInactive}
                                 >
-                                  <SelectValue
-                                    placeholder={
-                                      field.placeholder || "Select an option"
-                                    }
-                                  />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {field.options?.map((option: string) => (
-                                    <SelectItem key={option} value={option}>
-                                      {option}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-
-                            {field.type === "location" && (
-                              <LocationSelector
-                                value={formData[field.id] || ""}
-                                onChange={(value) =>
-                                  handleInputChange(field.id, value)
-                                }
-                                placeholder={
-                                  field.placeholder || "Enter location"
-                                }
-                                disabled={isProjectInactive}
-                              />
-                            )}
-                          </div>
-                        ))}
+                                  <SelectTrigger
+                                    id={field.id}
+                                    className={`${
+                                      isProjectInactive ? "bg-gray-100" : ""
+                                    }`}
+                                  >
+                                    <SelectValue
+                                      placeholder={
+                                        field.placeholder || "Select an option"
+                                      }
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {field.options?.map((option: string) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {field.type === "location" && (
+                                <LocationSelector
+                                  value={formData[field.id] || ""}
+                                  onChange={(value) =>
+                                    handleInputChange(field.id, value)
+                                  }
+                                  placeholder={
+                                    field.placeholder || "Enter location"
+                                  }
+                                  disabled={isProjectInactive}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    );
+                  })()}
+
+                  {!completedSections.includes(
+                    projectSections[activeSectionIndex].id
+                  ) && (
+                    <div className="flex justify-end">
+                      <Button type="submit" className="w-full sm:w-auto">
+                        Submit Section
+                      </Button>
                     </div>
-                  );
-                })()}
+                  )}
+                </form>
+              )}
 
-                {!completedSections.includes(
-                  projectSections[activeSectionIndex].id
-                ) && (
-                  <div className="flex justify-end">
-                    <Button type="submit" className="w-full sm:w-auto">
-                      Submit Section
-                    </Button>
-                  </div>
-                )}
-              </form>
-
-              {completedSections.length === sectionIds.length && !surveyCompleted && (
+              {completedSections.length === sectionIds.length && !surveyCompleted && !isDesigner && (
                 <div className="flex justify-end mt-4">
                   <Button onClick={handleEndSurveySubmit} className="w-full sm:w-auto">
                     End Survey

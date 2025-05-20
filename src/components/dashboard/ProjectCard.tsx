@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -78,17 +77,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         </Button>
         
         {isDesigner && (
-          <div className="grid grid-cols-3 gap-2 w-full">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => navigate(`/dashboard/projects/${id}/edit`)}
-            >
-              <Edit className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only sm:ml-1">Edit</span>
-            </Button>
-            
+          <div className="grid grid-cols-2 gap-2 w-full">{/* REMOVE Edit Button */}
             {onDuplicate && (
               <Button
                 variant="outline"
