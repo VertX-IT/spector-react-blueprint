@@ -363,51 +363,129 @@ const FormBuilderPage: React.FC = () => {
 
   // Section tab/accordion
   const renderSectionsNav = () => (
-    <div className={`flex gap-2 flex-wrap mb-4 ${isMobile ? "overflow-x-auto" : ""}`}>
+    <div
+      className={
+        isMobile
+          ? "flex items-center gap-3 flex-nowrap mb-4 overflow-x-auto pb-1 px-1"
+          : "flex gap-2 flex-wrap mb-4"
+      }
+      style={isMobile ? { WebkitOverflowScrolling: "touch" } : undefined}
+    >
       {sections.map((section, idx) => (
-        <div key={section.id} className="relative">
+        <div
+          key={section.id}
+          className={
+            isMobile
+              ? `relative flex flex-col items-center justify-center bg-white rounded-lg drop-shadow-sm border min-w-[120px] px-3 py-1 mr-2 ${
+                  activeSection === idx
+                    ? "border-[#8B5CF6] shadow-md"
+                    : "border-gray-200"
+                }`
+              : "relative"
+          }
+          style={isMobile ? { minWidth: 130, marginRight: 8 } : undefined}
+        >
           <Button
             size={isMobile ? "sm" : "default"}
             variant={activeSection === idx ? "default" : "outline"}
-            className={`rounded-full px-4 ${activeSection === idx ? "font-bold" : ""}`}
+            className={
+              isMobile
+                ? `w-full justify-center rounded-lg text-sm font-semibold py-2 px-3 !shadow-none transition-colors ${
+                    activeSection === idx
+                      ? "bg-[#8B5CF6] text-white"
+                      : "bg-white text-[#8B5CF6] border border-[#DDD6FE]"
+                  }`
+                : `rounded-full px-4 ${activeSection === idx ? "font-bold" : ""}`
+            }
+            style={isMobile ? { minHeight: 44, minWidth: 110 } : undefined}
             onClick={() => setActiveSection(idx)}
           >
-            {section.name}
+            {/* Truncate long names and show tooltip on hover for mobile */}
+            <span
+              className={
+                isMobile
+                  ? "truncate max-w-[72px] block"
+                  : ""
+              }
+              title={section.name}
+            >
+              {section.name}
+            </span>
           </Button>
-          {/* Edit section name button (except first section on mobile) */}
-          {activeSection === idx && (
-            <button
-              title="Rename section"
-              className="absolute right-0 top-0 bg-transparent p-1"
-              onClick={() => setEditingSectionName(section.name)}
-              style={{
-                display: isMobile && idx === 0 ? "none" : undefined,
-                marginLeft: "0.2rem"
-              }}
-            >
-              <Edit className="w-4 h-4 text-[#9b87f5]" />
-            </button>
-          )}
-          {/* Remove section button (not for first) */}
-          {idx !== 0 && (
-            <button
-              title="Remove section"
-              className="absolute right-0 top-7 bg-transparent text-red-500 p-1"
-              onClick={() => handleRemoveSection(idx)}
-              style={{display: isMobile ? "block" : undefined}}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+          {/* Mobile: Edit/Delete action row as icon buttons, below the label */}
+          {isMobile ? (
+            <div className="flex justify-center gap-2 mt-1 w-full">
+              {/* Edit (cannot rename first section for mobile) */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                style={{
+                  display: idx === 0 ? "none" : undefined,
+                }}
+                title="Rename section"
+                onClick={() => setEditingSectionName(section.name)}
+              >
+                <Edit className="w-4 h-4 text-[#8B5CF6]" />
+              </Button>
+              {/* Remove (cannot remove first section) */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                style={{
+                  display: idx === 0 ? "none" : undefined,
+                }}
+                title="Remove section"
+                onClick={() => handleRemoveSection(idx)}
+              >
+                <Trash2 className="w-4 h-4 text-red-500" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Desktop: Edit section name button (except first section) */}
+              {activeSection === idx && (
+                <button
+                  title="Rename section"
+                  className="absolute right-0 top-0 bg-transparent p-1"
+                  onClick={() => setEditingSectionName(section.name)}
+                  style={{
+                    display: idx === 0 ? "none" : undefined,
+                    marginLeft: "0.2rem"
+                  }}
+                >
+                  <Edit className="w-4 h-4 text-[#9b87f5]" />
+                </button>
+              )}
+              {/* Remove section button (not for first) */}
+              {idx !== 0 && (
+                <button
+                  title="Remove section"
+                  className="absolute right-0 top-7 bg-transparent text-red-500 p-1"
+                  onClick={() => handleRemoveSection(idx)}
+                  style={{display: "block"}}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </>
           )}
         </div>
       ))}
+      {/* Add section button */}
       <Button
         onClick={handleAddSection}
         variant="ghost"
-        className="rounded-full px-3"
+        className={
+          isMobile
+            ? "rounded-lg py-2 px-3 min-w-[44px] min-h-[44px] flex items-center justify-center bg-white shadow border border-[#DDD6FE]"
+            : "rounded-full px-3"
+        }
         title="Add section"
       >
-        <Plus className="h-4 w-4" /> <span className="sr-only">Add section</span>
+        <Plus className="h-5 w-5 text-[#8B5CF6]" />
+        <span className="sr-only">Add section</span>
       </Button>
     </div>
   );
@@ -828,3 +906,4 @@ const FormBuilderPage: React.FC = () => {
 };
 
 export default FormBuilderPage;
+
