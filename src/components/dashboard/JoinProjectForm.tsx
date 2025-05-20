@@ -33,48 +33,47 @@ export const JoinProjectForm: React.FC = () => {
   const onSubmit = async (values: JoinProjectFormValues) => {
     try {
       setIsJoining(true);
-      
+
       // Check Firebase for the project with this PIN
       const project = await findProjectByPin(values.projectPin);
-      
+
       if (project) {
-        // In a real app, you would add this user to the project members collection in Firebase
-        // For now, we'll just add it to localStorage and show a success message
+        // Add to user's localStorage project list if not already joined
         const existingProjects = localStorage.getItem('myProjects')
           ? JSON.parse(localStorage.getItem('myProjects') || '[]')
           : [];
-        
-        // Check if project is already in the user's projects
         const alreadyJoined = existingProjects.some(
           (p: any) => p.projectPin === values.projectPin
         );
-        
         if (!alreadyJoined) {
           existingProjects.push({
             ...project,
-            createdAt: project.createdAt.toISOString(), // Convert Date to string for localStorage
+            createdAt: project.createdAt.toISOString(), // String for localStorage
           });
           localStorage.setItem('myProjects', JSON.stringify(existingProjects));
         }
-        
+
         toast.success('Successfully joined project!');
-        navigate('/dashboard/my-projects');
+        // Redirect directly to the opened project page
+        // project.id is defined when from Firebase
+        navigate(`/dashboard/projects/${project.id}/form`);
+        return;
+      }
+
+      // If not found in Firebase, check localStorage for backward compatibility
+      const localProjects = localStorage.getItem('myProjects')
+        ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+        : [];
+      const projectToJoin = localProjects.find(
+        (project: any) => project.projectPin === values.projectPin
+      );
+      if (projectToJoin) {
+        toast.success('Successfully joined project from local storage!');
+        // Try to use id, else fallback to projectPin as pseudo-id
+        const projectPageId = projectToJoin.id || projectToJoin.projectPin;
+        navigate(`/dashboard/projects/${projectPageId}/form`);
       } else {
-        // If not in Firebase, check localStorage for backward compatibility
-        const localProjects = localStorage.getItem('myProjects')
-          ? JSON.parse(localStorage.getItem('myProjects') || '[]')
-          : [];
-        
-        const projectToJoin = localProjects.find(
-          (project: any) => project.projectPin === values.projectPin
-        );
-        
-        if (projectToJoin) {
-          toast.success('Successfully joined project from local storage!');
-          navigate('/dashboard/my-projects');
-        } else {
-          toast.error('Invalid project PIN. Please try again.');
-        }
+        toast.error('Invalid project PIN. Please try again.');
       }
     } catch (error) {
       console.error('Error joining project:', error);
@@ -129,3 +128,4 @@ export const JoinProjectForm: React.FC = () => {
     </Card>
   );
 };
+
