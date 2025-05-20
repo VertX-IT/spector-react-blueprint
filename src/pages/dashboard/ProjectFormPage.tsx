@@ -49,7 +49,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { LocationSelector } from "@/components/survey/LocationSelector";
-import { getProjectById, submitFormData } from "@/lib/projectOperations";
+import { getProjectById, submitFormData, deleteProject } from "@/lib/projectOperations";
 import { useSectionSurvey } from "@/hooks/useSectionSurvey";
 import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
@@ -328,6 +328,141 @@ const ProjectFormPage: React.FC = () => {
             order: 0,
           },
         ];
+
+  // Toggle expanded row for viewing record details
+  const handleToggleRowExpand = (recordId: string) => {
+    setExpandedRows((prev) =>
+      prev.includes(recordId)
+        ? prev.filter((id) => id !== recordId)
+        : [...prev, recordId]
+    );
+  };
+
+  // Format location display (simple fallback if not an object)
+  function formatLocationForDisplay(loc: any) {
+    if (!loc) return "-";
+    if (typeof loc === "object" && (loc.lat || loc.lng)) {
+      return `Lat: ${loc.lat}, Lng: ${loc.lng}`;
+    }
+    if (typeof loc === "string") {
+      try {
+        const obj = JSON.parse(loc);
+        if (obj && obj.lat && obj.lng) {
+          return `Lat: ${obj.lat}, Lng: ${obj.lng}`;
+        }
+      } catch {
+        // not JSON, continue
+      }
+      return loc;
+    }
+    return "-";
+  }
+
+  // Export collected data as CSV
+  const handleExportData = () => {
+    if (!projectRecords || projectRecords.length === 0) return;
+    const headers =
+      project?.formFields?.map((f) => f.label || f.name || f.id) || [];
+    const fieldIds = project?.formFields?.map((f) => f.id) || [];
+    const rows = [
+      headers,
+      ...projectRecords.map((record) =>
+        fieldIds.map((fid) => {
+          let val = record.data?.[fid];
+          if (typeof val === "object") val = JSON.stringify(val);
+          return `"${(val ?? "-").toString().replace(/"/g, '""')}"`
+        })
+      ),
+    ];
+    const csvContent = rows.map((r) => r.join(",")).join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${project?.name || "project"}-data.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+
+  // Delete project
+  const handleDeleteProject = async () => {
+    if (!projectId) return;
+    try {
+      setLoading(true);
+      setIsDeleteDialogOpen(false);
+      await deleteProject(projectId);
+      toast({
+        title: "Project deleted",
+        description: "Project and all its data have been permanently deleted.",
+      });
+      navigate("/dashboard/my-projects");
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error deleting project",
+        description: err.message || "Could not delete project.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // End/Close survey
+  const handleEndSurvey = async () => {
+    if (!projectId) return;
+    setIsEndSurveyDialogOpen(false);
+    try {
+      // Update project status in firestore, remove from local myProjects as well
+      await updateProjectStatus(projectId, "inactive");
+      toast({
+        title: "Survey Ended",
+        description: "Survey is now closed for new submissions.",
+      });
+      setProject((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "inactive",
+            }
+          : prev
+      );
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to end survey",
+        description: err.message || "Could not close survey.",
+      });
+    }
+  };
+
+  // Utility for updating status
+  async function updateProjectStatus(projectId: string, status: "active" | "inactive") {
+    // Update firebase doc's status field
+    await import("@/lib/projectOperations").then(async (lib) => {
+      const { db } = await import("@/lib/firebase");
+      const { doc, updateDoc } = await import("firebase/firestore");
+      const projRef = doc(db, "projects", projectId);
+      await updateDoc(projRef, { status });
+    });
+
+    // Also update localStorage (if exists)
+    const stored = localStorage.getItem("myProjects");
+    if (stored) {
+      let arr = [];
+      try {
+        arr = JSON.parse(stored);
+        for (let p of arr) {
+          if (p.id === projectId) p.status = status;
+        }
+        localStorage.setItem("myProjects", JSON.stringify(arr));
+      } catch {}
+    }
+  }
+
 
   return (
     <>
