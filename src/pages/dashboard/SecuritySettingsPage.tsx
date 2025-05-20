@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +7,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Copy, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveProject, verifyFirebaseConnection } from '@/lib/projectOperations';
+import { saveProject, verifyFirebaseConnection, generateSequentialPin } from '@/lib/projectOperations';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // Steps for project creation
@@ -41,9 +40,9 @@ const SecuritySettingsPage: React.FC = () => {
   
   const isMobile = useIsMobile();
   
-  // Generate a unique 6-digit PIN when component loads
+  // Generate the sequential 6-digit project PIN when component loads
   useEffect(() => {
-    generateProjectPin();
+    generate6DigitProjectPin();
     checkFirebaseConnection();
   }, []);
   
@@ -91,10 +90,52 @@ const SecuritySettingsPage: React.FC = () => {
     }
   }, [location.search]);
 
-  const generateProjectPin = () => {
-    // Generate a random 6-digit number (100000-999999)
-    const pin = Math.floor(100000 + Math.random() * 900000).toString();
-    setProjectPin(pin);
+  // NEW: Function to find the latest PIN in both Firebase and localStorage
+  const generate6DigitProjectPin = async () => {
+    let latestPin: string = '000000';
+
+    // 1. Fetch highest pin from Firebase using generateSequentialPin, 
+    //    but do NOT use its incrementing logic
+    let firebaseHighestPin: string = '000000';
+    try {
+      const pinFromFirebase = await generateSequentialPin();
+      // generateSequentialPin returns the next available PIN (already +1),
+      // so need to take one less to get the highest in Firebase
+      let numericPin = parseInt(pinFromFirebase);
+      if (!isNaN(numericPin) && numericPin > 0) {
+        firebaseHighestPin = (numericPin - 1).toString().padStart(6, '0');
+      }
+    } catch (e) {
+      // ignore, fallback to default
+    }
+
+    // 2. Find highest pin in localStorage
+    const projects = localStorage.getItem('myProjects')
+      ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+      : [];
+    let localHighestPin: string = '000000';
+    if (projects.length > 0) {
+      localHighestPin = projects.reduce((max: string, prj: any) => {
+        if (
+          typeof prj.projectPin === 'string' &&
+          /^\d{6}$/.test(prj.projectPin) &&
+          prj.projectPin > max
+        ) {
+          return prj.projectPin;
+        }
+        return max;
+      }, '000000');
+    }
+
+    // 3. Decide which is the latest
+    latestPin = [firebaseHighestPin, localHighestPin].sort().reverse()[0] || '000000';
+
+    // 4. Increment for the new project (handle 999999 wrap)
+    let numericPin = parseInt(latestPin, 10) || 0;
+    let newPin = numericPin + 1;
+    if (newPin > 999999) newPin = 0;
+    const paddedPin = newPin.toString().padStart(6, '0');
+    setProjectPin(paddedPin);
   };
 
   const handleBack = () => {

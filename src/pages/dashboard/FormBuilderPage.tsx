@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -235,7 +234,7 @@ const FormBuilderPage: React.FC = () => {
     toast.success("Section added. Switch to the new section to add fields!");
   };
 
-  // Rename an existing section
+  // Rename an existing section (now allows section 0 too)
   const handleRenameSection = (idx: number, newName: string) => {
     setSections((prev) =>
       prev.map((s, i) => (i === idx ? { ...s, name: newName.trim() || s.name } : s))
@@ -243,12 +242,8 @@ const FormBuilderPage: React.FC = () => {
     toast.success("Section renamed!");
   };
 
-  // Remove a section (unless first)
+  // Remove a section (now allows first section too)
   const handleRemoveSection = (idx: number) => {
-    if (idx === 0) {
-      toast.error("Cannot remove the first section.");
-      return;
-    }
     setSections((prev) => {
       const newSections = prev.slice();
       newSections.splice(idx, 1);
@@ -412,30 +407,22 @@ const FormBuilderPage: React.FC = () => {
               {section.name}
             </span>
           </Button>
-          {/* Mobile: Edit/Delete action row as icon buttons, below the label */}
+          {/* Mobile: Edit/Delete action row now always visible (including Section 1) */}
           {isMobile ? (
             <div className="flex justify-center gap-2 mt-1 w-full">
-              {/* Edit (cannot rename first section for mobile) */}
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                style={{
-                  display: idx === 0 ? "none" : undefined,
-                }}
                 title="Rename section"
                 onClick={() => setEditingSectionName(section.name)}
               >
                 <Edit className="w-4 h-4 text-[#8B5CF6]" />
               </Button>
-              {/* Remove (cannot remove first section) */}
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                style={{
-                  display: idx === 0 ? "none" : undefined,
-                }}
                 title="Remove section"
                 onClick={() => handleRemoveSection(idx)}
               >
@@ -444,22 +431,20 @@ const FormBuilderPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* Desktop: Edit section name button (except first section) */}
               {activeSection === idx && (
                 <button
                   title="Rename section"
                   className="absolute right-0 top-0 bg-transparent p-1"
                   onClick={() => setEditingSectionName(section.name)}
                   style={{
-                    display: idx === 0 ? "none" : undefined,
                     marginLeft: "0.2rem"
                   }}
                 >
                   <Edit className="w-4 h-4 text-[#9b87f5]" />
                 </button>
               )}
-              {/* Remove section button (not for first) */}
-              {idx !== 0 && (
+              {/* Delete button always visible except when there's only 1 section */}
+              {sections.length > 1 && (
                 <button
                   title="Remove section"
                   className="absolute right-0 top-7 bg-transparent text-red-500 p-1"
@@ -906,4 +891,3 @@ const FormBuilderPage: React.FC = () => {
 };
 
 export default FormBuilderPage;
-
