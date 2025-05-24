@@ -70,7 +70,7 @@ export const ProjectEditForm: React.FC<ProjectEditFormProps> = ({
     };
     await onSave(updated);
     setSaving(false);
-  }
+  } // <<<<< THIS CLOSING BRACKET WAS LIKELY MISSING
 
   return (
     <Card>
@@ -150,3 +150,5 @@ export const ProjectEditForm: React.FC<ProjectEditFormProps> = ({
     </Card>
   );
 };
+
+// ... (any exports or closing code you already have) ...
