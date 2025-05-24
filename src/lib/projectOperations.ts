@@ -27,6 +27,7 @@ export interface Project {
   projectPin: string;
   createdBy?: string;
   formFields?: any[];
+  formSections?: any[]; // <-- add this line to fix error
   description?: string;
   status?: 'active' | 'inactive';
   endedAt?: string;
