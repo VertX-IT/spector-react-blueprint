@@ -135,7 +135,7 @@ export const ProjectEditForm: React.FC<ProjectEditFormProps> = ({
                     ))}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
