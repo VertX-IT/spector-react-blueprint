@@ -19,31 +19,36 @@ const EditProjectPage: React.FC = () => {
   useEffect(() => {
     async function loadProject() {
       setLoading(true);
+      let loaded: ProjectType | null = null;
       // Try to get from Firebase first when online
       if (isOnline && currentUser?.uid) {
         try {
           const remote = await getProjectById(projectId!);
           if (remote) {
-            setProject(remote);
-            setLoading(false);
-            return;
+            loaded = remote;
           }
         } catch (e) {
           // Fail quietly and fallback to localStorage
         }
       }
       // Try localStorage
-      const stored = localStorage.getItem("myProjects");
-      if (stored) {
-        const arr = JSON.parse(stored);
-        const local = arr.find((p: any) => p.id === projectId);
-        if (local) {
-          setProject({
-            ...local,
-            createdAt: new Date(local.createdAt),
-          });
+      if (!loaded) {
+        const stored = localStorage.getItem("myProjects");
+        if (stored) {
+          const arr = JSON.parse(stored);
+          const local = arr.find((p: any) => p.id === projectId);
+          if (local) {
+            loaded = {
+              ...local,
+              createdAt: new Date(local.createdAt),
+              // Ensure formFields and formSections exist and are arrays
+              formFields: Array.isArray(local.formFields) ? local.formFields : [],
+              formSections: Array.isArray(local.formSections) ? local.formSections : [],
+            };
+          }
         }
       }
+      setProject(loaded);
       setLoading(false);
     }
     loadProject();

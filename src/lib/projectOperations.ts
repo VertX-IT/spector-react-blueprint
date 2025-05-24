@@ -264,11 +264,11 @@ export const getProjectById = async (projectId: string) => {
     console.log('Fetching project with ID:', projectId);
     const projectRef = doc(db, 'projects', projectId);
     const projectSnapshot = await getDoc(projectRef);
-    
+
     if (projectSnapshot.exists()) {
       const data = projectSnapshot.data();
       console.log('Project found:', data);
-      
+
       return {
         id: projectSnapshot.id,
         name: data.name,
@@ -276,14 +276,15 @@ export const getProjectById = async (projectId: string) => {
         createdAt: new Date(data.createdAt),
         recordCount: data.recordCount,
         projectPin: data.projectPin,
-        formFields: data.formFields || [],
         description: data.description || '',
         createdBy: data.createdBy,
         status: data.status || 'active',
         endedAt: data.endedAt,
+        formFields: Array.isArray(data.formFields) ? data.formFields : [],
+        formSections: Array.isArray(data.formSections) ? data.formSections : [],
       };
     }
-    
+
     console.log('No project found with this ID');
     return null;
   } catch (error: any) {
