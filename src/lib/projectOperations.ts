@@ -201,8 +201,11 @@ export const getUserProjects = async (userId: string) => {
         recordCount: data.recordCount,
         projectPin: data.projectPin,
         createdBy: data.createdBy,
-        formFields: data.formFields,
-        description: data.description
+        description: data.description,
+        status: data.status || 'active',
+        endedAt: data.endedAt,
+        formFields: Array.isArray(data.formFields) ? data.formFields : [],
+        formSections: Array.isArray(data.formSections) ? data.formSections : []
       });
     });
     
