@@ -143,7 +143,9 @@ export const ProjectEditForm: React.FC<ProjectEditFormProps> = ({
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? "Saving..." : "Save"}
+        </Button>
       </CardFooter>
     </Card>
   );
