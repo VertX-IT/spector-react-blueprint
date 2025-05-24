@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
@@ -31,6 +30,7 @@ import SecuritySettingsPage from '@/pages/dashboard/SecuritySettingsPage';
 import ProfilePage from '@/pages/dashboard/ProfilePage';
 import ProjectFormPage from '@/pages/dashboard/ProjectFormPage';
 import NotFound from '@/pages/NotFound';
+import EditProjectPage from "@/pages/dashboard/EditProjectPage";
 
 const App: React.FC = () => {
   return (
@@ -89,6 +89,7 @@ const App: React.FC = () => {
                 <Route path="security-settings" element={<SecuritySettingsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="projects/:projectId/form" element={<ProjectFormPage />} />
+                <Route path="projects/:projectId/edit" element={<EditProjectPage />} />
               </Route>
               
               {/* Redirect /dashboard to /dashboard */}

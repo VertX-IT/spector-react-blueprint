@@ -43,7 +43,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   }).format(createdAt);
 
   const isInactive = status === 'inactive';
-  const [isEditing, setIsEditing] = React.useState(false);
+  
 
   // Save edited project function (localStorage or Firebase)
   const handleSaveEdit = async (editedProject: any) => {
@@ -74,30 +74,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           toast.success("Project updated locally!");
         }
       }
-      setIsEditing(false);
+      
     } catch (err: any) {
       toast.error("Error saving project: " + (err.message || "Unknown error"));
     }
   };
 
-  if (isEditing) {
-    return (
-      <ProjectEditForm
-        project={{
-          id,
-          name,
-          category,
-          createdAt,
-          recordCount,
-          projectPin,
-          status,
-          // Assume formSections & formFields are passed in actual project object for edit!
-        }}
-        onCancel={() => setIsEditing(false)}
-        onSave={handleSaveEdit}
-      />
-    );
-  }
+  
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-md h-full">
@@ -140,8 +123,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               variant="outline"
               size="sm"
               className="w-full"
-              // Changed to activate edit mode instead of navigation!
-              onClick={() => setIsEditing(true)}
+              onClick={() => navigate(`/dashboard/projects/${id}/edit`)}
             >
               <Edit className="h-4 w-4" />
               <span className="sr-only sm:not-sr-only sm:ml-1">Edit</span>
