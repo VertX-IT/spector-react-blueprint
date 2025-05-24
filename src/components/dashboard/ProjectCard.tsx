@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { FolderOpen, Edit, Trash, Copy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { ProjectEditForm } from "./ProjectEditForm";
+import { toast } from "sonner";
+import { getUserProjects, saveProject as saveProjectToFirebase } from "@/lib/projectOperations";
 
 interface ProjectCardProps {
   id: string;
@@ -41,6 +43,61 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   }).format(createdAt);
 
   const isInactive = status === 'inactive';
+  const [isEditing, setIsEditing] = React.useState(false);
+
+  // Save edited project function (localStorage or Firebase)
+  const handleSaveEdit = async (editedProject: any) => {
+    try {
+      // Check if project is in Firebase (id exists in remote list)
+      const userId = userData?.uid;
+      let isFirebase = false;
+      if (userId) {
+        const firebaseProjects = await getUserProjects(userId);
+        if (firebaseProjects.find(p => p.id === editedProject.id)) {
+          isFirebase = true;
+        }
+      }
+
+      if (isFirebase) {
+        // Save to Firebase (relies on saveProject to update or create as needed)
+        await saveProjectToFirebase(editedProject);
+        toast.success("Project updated in the cloud!");
+      } else {
+        // Local update
+        const stored = localStorage.getItem("myProjects");
+        let arr = [];
+        if (stored) arr = JSON.parse(stored);
+        const idx = arr.findIndex((p: any) => p.id === editedProject.id);
+        if (idx !== -1) {
+          arr[idx] = { ...arr[idx], ...editedProject };
+          localStorage.setItem("myProjects", JSON.stringify(arr));
+          toast.success("Project updated locally!");
+        }
+      }
+      setIsEditing(false);
+    } catch (err: any) {
+      toast.error("Error saving project: " + (err.message || "Unknown error"));
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <ProjectEditForm
+        project={{
+          id,
+          name,
+          category,
+          createdAt,
+          recordCount,
+          projectPin,
+          status,
+          // Assume formSections & formFields are passed in actual project object for edit!
+        }}
+        onCancel={() => setIsEditing(false)}
+        onSave={handleSaveEdit}
+      />
+    );
+  }
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-md h-full">
@@ -83,7 +140,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={() => navigate(`/dashboard/projects/${id}/edit`)}
+              // Changed to activate edit mode instead of navigation!
+              onClick={() => setIsEditing(true)}
             >
               <Edit className="h-4 w-4" />
               <span className="sr-only sm:not-sr-only sm:ml-1">Edit</span>
