@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,7 +30,7 @@ const SecuritySettingsPage: React.FC = () => {
     assetName: '',
     description: ''
   });
-  
+
   const [projectPin, setProjectPin] = useState<string>('');
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
@@ -37,15 +38,15 @@ const SecuritySettingsPage: React.FC = () => {
     connected: true,
     message: null
   });
-  
+
   const isMobile = useIsMobile();
-  
+
   // Generate the sequential 6-digit project PIN when component loads
   useEffect(() => {
     generate6DigitProjectPin();
     checkFirebaseConnection();
   }, []);
-  
+
   // Check Firebase connection on page load
   const checkFirebaseConnection = async () => {
     try {
@@ -54,7 +55,7 @@ const SecuritySettingsPage: React.FC = () => {
         connected: result.success,
         message: result.success ? null : (result.error || 'Unable to connect to Firebase')
       });
-      
+
       if (!result.success) {
         toast.error(`Firebase connection issue: ${result.error}`);
       }
@@ -66,11 +67,11 @@ const SecuritySettingsPage: React.FC = () => {
       });
     }
   };
-  
+
   // Retrieve project data from localStorage
   useEffect(() => {
     const storedProjectData = localStorage.getItem('projectData');
-    
+
     if (storedProjectData) {
       setProjectData(JSON.parse(storedProjectData));
     } else {
@@ -80,7 +81,7 @@ const SecuritySettingsPage: React.FC = () => {
       const name = params.get('name') || '';
       const assetName = params.get('assetName') || '';
       const description = params.get('description') || '';
-      
+
       setProjectData({
         category,
         name,
@@ -101,7 +102,7 @@ const SecuritySettingsPage: React.FC = () => {
       const pinFromFirebase = await generateSequentialPin();
       // generateSequentialPin returns the next available PIN (already +1),
       // so need to take one less to get the highest in Firebase
-      let numericPin = parseInt(pinFromFirebase);
+      const numericPin = parseInt(pinFromFirebase);
       if (!isNaN(numericPin) && numericPin > 0) {
         firebaseHighestPin = (numericPin - 1).toString().padStart(6, '0');
       }
@@ -131,7 +132,7 @@ const SecuritySettingsPage: React.FC = () => {
     latestPin = [firebaseHighestPin, localHighestPin].sort().reverse()[0] || '000000';
 
     // 4. Increment for the new project (handle 999999 wrap)
-    let numericPin = parseInt(latestPin, 10) || 0;
+    const numericPin = parseInt(latestPin, 10) || 0;
     let newPin = numericPin + 1;
     if (newPin > 999999) newPin = 0;
     const paddedPin = newPin.toString().padStart(6, '0');
@@ -141,55 +142,60 @@ const SecuritySettingsPage: React.FC = () => {
   const handleBack = () => {
     navigate(`/dashboard/review-form${location.search}`);
   };
-  
+
   const handleCopyPin = () => {
     navigator.clipboard.writeText(projectPin);
     toast.success('Project PIN copied to clipboard');
   };
-  
+
+  // SecuritySettingsPage.tsx
   const handleFinish = async () => {
     setIsDeploying(true);
     setDeployError(null);
-    
+
     try {
-      // First verify Firebase connection
+      // Verify Firebase connection
       const connectionCheck = await verifyFirebaseConnection();
       if (!connectionCheck.success) {
         throw new Error(`Firebase connection issue: ${connectionCheck.error}`);
       }
-      
+
       console.log('Starting project deployment process');
-      
-      // Get all project data
-      const formFields = localStorage.getItem('formFields') 
-        ? JSON.parse(localStorage.getItem('formFields') || '[]') 
+
+      // Get project data from localStorage
+      const formFields = localStorage.getItem('formFields')
+        ? JSON.parse(localStorage.getItem('formFields') || '[]')
         : [];
-        
+      const formSections = localStorage.getItem('formSections')
+        ? JSON.parse(localStorage.getItem('formSections') || '[]')
+        : [];
+
       // Combine all project data
       const completeProjectData = {
         name: projectData.name,
         category: projectData.category,
         assetName: projectData.assetName,
         description: projectData.description || '',
-        formFields,
+        formFields, // Keep for backward compatibility if needed
+        formSections, // Include the section-based structure
         projectPin,
         createdAt: new Date(),
         recordCount: 0,
         createdBy: userData?.uid || 'anonymous',
       };
-      
+
       console.log('Prepared project data for saving:', completeProjectData);
-      
+
       // Save to Firebase
       console.log('Saving project to Firebase...');
       const savedProject = await saveProject(completeProjectData);
       console.log('Project saved to Firebase:', savedProject);
-      
-      // Keep localStorage for backward compatibility
+
+      // Update localStorage for backward compatibility
       const existingProjects = localStorage.getItem('myProjects')
         ? JSON.parse(localStorage.getItem('myProjects') || '[]')
         : [];
-        
+
       const newProject = {
         id: savedProject.id || Date.now().toString(),
         name: completeProjectData.name,
@@ -199,16 +205,18 @@ const SecuritySettingsPage: React.FC = () => {
         createdAt: new Date().toISOString(),
         recordCount: 0,
         formFields,
+        formSections, // Include in localStorage
         projectPin,
       };
-      
+
       existingProjects.push(newProject);
       localStorage.setItem('myProjects', JSON.stringify(existingProjects));
-      
+
       // Clear form data from localStorage
       localStorage.removeItem('formFields');
+      localStorage.removeItem('formSections'); // Clear formSections as well
       localStorage.removeItem('projectData');
-      
+
       toast.success('Project successfully deployed!');
       navigate('/dashboard/my-projects');
     } catch (error: any) {
@@ -228,8 +236,8 @@ const SecuritySettingsPage: React.FC = () => {
         <p className="text-sm text-muted-foreground mb-4">
           Configure access for your project
         </p>
-        
-        <ProgressSteps 
+
+        <ProgressSteps
           currentStep={currentStep}
           totalSteps={steps.length}
           labels={steps}
@@ -240,7 +248,7 @@ const SecuritySettingsPage: React.FC = () => {
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Firebase connection issue: {firebaseStatus.message}. 
+            Firebase connection issue: {firebaseStatus.message}.
             Your project may not save correctly.
           </AlertDescription>
         </Alert>
@@ -274,14 +282,14 @@ const SecuritySettingsPage: React.FC = () => {
           <p className="text-sm text-muted-foreground mb-4">
             Share this 6-digit PIN with team members to allow them to join the project
           </p>
-          
+
           <div className="flex flex-col items-center space-y-4">
             <div className="text-3xl font-mono tracking-widest border border-dashed border-gray-300 rounded-md py-3 px-6 bg-muted/20">
               {projectPin}
             </div>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               onClick={handleCopyPin}
               className="flex gap-2 items-center"
             >
@@ -298,7 +306,7 @@ const SecuritySettingsPage: React.FC = () => {
           <p className="text-sm text-muted-foreground mb-4">
             Your project is ready to be deployed. Team members can join your project using the PIN code.
           </p>
-          
+
           {deployError && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -307,16 +315,16 @@ const SecuritySettingsPage: React.FC = () => {
               </AlertDescription>
             </Alert>
           )}
-          
+
           <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
-            <Button 
+            <Button
               variant="outline"
               onClick={handleBack}
               className={isMobile ? 'h-12 text-base w-full' : ''}
             >
               Back to Review
             </Button>
-            <Button 
+            <Button
               onClick={handleFinish}
               disabled={isDeploying || !firebaseStatus.connected}
               className={isMobile ? 'h-12 text-base w-full' : ''}

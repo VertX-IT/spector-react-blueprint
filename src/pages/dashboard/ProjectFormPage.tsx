@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -7,14 +8,6 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertCircle, Download, ChevronDown, ChevronUp, Trash2, Edit } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -42,14 +35,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { LocationSelector } from "@/components/survey/LocationSelector";
-import { getProjectById, submitFormData, deleteProject } from "@/lib/projectOperations";
+import { getProjectById, submitFormData, deleteProject, updateProject, getProjectRecords } from "@/lib/projectOperations";
 import { useSectionSurvey } from "@/hooks/useSectionSurvey";
 import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
@@ -58,12 +45,13 @@ interface Section {
   id: string;
   name: string;
   order: number;
+  fields: FieldTemplate[];
 }
 
 interface FieldTemplate {
   id: string;
-  name?: string;
-  label?: string;
+  name: string;
+  label: string;
   type: string;
   required: boolean;
   sectionId?: string;
@@ -72,7 +60,7 @@ interface FieldTemplate {
 }
 
 interface ProjectRecord {
-  id: string;
+  id?: string; // Changed from required to optional
   projectId: string;
   data: Record<string, any>;
   createdAt: string;
@@ -86,7 +74,6 @@ interface Project {
   createdAt: Date;
   recordCount: number;
   projectPin: string;
-  formFields?: FieldTemplate[];
   formSections?: Section[];
   description?: string;
   status?: "active" | "inactive";
@@ -94,16 +81,21 @@ interface Project {
   createdBy?: string;
 }
 
+interface FormData {
+  [key: string]: string | File | null;
+}
+
 const ProjectFormPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { userData } = useAuth();
   const isDesigner = userData?.role === "designer";
+  const isCollector = userData?.role === "collector";
+  const currentUserId = userData?.uid || "N/A";
 
   const [project, setProject] = useState<Project | null>(null);
-  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<FormData>({});
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("form");
   const [projectRecords, setProjectRecords] = useState<ProjectRecord[]>([]);
@@ -113,8 +105,10 @@ const ProjectFormPage: React.FC = () => {
   const [sections, setSections] = useState<Section[]>([]);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [isEditMode, setIsEditMode] = useState(false);
   const { isOnline } = useNetwork();
 
+  // Fetch project details
   useEffect(() => {
     const fetchProject = async () => {
       try {
@@ -142,25 +136,45 @@ const ProjectFormPage: React.FC = () => {
           }
         }
 
-        let projectSections: Section[] = [];
+        if (!foundProject) {
+          throw new Error("Project data is invalid");
+        }
 
+        let projectSections: Section[] = [];
         if (
           foundProject.formSections &&
-          Array.isArray(foundProject.formSections)
+          Array.isArray(foundProject.formSections) &&
+          foundProject.formSections.length > 0
         ) {
-          projectSections = foundProject.formSections;
+          projectSections = foundProject.formSections.map((section: any) => ({
+            id: section.id,
+            name: section.name,
+            order: section.order || 0,
+            fields: (section.fields || []).map((field: any, fieldIndex: number) => ({
+              id: field.id || `${section.id}_${fieldIndex}`,
+              name: field.name || field.label || `Field ${fieldIndex}`,
+              label: field.label || field.name || `Field ${fieldIndex}`,
+              type: field.type || "text",
+              required: field.required !== undefined ? field.required : false,
+              sectionId: section.id,
+              placeholder: field.placeholder || "",
+              options: field.options || [],
+            })).filter(field => field.name !== "User ID" && field.name !== "Record No"),
+          }));
         } else {
           projectSections = [
             {
               id: "section_default",
-              name: "General Information",
+              name: "Section 1",
               order: 0,
+              fields: [],
             },
           ];
         }
 
-        setSections(projectSections);
+        const allFields: FieldTemplate[] = projectSections.flatMap(section => section.fields);
 
+        setSections(projectSections);
         setProject({
           ...foundProject,
           createdAt: new Date(foundProject.createdAt),
@@ -169,12 +183,12 @@ const ProjectFormPage: React.FC = () => {
           formSections: projectSections,
         });
 
-        const initialData: Record<string, string> = {};
-        if (foundProject.formFields && Array.isArray(foundProject.formFields)) {
-          foundProject.formFields.forEach((field: any) => {
-            initialData[field.id] = "";
-          });
-        }
+        const initialData: FormData = {};
+        allFields.forEach((field: FieldTemplate) => {
+          initialData[field.id] = "";
+        });
+        initialData["userId"] = currentUserId;
+        initialData["recordNo"] = "";
         setFormData(initialData);
       } catch (error: any) {
         console.error("Error fetching project:", error);
@@ -190,7 +204,38 @@ const ProjectFormPage: React.FC = () => {
     };
 
     fetchProject();
-  }, [projectId]);
+  }, [projectId, currentUserId]);
+
+  // Fetch records when the "View Data" tab is active
+  useEffect(() => {
+    const fetchRecords = async () => {
+      if (!projectId || activeTab !== "data") return;
+
+      try {
+        setLoadingRecords(true);
+        let records = await getProjectRecords(projectId);
+
+        // Filter records based on user role
+        if (isCollector && !isDesigner) {
+          records = records.filter(record => record.createdBy === currentUserId);
+        }
+        // For designer, no filtering needed; they see all records
+
+        setProjectRecords(records);
+      } catch (error: any) {
+        console.error("Error fetching project records:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load project records",
+        });
+      } finally {
+        setLoadingRecords(false);
+      }
+    };
+
+    fetchRecords();
+  }, [projectId, activeTab, isCollector, isDesigner, currentUserId]);
 
   const sectionIds = sections.map((section) => section.id);
   const {
@@ -204,26 +249,57 @@ const ProjectFormPage: React.FC = () => {
 
   useFirebaseSync(project?.id || "", userData?.uid || "");
 
-  const handleInputChange = (fieldId: string, value: string) => {
+  const handleInputChange = (fieldId: string, value: string | File | null) => {
     setFormData((prev) => ({
       ...prev,
       [fieldId]: value,
     }));
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleSectionSubmit = async (
     sectionId: string,
-    sectionFields: any[]
+    sectionFields: FieldTemplate[]
   ) => {
-    const sectionForm: Record<string, string> = {};
-    let missingFields: string[] = [];
-    sectionFields.forEach((field) => {
+    if (!isCollector) return;
+
+    const sectionForm: Record<string, any> = {};
+    const missingFields: string[] = [];
+
+    // Process fields including image to base64
+    for (const field of sectionFields) {
       const value = formData[field.id];
-      sectionForm[field.id] = value;
-      if (field.required && !value) {
-        missingFields.push(field.label || field.name);
+      if (field.required && (!value || (typeof value === "string" && !value.trim()))) {
+        missingFields.push(field.label || field.name || field.id);
       }
-    });
+      if (field.type === "image" && value instanceof File) {
+        try {
+          const base64String = await fileToBase64(value);
+          sectionForm[field.id] = base64String; // Store as data URL (e.g., data:image/jpeg;base64,...)
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to process image.",
+          });
+          return;
+        }
+      } else {
+        sectionForm[field.id] = value;
+      }
+    }
+
+    // Add User ID and Record No. to the submitted form
+    sectionForm["userId"] = formData["userId"];
+    sectionForm["recordNo"] = formData["recordNo"];
 
     if (missingFields.length > 0) {
       toast({
@@ -256,12 +332,37 @@ const ProjectFormPage: React.FC = () => {
   };
 
   const handleEndSurveySubmit = async () => {
-    if (!project?.id) return;
+    if (!project?.id || !isCollector) return;
 
-    let surveyPayload: Record<string, any> = {};
+    const surveyPayload: Record<string, any> = {};
     sectionIds.forEach((sid) => {
       Object.assign(surveyPayload, sectionData[sid] || {});
     });
+
+    // Process any remaining image fields
+    for (const fieldId in formData) {
+      const value = formData[fieldId];
+      const field = sections.flatMap(s => s.fields).find(f => f.id === fieldId);
+      if (field?.type === "image" && value instanceof File) {
+        try {
+          const base64String = await fileToBase64(value);
+          surveyPayload[fieldId] = base64String;
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to process image.",
+          });
+          return;
+        }
+      } else {
+        surveyPayload[fieldId] = value;
+      }
+    }
+
+    // Ensure User ID and Record No. are included
+    surveyPayload["userId"] = formData["userId"];
+    surveyPayload["recordNo"] = formData["recordNo"];
 
     try {
       if (isOnline) {
@@ -277,13 +378,12 @@ const ProjectFormPage: React.FC = () => {
         localStorage.setItem(key, JSON.stringify(arr));
         toast({
           title: "Offline submission",
-          description:
-            "Data saved locally and will sync when you're back online.",
+          description: "Data saved locally and will sync when you're back online.",
         });
       }
       endSurvey();
       resetSurvey();
-      setFormData({});
+      setFormData({ userId: currentUserId, recordNo: "" });
       setActiveSectionIndex(0);
       localStorage.removeItem(`records_${project.id}_draft`);
     } catch (err: any) {
@@ -296,8 +396,131 @@ const ProjectFormPage: React.FC = () => {
   };
 
   const getFieldsBySection = (sectionId: string) => {
-    if (!project?.formFields) return [];
-    return project.formFields.filter((field) => field.sectionId === sectionId);
+    const section = sections.find(s => s.id === sectionId);
+    return section ? section.fields : [];
+  };
+
+  const handleDeleteSection = (sectionId: string) => {
+    if (!project || !isDesigner) return;
+
+    const updatedSections = sections.filter((section) => section.id !== sectionId);
+
+    setSections(updatedSections);
+    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+
+    if (isOnline) {
+      updateProject(project.id, { formSections: updatedSections });
+    } else {
+      const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
+      const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
+      if (projectIndex !== -1) {
+        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        localStorage.setItem("myProjects", JSON.stringify(storedProjects));
+      }
+    }
+    toast({ title: "Section deleted", description: "Section has been removed." });
+  };
+
+  const handleToggleRequired = (fieldId: string) => {
+    if (!project || !isDesigner) return;
+
+    console.log("Toggling required for fieldId:", fieldId);
+    let fieldFound = false;
+
+    const updatedSections = sections.map(section => {
+      const updatedFields = section.fields.map(field => {
+        if (field.id === fieldId) {
+          fieldFound = true;
+          console.log(`Found field ${field.id}, toggling required from ${field.required} to ${!field.required}`);
+          return { ...field, required: !field.required };
+        }
+        return { ...field };
+      });
+      return { ...section, fields: updatedFields };
+    });
+
+    if (!fieldFound) {
+      console.error(`Field with ID ${fieldId} not found in sections`);
+      return;
+    }
+
+    console.log("Updated sections:", JSON.stringify(updatedSections, null, 2));
+    setSections(updatedSections);
+    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+
+    if (isOnline) {
+      updateProject(project.id, { formSections: updatedSections });
+    } else {
+      const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
+      const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
+      if (projectIndex !== -1) {
+        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        localStorage.setItem("myProjects", JSON.stringify(storedProjects));
+      }
+    }
+    toast({ title: "Field updated", description: "Required status has been toggled." });
+  };
+
+  const handleRenameSection = (sectionId: string, newName: string) => {
+    if (!project || !isDesigner) return;
+
+    const updatedSections = sections.map((section) =>
+      section.id === sectionId ? { ...section, name: newName } : section
+    );
+    setSections(updatedSections);
+    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+
+    if (isOnline) {
+      updateProject(project.id, { formSections: updatedSections });
+    } else {
+      const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
+      const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
+      if (projectIndex !== -1) {
+        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        localStorage.setItem("myProjects", JSON.stringify(storedProjects));
+      }
+    }
+    toast({ title: "Section renamed", description: "Section name has been updated." });
+  };
+
+  const handleUpdateFieldName = (fieldId: string, newName: string) => {
+    if (!project || !isDesigner) return;
+
+    console.log("Updating field name for fieldId:", fieldId, "to:", newName);
+    let fieldFound = false;
+
+    const updatedSections = sections.map(section => {
+      const updatedFields = section.fields.map(field => {
+        if (field.id === fieldId) {
+          fieldFound = true;
+          console.log(`Found field ${field.id}, updating name from ${field.name} to ${newName}`);
+          return { ...field, label: newName, name: newName };
+        }
+        return { ...field };
+      });
+      return { ...section, fields: updatedFields };
+    });
+
+    if (!fieldFound) {
+      console.error(`Field with ID ${fieldId} not found in sections`);
+      return;
+    }
+
+    console.log("Updated sections:", JSON.stringify(updatedSections, null, 2));
+    setSections(updatedSections);
+    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+
+    if (isOnline) {
+      updateProject(project.id, { formSections: updatedSections });
+    } else {
+      const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
+      const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
+      if (projectIndex !== -1) {
+        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        localStorage.setItem("myProjects", JSON.stringify(storedProjects));
+      }
+    }
+    toast({ title: "Field renamed", description: "Field name has been updated." });
   };
 
   if (loading) {
@@ -317,19 +540,21 @@ const ProjectFormPage: React.FC = () => {
     );
   }
 
+  console.log("project.formSections before rendering:", project.formSections);
+
   const isProjectInactive = project.status === "inactive";
   const projectSections =
     sections.length > 0
       ? sections
       : [
-          {
-            id: "section_default",
-            name: "General Information",
-            order: 0,
-          },
-        ];
+        {
+          id: "section_default",
+          name: "Section 1",
+          order: 0,
+          fields: [],
+        },
+      ];
 
-  // Toggle expanded row for viewing record details
   const handleToggleRowExpand = (recordId: string) => {
     setExpandedRows((prev) =>
       prev.includes(recordId)
@@ -338,7 +563,6 @@ const ProjectFormPage: React.FC = () => {
     );
   };
 
-  // Format location display (simple fallback if not an object)
   function formatLocationForDisplay(loc: any) {
     if (!loc) return "-";
     if (typeof loc === "object" && (loc.lat || loc.lng)) {
@@ -351,28 +575,42 @@ const ProjectFormPage: React.FC = () => {
           return `Lat: ${obj.lat}, Lng: ${obj.lng}`;
         }
       } catch {
-        // not JSON, continue
+        return loc;
       }
       return loc;
     }
     return "-";
   }
 
-  // Export collected data as CSV
   const handleExportData = () => {
     if (!projectRecords || projectRecords.length === 0) return;
-    const headers =
-      project?.formFields?.map((f) => f.label || f.name || f.id) || [];
-    const fieldIds = project?.formFields?.map((f) => f.id) || [];
+    const allFields = projectSections.flatMap(s => s.fields);
+    const headers = [
+      ...allFields.map((f) => f.label || f.name || f.id),
+      "User ID",
+      "Record No.",
+    ];
+    const fieldIds = allFields.map((f) => f.id);
     const rows = [
       headers,
-      ...projectRecords.map((record) =>
-        fieldIds.map((fid) => {
+      ...projectRecords.map((record) => {
+        const fieldValues = fieldIds.map((fid) => {
           let val = record.data?.[fid];
-          if (typeof val === "object") val = JSON.stringify(val);
-          return `"${(val ?? "-").toString().replace(/"/g, '""')}"`
-        })
-      ),
+          if (typeof val === "string" && val.startsWith("data:image/")) {
+            val = "Image (Base64)"; // Indicate base64 image in CSV
+          } else if (val instanceof File) {
+            val = val.name;
+          } else if (typeof val === "object") {
+            val = JSON.stringify(val);
+          }
+          return `"${(val ?? "-").toString().replace(/"/g, '""')}"`;
+        });
+        return [
+          ...fieldValues,
+          `"${(record.data?.userId ?? "-").toString().replace(/"/g, '""')}"`,
+          `"${(record.data?.recordNo ?? "-").toString().replace(/"/g, '""')}"`,
+        ];
+      }),
     ];
     const csvContent = rows.map((r) => r.join(",")).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
@@ -388,7 +626,6 @@ const ProjectFormPage: React.FC = () => {
     }, 100);
   };
 
-  // Delete project
   const handleDeleteProject = async () => {
     if (!projectId) return;
     try {
@@ -411,13 +648,11 @@ const ProjectFormPage: React.FC = () => {
     }
   };
 
-  // End/Close survey
   const handleEndSurvey = async () => {
     if (!projectId) return;
     setIsEndSurveyDialogOpen(false);
     try {
-      // Update project status in firestore, remove from local myProjects as well
-      await updateProjectStatus(projectId, "inactive");
+      await updateProject(projectId, { status: "inactive" });
       toast({
         title: "Survey Ended",
         description: "Survey is now closed for new submissions.",
@@ -425,9 +660,9 @@ const ProjectFormPage: React.FC = () => {
       setProject((prev) =>
         prev
           ? {
-              ...prev,
-              status: "inactive",
-            }
+            ...prev,
+            status: "inactive",
+          }
           : prev
       );
     } catch (err: any) {
@@ -438,31 +673,6 @@ const ProjectFormPage: React.FC = () => {
       });
     }
   };
-
-  // Utility for updating status
-  async function updateProjectStatus(projectId: string, status: "active" | "inactive") {
-    // Update firebase doc's status field
-    await import("@/lib/projectOperations").then(async (lib) => {
-      const { db } = await import("@/lib/firebase");
-      const { doc, updateDoc } = await import("firebase/firestore");
-      const projRef = doc(db, "projects", projectId);
-      await updateDoc(projRef, { status });
-    });
-
-    // Also update localStorage (if exists)
-    const stored = localStorage.getItem("myProjects");
-    if (stored) {
-      let arr = [];
-      try {
-        arr = JSON.parse(stored);
-        for (let p of arr) {
-          if (p.id === projectId) p.status = status;
-        }
-        localStorage.setItem("myProjects", JSON.stringify(arr));
-      } catch {}
-    }
-  }
-
 
   return (
     <>
@@ -492,10 +702,10 @@ const ProjectFormPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/dashboard/projects/${projectId}/edit`)}
+              onClick={() => setIsEditMode(!isEditMode)}
               className="flex-1 min-w-[80px] sm:flex-none"
             >
-              Edit Survey
+              {isEditMode ? "Cancel Edit" : "Edit Form"}
             </Button>
             <Button
               variant="outline"
@@ -538,157 +748,311 @@ const ProjectFormPage: React.FC = () => {
             <CardHeader>
               <CardTitle>Data Collection Form</CardTitle>
               <CardDescription>
-                Fill this form to collect data for this project
+                {isDesigner
+                  ? "Edit the form structure"
+                  : "Fill this form to collect data for this project"}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex overflow-x-auto gap-2 pb-2 mb-2">
-                {projectSections
-                  .sort((a, b) => a.order - b.order)
-                  .map((section, idx) => (
-                    <button
-                      key={section.id}
-                      onClick={() => setActiveSectionIndex(idx)}
-                      className={`flex-shrink-0 px-4 py-2 rounded-lg border ${
-                        activeSectionIndex === idx
+              {isDesigner ? (
+                <div className="space-y-4">
+                  {projectSections
+                    .sort((a, b) => a.order - b.order)
+                    .map((section, idx) => (
+                      <div key={section.id} className="relative">
+                        <div className="flex items-center gap-2">
+                          {isEditMode ? (
+                            <Input
+                              value={section.name}
+                              onChange={(e) => handleRenameSection(section.id, e.target.value)}
+                              className="w-full border p-1"
+                            />
+                          ) : (
+                            <h3 className="text-lg font-medium">{section.name}</h3>
+                          )}
+                          {isEditMode && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteSection(section.id)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <Separator className="my-2" />
+                        <div className="ml-4 space-y-2">
+                          {section.fields.map((field: FieldTemplate) => (
+                            <div key={field.id} className="flex items-center gap-2">
+                              {isEditMode ? (
+                                <Input
+                                  value={field.label || field.name || ""}
+                                  onChange={(e) => handleUpdateFieldName(field.id, e.target.value)}
+                                  className="w-full border p-1"
+                                />
+                              ) : (
+                                <span className="text-sm font-medium">
+                                  {field.label || field.name}
+                                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                                </span>
+                              )}
+                              {isEditMode && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleToggleRequired(field.id)}
+                                  className={`ml-2 ${field.required ? "text-red-500" : "text-green-500"}`}
+                                >
+                                  {field.required ? "Required" : "Optional"}
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : isCollector ? (
+                <div className="flex overflow-x-auto gap-2 pb-2 mb-2">
+                  {projectSections
+                    .sort((a, b) => a.order - b.order)
+                    .map((section, idx) => (
+                      <button
+                        key={section.id}
+                        onClick={() => setActiveSectionIndex(idx)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-lg border ${activeSectionIndex === idx
                           ? "border-primary bg-primary/10 font-semibold"
                           : "border-zinc-300 bg-white"
-                      }`}
-                    >
-                      {section.name}
-                      {completedSections.includes(section.id) && (
-                        <span className="ml-2 text-green-600 text-sm">&#10003;</span>
-                      )}
-                    </button>
-                  ))}
-              </div>
+                          }`}
+                      >
+                        {section.name}
+                        {completedSections.includes(section.id) && (
+                          <span className="ml-2 text-green-600 text-sm">✓</span>
+                        )}
+                      </button>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground">
+                  You do not have permission to view or edit this form.
+                </p>
+              )}
+              {isCollector && !isDesigner && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const section = projectSections[activeSectionIndex];
+                    const sectionFields = getFieldsBySection(section.id);
+                    handleSectionSubmit(section.id, sectionFields);
+                  }}
+                  className="space-y-4 mt-4"
+                >
+                  {(() => {
+                    const section = projectSections[activeSectionIndex];
+                    const sectionFields = getFieldsBySection(section.id);
 
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const section = projectSections[activeSectionIndex];
-                  const sectionFields = getFieldsBySection(section.id);
-                  handleSectionSubmit(section.id, sectionFields);
-                }}
-                className="space-y-4"
-              >
-                {(() => {
-                  const section = projectSections[activeSectionIndex];
-                  const sectionFields = getFieldsBySection(section.id);
-
-                  return (
-                    <div className="mb-6">
-                      <div className="mb-4">
-                        <h3 className="text-lg font-medium">{section.name}</h3>
-                        <Separator className="mt-2" />
-                      </div>
-                      <div className="space-y-4 pl-0 sm:pl-2">
-                        {sectionFields.map((field: any) => (
-                          <div key={field.id} className="space-y-2">
-                            <label
-                              htmlFor={field.id}
-                              className="text-sm font-medium flex items-center"
-                            >
-                              {field.label || field.name}
-                              {field.required && (
-                                <span className="text-red-500 ml-1">*</span>
-                              )}
+                    return (
+                      <div className="mb-6">
+                        <div className="mb-4">
+                          <h3 className="text-lg font-medium">{section.name}</h3>
+                          <Separator className="mt-2" />
+                        </div>
+                        <div className="space-y-4 pl-0 sm:pl-2">
+                          <div className="space-y-2">
+                            <label htmlFor="userId" className="text-sm font-medium flex items-center">
+                              User ID
                             </label>
-                            {field.type === "text" && (
-                              <Input
-                                id={field.id}
-                                value={formData[field.id] || ""}
-                                onChange={(e) =>
-                                  handleInputChange(field.id, e.target.value)
-                                }
-                                placeholder={field.placeholder || ""}
-                                required={field.required}
-                                disabled={isProjectInactive}
-                                className={`${
-                                  isProjectInactive ? "bg-gray-100" : ""
-                                }`}
-                              />
-                            )}
-
-                            {field.type === "textarea" && (
-                              <Textarea
-                                id={field.id}
-                                value={formData[field.id] || ""}
-                                onChange={(e) =>
-                                  handleInputChange(field.id, e.target.value)
-                                }
-                                placeholder={field.placeholder || ""}
-                                required={field.required}
-                                disabled={isProjectInactive}
-                                className={`${
-                                  isProjectInactive ? "bg-gray-100" : ""
-                                }`}
-                              />
-                            )}
-
-                            {field.type === "definedList" && (
-                              <Select
-                                value={formData[field.id] || ""}
-                                onValueChange={(value) =>
-                                  handleInputChange(field.id, value)
-                                }
-                                disabled={isProjectInactive}
-                              >
-                                <SelectTrigger
-                                  id={field.id}
-                                  className={`${
-                                    isProjectInactive ? "bg-gray-100" : ""
-                                  }`}
-                                >
-                                  <SelectValue
-                                    placeholder={
-                                      field.placeholder || "Select an option"
-                                    }
-                                  />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {field.options?.map((option: string) => (
-                                    <SelectItem key={option} value={option}>
-                                      {option}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-
-                            {field.type === "location" && (
-                              <LocationSelector
-                                value={formData[field.id] || ""}
-                                onChange={(value) =>
-                                  handleInputChange(field.id, value)
-                                }
-                                placeholder={
-                                  field.placeholder || "Enter location"
-                                }
-                                disabled={isProjectInactive}
-                              />
-                            )}
+                            <Input
+                              id="userId"
+                              value={formData["userId"] as string || ""}
+                              readOnly
+                              disabled
+                              className="bg-gray-100"
+                            />
                           </div>
-                        ))}
+                          <div className="space-y-2">
+                            <label htmlFor="recordNo" className="text-sm font-medium flex items-center">
+                              Record No.
+                            </label>
+                            <Input
+                              id="recordNo"
+                              value={formData["recordNo"] as string || ""}
+                              onChange={(e) => handleInputChange("recordNo", e.target.value)}
+                              placeholder="Enter Record No."
+                              disabled={isProjectInactive}
+                              className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                            />
+                          </div>
+                          {sectionFields.length > 0 ? (
+                            sectionFields.map((field: FieldTemplate) => (
+                              <div key={field.id} className="space-y-2">
+                                <label
+                                  htmlFor={field.id}
+                                  className="text-sm font-medium flex items-center"
+                                >
+                                  {field.label || field.name}
+                                  {field.required && (
+                                    <span className="text-red-500 ml-1">*</span>
+                                  )}
+                                </label>
+                                {field.type === "text" && (
+                                  <Input
+                                    id={field.id}
+                                    value={formData[field.id] as string || ""}
+                                    onChange={(e) =>
+                                      handleInputChange(field.id, e.target.value)
+                                    }
+                                    placeholder={field.placeholder || ""}
+                                    required={field.required}
+                                    disabled={isProjectInactive}
+                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                  />
+                                )}
+                                {field.type === "textAndnumbers" && (
+                                  <Input
+                                    id={field.id}
+                                    value={formData[field.id] as string || ""}
+                                    onChange={(e) =>
+                                      handleInputChange(field.id, e.target.value)
+                                    }
+                                    placeholder={field.placeholder || ""}
+                                    required={field.required}
+                                    disabled={isProjectInactive}
+                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                  />
+                                )}
+                                {field.type === "textarea" && (
+                                  <Textarea
+                                    id={field.id}
+                                    value={formData[field.id] as string || ""}
+                                    onChange={(e) =>
+                                      handleInputChange(field.id, e.target.value)
+                                    }
+                                    placeholder={field.placeholder || ""}
+                                    required={field.required}
+                                    disabled={isProjectInactive}
+                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                  />
+                                )}
+                                {field.type === "definedList" && (
+                                  <Select
+                                    value={formData[field.id] as string || ""}
+                                    onValueChange={(value) =>
+                                      handleInputChange(field.id, value)
+                                    }
+                                    disabled={isProjectInactive}
+                                  >
+                                    <SelectTrigger
+                                      id={field.id}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                    >
+                                      <SelectValue
+                                        placeholder={
+                                          field.placeholder || "Select an option"
+                                        }
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {field.options?.map((option: string) => (
+                                        <SelectItem key={option} value={option}>
+                                          {option}
+                                        </SelectItem>
+                                      )) || null}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                                {field.type === "location" && (
+                                  <LocationSelector
+                                    value={formData[field.id] as string || ""}
+                                    onChange={(value) =>
+                                      handleInputChange(field.id, value)
+                                    }
+                                    placeholder={
+                                      field.placeholder || "Enter location"
+                                    }
+                                    disabled={isProjectInactive}
+                                  />
+                                )}
+                                {field.type === "coordinates" && (
+                                  <LocationSelector
+                                    value={formData[field.id] as string || ""}
+                                    onChange={(value) =>
+                                      handleInputChange(field.id, value)
+                                    }
+                                    placeholder={
+                                      field.placeholder || "Enter coordinates"
+                                    }
+                                    disabled={isProjectInactive}
+                                  />
+                                )}
+                                {field.type === "image" && (
+                                  <Input
+                                    id={field.id}
+                                    type="file"
+                                    onChange={(e) =>
+                                      handleInputChange(
+                                        field.id,
+                                        e.target.files?.[0] || null
+                                      )
+                                    }
+                                    required={field.required}
+                                    disabled={isProjectInactive}
+                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                  />
+                                )}
+                                {field.type === "date" && (
+                                  <Input
+                                    id={field.id}
+                                    type="date"
+                                    value={formData[field.id] as string || ""}
+                                    onChange={(e) =>
+                                      handleInputChange(field.id, e.target.value)
+                                    }
+                                    required={field.required}
+                                    disabled={isProjectInactive}
+                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                  />
+                                )}
+                                {field.type === "dateTime" && (
+                                  <Input
+                                    id={field.id}
+                                    type="datetime-local"
+                                    value={formData[field.id] as string || ""}
+                                    onChange={(e) =>
+                                      handleInputChange(field.id, e.target.value)
+                                    }
+                                    required={field.required}
+                                    disabled={isProjectInactive}
+                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                  />
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No fields available for this section.
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
 
-                {!completedSections.includes(
-                  projectSections[activeSectionIndex].id
-                ) && (
-                  <div className="flex justify-end">
-                    <Button type="submit" className="w-full sm:w-auto">
-                      Submit Section
-                    </Button>
-                  </div>
-                )}
-              </form>
-
-              {completedSections.length === sectionIds.length && !surveyCompleted && (
+                  {!completedSections.includes(
+                    projectSections[activeSectionIndex].id
+                  ) && (
+                      <div className="flex justify-end">
+                        <Button type="submit" className="w-full sm:w-auto" disabled={isProjectInactive}>
+                          Submit Section
+                        </Button>
+                      </div>
+                    )}
+                </form>
+              )}
+              {isCollector && !isDesigner && completedSections.length === sectionIds.length && !surveyCompleted && (
                 <div className="flex justify-end mt-4">
-                  <Button onClick={handleEndSurveySubmit} className="w-full sm:w-auto">
+                  <Button onClick={handleEndSurveySubmit} className="w-full sm:w-auto" disabled={isProjectInactive}>
                     End Survey
                   </Button>
                 </div>
@@ -719,7 +1083,7 @@ const ProjectFormPage: React.FC = () => {
                       <Card key={record.id || index} className="border">
                         <div
                           className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50"
-                          onClick={() => handleToggleRowExpand(record.id)}
+                          onClick={() => handleToggleRowExpand(record.id || `record_${index}`)} // Use index as fallback if id is undefined
                         >
                           <div>
                             <p className="font-medium text-sm">
@@ -732,17 +1096,29 @@ const ProjectFormPage: React.FC = () => {
                             size="icon"
                             className="h-8 w-8"
                           >
-                            {expandedRows.includes(record.id) ? (
+                            {expandedRows.includes(record.id || `record_${index}`) ? (
                               <ChevronUp className="h-4 w-4" />
                             ) : (
                               <ChevronDown className="h-4 w-4" />
                             )}
                           </Button>
                         </div>
-                        {expandedRows.includes(record.id) && (
+                        {expandedRows.includes(record.id || `record_${index}`) && (
                           <CardContent className="pt-0 border-t">
                             <div className="space-y-2">
-                              {project.formFields?.map((field: any) => (
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="font-medium text-muted-foreground">
+                                  User ID:
+                                </div>
+                                <div>{record.data?.userId || "-"}</div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="font-medium text-muted-foreground">
+                                  Record No.:
+                                </div>
+                                <div>{record.data?.recordNo || "-"}</div>
+                              </div>
+                              {projectSections.flatMap(s => s.fields).map((field: any) => (
                                 <div
                                   key={field.id}
                                   className="grid grid-cols-2 gap-2 text-sm"
@@ -751,11 +1127,13 @@ const ProjectFormPage: React.FC = () => {
                                     {field.label || field.name}:
                                   </div>
                                   <div>
-                                    {field.type === "location"
+                                    {field.type === "location" || field.type === "coordinates"
                                       ? formatLocationForDisplay(
-                                          record.data[field.id] || ""
-                                        )
-                                      : record.data[field.id] || "-"}
+                                        record.data[field.id] || ""
+                                      )
+                                      : field.type === "image" && typeof record.data[field.id] === "string" && record.data[field.id].startsWith("data:image/")
+                                        ? <img src={record.data[field.id]} alt="Uploaded" style={{ maxWidth: "100px" }} />
+                                        : record.data[field.id] || "-"}
                                   </div>
                                 </div>
                               ))}

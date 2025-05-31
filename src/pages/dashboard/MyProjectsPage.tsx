@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useNetwork } from "@/contexts/NetworkContext"; // Add this import
 import { FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -11,7 +13,6 @@ import {
   Project,
   duplicateProject,
 } from "@/lib/projectOperations";
-
 import {
   Dialog,
   DialogContent,
@@ -31,48 +32,96 @@ import {
 } from "@/components/ui/select";
 
 const MyProjectsPage: React.FC = () => {
-  const { userData, currentUser } = useAuth(); // ✅ Added currentUser
+  const { userData, currentUser } = useAuth();
+  const { isOnline } = useNetwork(); // Add network context
   const navigate = useNavigate();
   const isDesigner = userData?.role === "designer";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
-  const [projectToDuplicate, setProjectToDuplicate] = useState<string | null>(
-    null
-  );
+  const [projectToDuplicate, setProjectToDuplicate] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectCategory, setNewProjectCategory] = useState("");
   const [isDuplicating, setIsDuplicating] = useState(false);
 
   useEffect(() => {
     const loadProjects = async () => {
+      setLoading(true);
       try {
+        let allProjects: Project[] = [];
+
+        // Fetch from localStorage
         const storedProjects = localStorage.getItem("myProjects");
         if (storedProjects) {
           const parsedProjects: Project[] = JSON.parse(storedProjects);
-          const projectsWithDates = parsedProjects.map((project) => ({
+          allProjects = parsedProjects.map((project) => ({
             ...project,
             createdAt: new Date(project.createdAt),
           }));
-          setProjects(projectsWithDates);
+          console.log("LocalStorage Projects:", allProjects);
         } else {
           localStorage.setItem("myProjects", JSON.stringify([]));
+        }
+
+        // Fetch from Firebase if online and user is authenticated
+        if (isOnline && currentUser?.uid) {
+          console.log("Fetching from Firebase with UID:", currentUser.uid);
+          const firebaseProjects = await getUserProjects(currentUser.uid);
+          console.log("Firebase Projects:", firebaseProjects);
+          const firebaseProjectsWithDates = firebaseProjects.map((project) => ({
+            ...project,
+            createdAt: new Date(project.createdAt),
+            formSections: Array.isArray(project.formSections) ? project.formSections : [],
+          }));
+
+
+          // Merge projects, prioritizing Firebase data
+          const mergedProjects = [
+            ...allProjects.filter((local) => !firebaseProjects.some((fb) => fb.id === local.id)),
+            ...firebaseProjectsWithDates,
+          ];
+          console.log("Merged Projects before set:", mergedProjects);
+
+          if (mergedProjects.length > 0) {
+            localStorage.setItem("myProjects", JSON.stringify(mergedProjects));
+            setProjects([...mergedProjects]); // Ensure new array reference
+            console.log("Projects state set to:", mergedProjects);
+          } else {
+            console.log("No projects to set, using local fallback");
+            setProjects([...allProjects]); // Ensure new array reference
+          }
+        } else {
+          console.log("Offline or no user, using local projects");
+          setProjects([...allProjects]); // Ensure new array reference
         }
       } catch (error) {
         console.error("Error loading projects:", error);
         toast.error("Failed to load projects");
+        setProjects([]); // Reset state in case of error
       } finally {
         setLoading(false);
       }
     };
 
     loadProjects();
-  }, [userData]);
+  }, [userData, currentUser, isOnline]);
+
+  // Debug effect to log projects state
+  useEffect(() => {
+    if (!loading && projects.length > 0) {
+      console.log("Current projects state:", projects);
+    }
+  }, [projects, loading]);
 
   const handleDeleteProject = async (id: string) => {
     try {
+      // Delete from Firebase if online
+      if (isOnline && currentUser?.uid) {
+        await deleteProject(id);
+      }
+
+      // Delete from localStorage
       const storedProjects = localStorage.getItem("myProjects");
       if (storedProjects) {
         const parsedProjects = JSON.parse(storedProjects);
@@ -81,7 +130,7 @@ const MyProjectsPage: React.FC = () => {
       }
 
       const updatedProjects = projects.filter((project) => project.id !== id);
-      setProjects(updatedProjects);
+      setProjects([...updatedProjects]); // Ensure new array reference
       toast.success("Project deleted successfully");
     } catch (error) {
       console.error("Error deleting project:", error);
@@ -181,6 +230,17 @@ const MyProjectsPage: React.FC = () => {
     }
   };
 
+  // Debug project to test rendering
+  // const debugProject: Project = {
+  //   id: "debug-project",
+  //   name: "Debug Project",
+  //   category: "test",
+  //   createdAt: new Date(),
+  //   recordCount: 0,
+  //   projectPin: "999999",
+  //   status: "active",
+  // };
+
   return (
     <>
       <div className="mb-4">
@@ -197,7 +257,7 @@ const MyProjectsPage: React.FC = () => {
           <p>Loading projects...</p>
         </div>
       ) : projects.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-3" key={projects.length}>
           {projects.map((project) => (
             <ProjectCard
               key={project.id}
@@ -212,6 +272,19 @@ const MyProjectsPage: React.FC = () => {
               onDuplicate={isDesigner ? handleDuplicateClick : undefined}
             />
           ))}
+          {/* Add a debug ProjectCard to test rendering */}
+          {/* <ProjectCard
+            key={debugProject.id}
+            id={debugProject.id}
+            name={debugProject.name}
+            category={debugProject.category}
+            createdAt={debugProject.createdAt}
+            recordCount={debugProject.recordCount}
+            projectPin={debugProject.projectPin}
+            status={debugProject.status}
+            onDelete={isDesigner ? handleDeleteProject : undefined}
+            onDuplicate={isDesigner ? handleDuplicateClick : undefined}
+          /> */}
         </div>
       ) : (
         <EmptyState
@@ -237,7 +310,6 @@ const MyProjectsPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Duplicate Project</DialogTitle>
           </DialogHeader>
-
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
@@ -250,7 +322,6 @@ const MyProjectsPage: React.FC = () => {
                 className="col-span-3"
               />
             </div>
-
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="category" className="text-right">
                 Category
@@ -267,9 +338,7 @@ const MyProjectsPage: React.FC = () => {
                   <SelectItem value="buildings">Buildings</SelectItem>
                   <SelectItem value="biological">Biological Assets</SelectItem>
                   <SelectItem value="machinery">Machinery</SelectItem>
-                  <SelectItem value="furniture">
-                    Furniture & Fixtures
-                  </SelectItem>
+                  <SelectItem value="furniture">Furniture & Fixtures</SelectItem>
                   <SelectItem value="equipment">Equipment</SelectItem>
                   <SelectItem value="vehicles">Motor Vehicles</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
@@ -277,7 +346,6 @@ const MyProjectsPage: React.FC = () => {
               </Select>
             </div>
           </div>
-
           <DialogFooter>
             <Button
               variant="outline"
