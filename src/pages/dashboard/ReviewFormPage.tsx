@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,6 +30,10 @@ type FieldTemplate = {
   name: string;
   type: string;
   required: boolean;
+  placeholder?: string;
+  options?: string[];
+  defaultChecked?: boolean;
+  barcodeType?: "qr" | "barcode";
 };
 
 type FormSection = {
@@ -42,7 +45,7 @@ type FormSection = {
 const ReviewFormPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [currentStep] = useState(3); // Review is step 3
+  const [currentStep] = useState(3);
   const [sections, setSections] = useState<FormSection[]>([]);
   const [projectData, setProjectData] = useState({
     category: "",
@@ -53,9 +56,7 @@ const ReviewFormPage: React.FC = () => {
 
   const isMobile = useIsMobile();
 
-  // Retrieve form data from localStorage and URL params
   useEffect(() => {
-    // Look for section-wise storage
     const storedSections = localStorage.getItem("formSections");
     const storedProjectData = localStorage.getItem("projectData");
     if (storedSections) {
@@ -64,7 +65,6 @@ const ReviewFormPage: React.FC = () => {
     if (storedProjectData) {
       setProjectData(JSON.parse(storedProjectData));
     } else {
-      // Fall back to url params
       const params = new URLSearchParams(location.search);
       const category = params.get("category") || "";
       const name = params.get("name") || "";
@@ -144,7 +144,6 @@ const ReviewFormPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Sectioned Form Preview */}
       <Card className={`mb-4 ${isMobile ? "mx-1 shadow-sm" : ""}`}>
         <CardContent className={`${isMobile ? "p-3" : "pt-4"}`}>
           <h2 className="text-lg font-medium mb-3">Form Preview (by Section)</h2>
@@ -152,9 +151,8 @@ const ReviewFormPage: React.FC = () => {
             This is how your form will appear to users, separated by section.
           </p>
           <div
-            className={`space-y-6 mb-5 ${
-              isMobile ? "max-h-[48vh] overflow-y-auto pb-4" : ""
-            }`}
+            className={`space-y-6 mb-5 ${isMobile ? "max-h-[48vh] overflow-y-auto pb-4" : ""
+              }`}
           >
             {sections.map((section, secIdx) => (
               <div key={section.id} className="border rounded-lg px-4 pb-2 pt-3 bg-gray-50">
@@ -166,21 +164,17 @@ const ReviewFormPage: React.FC = () => {
                       {field.required && <span className="text-red-500">*</span>}
                     </label>
                     <div className="h-10 border rounded-md px-3 bg-muted/30 flex items-center text-sm text-muted-foreground">
-                      {field.type === "text" && <span>Text input</span>}
-                      {field.type === "numbers" && <span>Numeric input</span>}
-                      {field.type === "textAndNumbers" && (
-                        <span>Alphanumeric input</span>
-                      )}
+                      {field.type === "text" && <span>Text input {field.placeholder && `(${field.placeholder})`}</span>}
+                      {field.type === "numbers" && <span>Numeric input {field.placeholder && `(${field.placeholder})`}</span>}
+                      {field.type === "textAndNumbers" && <span>Alphanumeric input {field.placeholder && `(${field.placeholder})`}</span>}
                       {field.type === "textarea" && <span>Text area input</span>}
                       {field.type === "location" && <span>Location selection</span>}
-                      {field.type === "definedList" && (
-                        <span>Dropdown selection</span>
-                      )}
+                      {field.type === "definedList" && <span>Dropdown selection {field.options && `(${field.options.join(", ")})`}</span>}
                       {field.type === "coordinates" && <span>Coordinates input</span>}
                       {field.type === "image" && <span>Image capture/upload</span>}
-                      {field.type === "checkbox" && <span>Checkbox</span>}
-                      {field.type === "multipleChoice" && <span>Multiple choice</span>}
-                      {field.type === "qrBarcode" && <span>QR/Barcode input</span>}
+                      {field.type === "checkbox" && <span>Checkbox {field.defaultChecked !== undefined && `(Default: ${field.defaultChecked ? "Checked" : "Unchecked"})`}</span>}
+                      {field.type === "multipleChoice" && <span>Multiple choice {field.options && `(${field.options.join(", ")})`}</span>}
+                      {field.type === "qrBarcode" && <span>QR/Barcode input {field.barcodeType && `(${field.barcodeType === "qr" ? "QR Code" : "Barcode"})`}</span>}
                       {field.type === "dateTime" && <span>Date/Time picker</span>}
                     </div>
                     <p className="text-xs text-muted-foreground">

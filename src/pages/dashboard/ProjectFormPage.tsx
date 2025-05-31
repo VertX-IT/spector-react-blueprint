@@ -18,10 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Download, ChevronDown, ChevronUp, Trash2, Edit } from "lucide-react";
+import { AlertCircle, Download, ChevronDown, ChevronUp, Trash2, Edit, Camera, Upload } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -57,10 +58,12 @@ interface FieldTemplate {
   sectionId?: string;
   options?: string[];
   placeholder?: string;
+  defaultChecked?: boolean;
+  barcodeType?: "qr" | "barcode";
 }
 
 interface ProjectRecord {
-  id?: string; // Changed from required to optional
+  id?: string;
   projectId: string;
   data: Record<string, any>;
   createdAt: string;
@@ -82,7 +85,7 @@ interface Project {
 }
 
 interface FormData {
-  [key: string]: string | File | null;
+  [key: string]: string | File | boolean | string[] | null;
 }
 
 const ProjectFormPage: React.FC = () => {
@@ -154,11 +157,13 @@ const ProjectFormPage: React.FC = () => {
               id: field.id || `${section.id}_${fieldIndex}`,
               name: field.name || field.label || `Field ${fieldIndex}`,
               label: field.label || field.name || `Field ${fieldIndex}`,
-              type: field.type || "text",
+              type: field.type === 'numbers' ? 'number' : field.type || "text", // Fix typo 'numbers' to 'number'
               required: field.required !== undefined ? field.required : false,
               sectionId: section.id,
               placeholder: field.placeholder || "",
               options: field.options || [],
+              defaultChecked: field.defaultChecked !== undefined ? field.defaultChecked : false,
+              barcodeType: field.barcodeType || "qr",
             })).filter(field => field.name !== "User ID" && field.name !== "Record No"),
           }));
         } else {
@@ -185,7 +190,13 @@ const ProjectFormPage: React.FC = () => {
 
         const initialData: FormData = {};
         allFields.forEach((field: FieldTemplate) => {
-          initialData[field.id] = "";
+          if (field.type === "checkbox") {
+            initialData[field.id] = field.defaultChecked || false;
+          } else if (field.type === "multipleChoice") {
+            initialData[field.id] = [];
+          } else {
+            initialData[field.id] = "";
+          }
         });
         initialData["userId"] = currentUserId;
         initialData["recordNo"] = "";
@@ -249,7 +260,7 @@ const ProjectFormPage: React.FC = () => {
 
   useFirebaseSync(project?.id || "", userData?.uid || "");
 
-  const handleInputChange = (fieldId: string, value: string | File | null) => {
+  const handleInputChange = (fieldId: string, value: string | File | boolean | string[] | null) => {
     setFormData((prev) => ({
       ...prev,
       [fieldId]: value,
@@ -277,13 +288,17 @@ const ProjectFormPage: React.FC = () => {
     // Process fields including image to base64
     for (const field of sectionFields) {
       const value = formData[field.id];
-      if (field.required && (!value || (typeof value === "string" && !value.trim()))) {
-        missingFields.push(field.label || field.name || field.id);
+      if (field.required && field.id !== "recordNo" && field.id !== "userId") {
+        if (value === null || value === undefined || value === "") {
+          missingFields.push(field.label || field.name || field.id);
+        } else if (field.type === "multipleChoice" && Array.isArray(value) && value.length === 0) {
+          missingFields.push(field.label || field.name || field.id);
+        }
       }
       if (field.type === "image" && value instanceof File) {
         try {
           const base64String = await fileToBase64(value);
-          sectionForm[field.id] = base64String; // Store as data URL (e.g., data:image/jpeg;base64,...)
+          sectionForm[field.id] = base64String;
         } catch (error) {
           toast({
             variant: "destructive",
@@ -292,14 +307,32 @@ const ProjectFormPage: React.FC = () => {
           });
           return;
         }
+      } else if (field.type === "qrBarcode" && value instanceof File) {
+        try {
+          const base64String = await fileToBase64(value);
+          sectionForm[field.id] = base64String;
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to process QR/Barcode image.",
+          });
+          return;
+        }
+      } else if (field.type === "qrBarcode" && typeof value === "string") {
+        sectionForm[field.id] = value;
+      } else if (field.type === "checkbox" && typeof value === "boolean") {
+        sectionForm[field.id] = value;
+      } else if (field.type === "multipleChoice" && Array.isArray(value)) {
+        sectionForm[field.id] = value;
       } else {
         sectionForm[field.id] = value;
       }
     }
 
-    // Add User ID and Record No. to the submitted form
-    sectionForm["userId"] = formData["userId"];
-    sectionForm["recordNo"] = formData["recordNo"];
+    // Add User ID and Record No. to the submitted form only if not already present
+    if (!sectionForm["userId"]) sectionForm["userId"] = formData["userId"];
+    if (!sectionForm["recordNo"]) sectionForm["recordNo"] = formData["recordNo"];
 
     if (missingFields.length > 0) {
       toast({
@@ -339,7 +372,7 @@ const ProjectFormPage: React.FC = () => {
       Object.assign(surveyPayload, sectionData[sid] || {});
     });
 
-    // Process any remaining image fields
+    // Process any remaining fields
     for (const fieldId in formData) {
       const value = formData[fieldId];
       const field = sections.flatMap(s => s.fields).find(f => f.id === fieldId);
@@ -355,14 +388,32 @@ const ProjectFormPage: React.FC = () => {
           });
           return;
         }
+      } else if (field?.type === "qrBarcode" && value instanceof File) {
+        try {
+          const base64String = await fileToBase64(value);
+          surveyPayload[fieldId] = base64String;
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to process QR/Barcode image.",
+          });
+          return;
+        }
+      } else if (field?.type === "qrBarcode" && typeof value === "string") {
+        surveyPayload[fieldId] = value;
+      } else if (field?.type === "checkbox" && typeof value === "boolean") {
+        surveyPayload[fieldId] = value;
+      } else if (field?.type === "multipleChoice" && Array.isArray(value)) {
+        surveyPayload[fieldId] = value;
       } else {
         surveyPayload[fieldId] = value;
       }
     }
 
     // Ensure User ID and Record No. are included
-    surveyPayload["userId"] = formData["userId"];
-    surveyPayload["recordNo"] = formData["recordNo"];
+    if (!surveyPayload["userId"]) surveyPayload["userId"] = formData["userId"];
+    if (!surveyPayload["recordNo"]) surveyPayload["recordNo"] = formData["recordNo"];
 
     try {
       if (isOnline) {
@@ -597,9 +648,11 @@ const ProjectFormPage: React.FC = () => {
         const fieldValues = fieldIds.map((fid) => {
           let val = record.data?.[fid];
           if (typeof val === "string" && val.startsWith("data:image/")) {
-            val = "Image (Base64)"; // Indicate base64 image in CSV
+            val = "Image (Base64)";
           } else if (val instanceof File) {
             val = val.name;
+          } else if (Array.isArray(val)) {
+            val = val.join("; ");
           } else if (typeof val === "object") {
             val = JSON.stringify(val);
           }
@@ -859,176 +912,324 @@ const ProjectFormPage: React.FC = () => {
                           <Separator className="mt-2" />
                         </div>
                         <div className="space-y-4 pl-0 sm:pl-2">
-                          <div className="space-y-2">
-                            <label htmlFor="userId" className="text-sm font-medium flex items-center">
-                              User ID
-                            </label>
-                            <Input
-                              id="userId"
-                              value={formData["userId"] as string || ""}
-                              readOnly
-                              disabled
-                              className="bg-gray-100"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label htmlFor="recordNo" className="text-sm font-medium flex items-center">
-                              Record No.
-                            </label>
-                            <Input
-                              id="recordNo"
-                              value={formData["recordNo"] as string || ""}
-                              onChange={(e) => handleInputChange("recordNo", e.target.value)}
-                              placeholder="Enter Record No."
-                              disabled={isProjectInactive}
-                              className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                            />
-                          </div>
-                          {sectionFields.length > 0 ? (
-                            sectionFields.map((field: FieldTemplate) => (
-                              <div key={field.id} className="space-y-2">
-                                <label
-                                  htmlFor={field.id}
-                                  className="text-sm font-medium flex items-center"
-                                >
-                                  {field.label || field.name}
-                                  {field.required && (
-                                    <span className="text-red-500 ml-1">*</span>
-                                  )}
+                          {activeSectionIndex === 0 && (
+                            <>
+                              <div className="space-y-2">
+                                <label htmlFor="userId" className="text-sm font-medium flex items-center">
+                                  User ID
                                 </label>
-                                {field.type === "text" && (
-                                  <Input
-                                    id={field.id}
-                                    value={formData[field.id] as string || ""}
-                                    onChange={(e) =>
-                                      handleInputChange(field.id, e.target.value)
-                                    }
-                                    placeholder={field.placeholder || ""}
-                                    required={field.required}
-                                    disabled={isProjectInactive}
-                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                  />
-                                )}
-                                {field.type === "textAndnumbers" && (
-                                  <Input
-                                    id={field.id}
-                                    value={formData[field.id] as string || ""}
-                                    onChange={(e) =>
-                                      handleInputChange(field.id, e.target.value)
-                                    }
-                                    placeholder={field.placeholder || ""}
-                                    required={field.required}
-                                    disabled={isProjectInactive}
-                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                  />
-                                )}
-                                {field.type === "textarea" && (
-                                  <Textarea
-                                    id={field.id}
-                                    value={formData[field.id] as string || ""}
-                                    onChange={(e) =>
-                                      handleInputChange(field.id, e.target.value)
-                                    }
-                                    placeholder={field.placeholder || ""}
-                                    required={field.required}
-                                    disabled={isProjectInactive}
-                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                  />
-                                )}
-                                {field.type === "definedList" && (
-                                  <Select
-                                    value={formData[field.id] as string || ""}
-                                    onValueChange={(value) =>
-                                      handleInputChange(field.id, value)
-                                    }
-                                    disabled={isProjectInactive}
-                                  >
-                                    <SelectTrigger
-                                      id={field.id}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                    >
-                                      <SelectValue
-                                        placeholder={
-                                          field.placeholder || "Select an option"
-                                        }
-                                      />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {field.options?.map((option: string) => (
-                                        <SelectItem key={option} value={option}>
-                                          {option}
-                                        </SelectItem>
-                                      )) || null}
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                                {field.type === "location" && (
-                                  <LocationSelector
-                                    value={formData[field.id] as string || ""}
-                                    onChange={(value) =>
-                                      handleInputChange(field.id, value)
-                                    }
-                                    placeholder={
-                                      field.placeholder || "Enter location"
-                                    }
-                                    disabled={isProjectInactive}
-                                  />
-                                )}
-                                {field.type === "coordinates" && (
-                                  <LocationSelector
-                                    value={formData[field.id] as string || ""}
-                                    onChange={(value) =>
-                                      handleInputChange(field.id, value)
-                                    }
-                                    placeholder={
-                                      field.placeholder || "Enter coordinates"
-                                    }
-                                    disabled={isProjectInactive}
-                                  />
-                                )}
-                                {field.type === "image" && (
-                                  <Input
-                                    id={field.id}
-                                    type="file"
-                                    onChange={(e) =>
-                                      handleInputChange(
-                                        field.id,
-                                        e.target.files?.[0] || null
-                                      )
-                                    }
-                                    required={field.required}
-                                    disabled={isProjectInactive}
-                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                  />
-                                )}
-                                {field.type === "date" && (
-                                  <Input
-                                    id={field.id}
-                                    type="date"
-                                    value={formData[field.id] as string || ""}
-                                    onChange={(e) =>
-                                      handleInputChange(field.id, e.target.value)
-                                    }
-                                    required={field.required}
-                                    disabled={isProjectInactive}
-                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                  />
-                                )}
-                                {field.type === "dateTime" && (
-                                  <Input
-                                    id={field.id}
-                                    type="datetime-local"
-                                    value={formData[field.id] as string || ""}
-                                    onChange={(e) =>
-                                      handleInputChange(field.id, e.target.value)
-                                    }
-                                    required={field.required}
-                                    disabled={isProjectInactive}
-                                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                  />
-                                )}
+                                <Input
+                                  id="userId"
+                                  value={formData["userId"] as string || ""}
+                                  readOnly
+                                  disabled
+                                  className="bg-gray-100"
+                                />
                               </div>
-                            ))
+                              <div className="space-y-2">
+                                <label htmlFor="recordNo" className="text-sm font-medium flex items-center">
+                                  Record No.
+                                </label>
+                                <Input
+                                  id="recordNo"
+                                  value={formData["recordNo"] as string || ""}
+                                  onChange={(e) => handleInputChange("recordNo", e.target.value)}
+                                  placeholder="Enter Record No."
+                                  disabled={isProjectInactive}
+                                  className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                />
+                              </div>
+                            </>
+                          )}
+                          {sectionFields.length > 0 ? (
+                            sectionFields.map((field: FieldTemplate) => {
+                              // Avoid duplicating Record No. if it exists as a custom field
+                              if (field.name === "Record No." && formData["recordNo"] !== undefined) return null;
+
+                              return (
+                                <div key={field.id} className="space-y-2">
+                                  <label
+                                    htmlFor={field.id}
+                                    className="text-sm font-medium flex items-center"
+                                  >
+                                    {field.label || field.name}
+                                    {field.required && (
+                                      <span className="text-red-500 ml-1">*</span>
+                                    )}
+                                  </label>
+                                  {field.type === "text" && (
+                                    <Input
+                                      id={field.id}
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      placeholder={field.placeholder || ""}
+                                      required={field.required}
+                                      disabled={isProjectInactive}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                    />
+                                  )}
+                                  {field.type === "textAndNumbers" && (
+                                    <Input
+                                      id={field.id}
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      placeholder={field.placeholder || ""}
+                                      required={field.required}
+                                      disabled={isProjectInactive}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                    />
+                                  )}
+                                  {(field.type === "number" || field.type === "numbers") && (
+                                    <Input
+                                      id={field.id}
+                                      type="number"
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      placeholder={field.placeholder || "Enter a number"}
+                                      required={field.required}
+                                      disabled={isProjectInactive}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                    />
+                                  )}
+                                  {field.type === "textarea" && (
+                                    <Textarea
+                                      id={field.id}
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      placeholder={field.placeholder || ""}
+                                      required={field.required}
+                                      disabled={isProjectInactive}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                    />
+                                  )}
+                                  {field.type === "definedList" && (
+                                    <Select
+                                      value={formData[field.id] as string || ""}
+                                      onValueChange={(value) =>
+                                        handleInputChange(field.id, value)
+                                      }
+                                      disabled={isProjectInactive}
+                                    >
+                                      <SelectTrigger
+                                        id={field.id}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      >
+                                        <SelectValue
+                                          placeholder={
+                                            field.placeholder || "Select an option"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {field.options?.map((option: string) => (
+                                          <SelectItem key={option} value={option}>
+                                            {option}
+                                          </SelectItem>
+                                        )) || null}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                  {field.type === "location" && (
+                                    <LocationSelector
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(value) =>
+                                        handleInputChange(field.id, value)
+                                      }
+                                      placeholder={
+                                        field.placeholder || "Enter location"
+                                      }
+                                      disabled={isProjectInactive}
+                                    />
+                                  )}
+                                  {field.type === "coordinates" && (
+                                    <LocationSelector
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(value) =>
+                                        handleInputChange(field.id, value)
+                                      }
+                                      placeholder={
+                                        field.placeholder || "Enter coordinates"
+                                      }
+                                      disabled={isProjectInactive}
+                                    />
+                                  )}
+                                  {field.type === "image" && (
+                                    <div className="flex items-center space-x-2">
+                                      <Input
+                                        id={field.id}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={(e) =>
+                                          handleInputChange(
+                                            field.id,
+                                            e.target.files?.[0] || null
+                                          )
+                                        }
+                                        required={field.required}
+                                        disabled={isProjectInactive}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
+                                      />
+                                      <Button
+                                        type="button"
+                                        onClick={() => document.getElementById(field.id)?.click()}
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex items-center space-x-2"
+                                      >
+                                        <Camera className="h-4 w-4" />
+                                        <span>Capture</span>
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        onClick={() => document.getElementById(field.id)?.click()}
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex items-center space-x-2"
+                                      >
+                                        <Upload className="h-4 w-4" />
+                                        <span>Upload</span>
+                                      </Button>
+                                    </div>
+                                  )}
+                                  {field.type === "date" && (
+                                    <Input
+                                      id={field.id}
+                                      type="date"
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      required={field.required}
+                                      disabled={isProjectInactive}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                    />
+                                  )}
+                                  {field.type === "dateTime" && (
+                                    <Input
+                                      id={field.id}
+                                      type="datetime-local"
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      required={field.required}
+                                      disabled={isProjectInactive}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                    />
+                                  )}
+                                  {field.type === "checkbox" && (
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id={field.id}
+                                        checked={formData[field.id] as boolean || false}
+                                        onCheckedChange={(checked) =>
+                                          handleInputChange(field.id, checked)
+                                        }
+                                        disabled={isProjectInactive}
+                                      />
+                                      <label
+                                        htmlFor={field.id}
+                                        className="text-sm text-muted-foreground"
+                                      >
+                                        {field.label || field.name}
+                                      </label>
+                                    </div>
+                                  )}
+                                  {field.type === "multipleChoice" && (
+                                    <div className="space-y-2">
+                                      {field.options?.map((option: string) => (
+                                        <div key={option} className="flex items-center space-x-2">
+                                          <Checkbox
+                                            id={`${field.id}-${option}`}
+                                            checked={(formData[field.id] as string[] || []).includes(option)}
+                                            onCheckedChange={(checked) => {
+                                              const currentValues = formData[field.id] as string[] || [];
+                                              const newValues = checked
+                                                ? [...currentValues, option]
+                                                : currentValues.filter((val) => val !== option);
+                                              handleInputChange(field.id, newValues);
+                                            }}
+                                            disabled={isProjectInactive}
+                                          />
+                                          <label
+                                            htmlFor={`${field.id}-${option}`}
+                                            className="text-sm text-muted-foreground"
+                                          >
+                                            {option}
+                                          </label>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {field.type === "qrBarcode" && (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center space-x-2">
+                                        <Input
+                                          id={`${field.id}-text`}
+                                          value={typeof formData[field.id] === "string" ? formData[field.id] as string : ""}
+                                          onChange={(e) =>
+                                            handleInputChange(field.id, e.target.value)
+                                          }
+                                          placeholder={
+                                            field.barcodeType === "qr"
+                                              ? "Enter QR Code value"
+                                              : "Enter Barcode value"
+                                          }
+                                          disabled={isProjectInactive}
+                                          className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                        />
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Input
+                                          id={`${field.id}-image`}
+                                          type="file"
+                                          accept="image/*"
+                                          capture="environment"
+                                          onChange={(e) =>
+                                            handleInputChange(
+                                              field.id,
+                                              e.target.files?.[0] || null
+                                            )
+                                          }
+                                          required={field.required}
+                                          disabled={isProjectInactive}
+                                          className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
+                                        />
+                                        <Button
+                                          type="button"
+                                          onClick={() => document.getElementById(`${field.id}-image`)?.click()}
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                        >
+                                          <Camera className="h-4 w-4" />
+                                          <span>Capture</span>
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          onClick={() => document.getElementById(`${field.id}-image`)?.click()}
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                        >
+                                          <Upload className="h-4 w-4" />
+                                          <span>Upload</span>
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
                           ) : (
                             <p className="text-sm text-muted-foreground">
                               No fields available for this section.
@@ -1083,7 +1284,7 @@ const ProjectFormPage: React.FC = () => {
                       <Card key={record.id || index} className="border">
                         <div
                           className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50"
-                          onClick={() => handleToggleRowExpand(record.id || `record_${index}`)} // Use index as fallback if id is undefined
+                          onClick={() => handleToggleRowExpand(record.id || `record_${index}`)}
                         >
                           <div>
                             <p className="font-medium text-sm">
@@ -1131,9 +1332,13 @@ const ProjectFormPage: React.FC = () => {
                                       ? formatLocationForDisplay(
                                         record.data[field.id] || ""
                                       )
-                                      : field.type === "image" && typeof record.data[field.id] === "string" && record.data[field.id].startsWith("data:image/")
+                                      : (field.type === "image" || field.type === "qrBarcode") && typeof record.data[field.id] === "string" && record.data[field.id].startsWith("data:image/")
                                         ? <img src={record.data[field.id]} alt="Uploaded" style={{ maxWidth: "100px" }} />
-                                        : record.data[field.id] || "-"}
+                                        : field.type === "multipleChoice" && Array.isArray(record.data[field.id])
+                                          ? record.data[field.id].join(", ")
+                                          : field.type === "checkbox"
+                                            ? record.data[field.id] ? "Yes" : "No"
+                                            : record.data[field.id] || "-"}
                                   </div>
                                 </div>
                               ))}

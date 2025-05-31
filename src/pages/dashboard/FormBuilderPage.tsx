@@ -36,6 +36,12 @@ const dataTypes = [
   { id: "dateTime", name: "Date and Time" },
 ];
 
+// Barcode types for qrBarcode fields
+const barcodeTypes = [
+  { id: "qr", name: "QR Code" },
+  { id: "barcode", name: "Barcode" },
+];
+
 // Asset categories
 const categories = [
   { id: "land", name: "Land" },
@@ -51,78 +57,78 @@ const categories = [
 // Template fields per category
 const templatesByCategory = {
   land: [
-    { name: "Land Name", type: "text", required: true },
-    { name: "Address", type: "textAndNumbers", required: true },
+    { name: "Land Name", type: "text", required: true, placeholder: "Enter land name" },
+    { name: "Address", type: "textAndNumbers", required: true, placeholder: "Enter address" },
     { name: "Geographic Coordinates", type: "coordinates", required: true },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    { name: "Comments", type: "text", required: false, placeholder: "Add comments" },
   ],
   buildings: [
-    { name: "Building Name", type: "text", required: true },
-    { name: "Address", type: "textAndNumbers", required: true },
+    { name: "Building Name", type: "text", required: true, placeholder: "Enter building name" },
+    { name: "Address", type: "textAndNumbers", required: true, placeholder: "Enter address" },
     { name: "Geographic Coordinates", type: "coordinates", required: true },
-    { name: "Year of Construction", type: "numbers", required: false },
-    { name: "Building Area", type: "definedList", required: true },
+    { name: "Year of Construction", type: "numbers", required: false, placeholder: "Enter year" },
+    { name: "Building Area", type: "definedList", required: true, options: ["Small", "Medium", "Large"] },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Condition", type: "definedList", required: true },
-    { name: "Comments", type: "text", required: false },
+    { name: "Condition", type: "definedList", required: true, options: ["Good", "Fair", "Poor"] },
+    { name: "Comments", type: "text", required: false, placeholder: "Add comments" },
   ],
   biological: [
-    { name: "Location", type: "text", required: true },
-    { name: "Field Name", type: "text", required: true },
+    { name: "Location", type: "text", required: true, placeholder: "Enter location" },
+    { name: "Field Name", type: "text", required: true, placeholder: "Enter field name" },
     { name: "Geographic Coordinates", type: "coordinates", required: true },
-    { name: "Species", type: "text", required: true },
+    { name: "Species", type: "text", required: true, placeholder: "Enter species" },
     { name: "Inspection Image", type: "image", required: true },
-    { name: "Diameter", type: "numbers", required: false },
-    { name: "Comments", type: "text", required: false },
+    { name: "Diameter", type: "numbers", required: false, placeholder: "Enter diameter in cm" },
+    { name: "Comments", type: "text", required: false, placeholder: "Add comments" },
   ],
   machinery: [
-    { name: "Machine Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Asset Code", type: "qrBarcode", required: true },
-    { name: "Model Number", type: "textAndNumbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    { name: "Machine Name", type: "text", required: true, placeholder: "Enter machine name" },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    { name: "Asset Code", type: "qrBarcode", required: true, barcodeType: "qr" },
+    { name: "Model Number", type: "textAndNumbers", required: true, placeholder: "Enter model number" },
+    { name: "Quantity", type: "numbers", required: true, placeholder: "Enter quantity" },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    { name: "Comments", type: "text", required: false, placeholder: "Add comments" },
   ],
   furniture: [
-    { name: "Furniture Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Asset Code", type: "qrBarcode", required: true },
-    { name: "Model Number", type: "textAndNumbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    { name: "Furniture Name", type: "text", required: true, placeholder: "Enter furniture name" },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    { name: "Asset Code", type: "qrBarcode", required: true, barcodeType: "qr" },
+    { name: "Model Number", type: "textAndNumbers", required: true, placeholder: "Enter model number" },
+    { name: "Quantity", type: "numbers", required: true, placeholder: "Enter quantity" },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    { name: "Comments", type: "text", required: false, placeholder: "Add comments" },
   ],
   equipment: [
-    { name: "Equipment Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Asset Code", type: "qrBarcode", required: true },
-    { name: "Model Number", type: "textAndNumbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    { name: "Equipment Name", type: "text", required: true, placeholder: "Enter equipment name" },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    { name: "Asset Code", type: "qrBarcode", required: true, barcodeType: "qr" },
+    { name: "Model Number", type: "textAndNumbers", required: true, placeholder: "Enter model number" },
+    { name: "Quantity", type: "numbers", required: true, placeholder: "Enter quantity" },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    { name: "Comments", type: "text", required: false, placeholder: "Add comments" },
   ],
   vehicles: [
-    { name: "Vehicle Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Model", type: "text", required: true },
-    { name: "YOM", type: "numbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    { name: "Vehicle Name", type: "text", required: true, placeholder: "Enter vehicle name" },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    { name: "Model", type: "text", required: true, placeholder: "Enter model" },
+    { name: "YOM", type: "numbers", required: true, placeholder: "Enter year of manufacture" },
+    { name: "Quantity", type: "numbers", required: true, placeholder: "Enter quantity" },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    { name: "Comments", type: "text", required: false, placeholder: "Add comments" },
   ],
   other: [
-    { name: "Record No.", type: "textAndNumbers", required: true },
-    { name: "User ID", type: "textAndNumbers", required: true },
+    { name: "Record No.", type: "textAndNumbers", required: true, placeholder: "Enter record number" },
+    { name: "User ID", type: "textAndNumbers", required: true, placeholder: "Enter user ID" },
     { name: "Date and Time", type: "dateTime", required: true },
   ],
 };
 
 // Fields always included at top of every form section 1.
 const systemFields = [
-  { name: "Record No.", type: "textAndNumbers", required: true },
-  { name: "User ID", type: "textAndNumbers", required: true },
+  { name: "Record No.", type: "textAndNumbers", required: true, placeholder: "Enter record number" },
+  { name: "User ID", type: "textAndNumbers", required: true, placeholder: "Enter user ID" },
   { name: "Date and Time", type: "dateTime", required: true },
 ];
 
@@ -134,11 +140,15 @@ type FieldTemplate = {
   name: string;
   type: string;
   required: boolean;
+  placeholder?: string; // For text, numbers, textAndNumbers
+  options?: string[]; // For definedList, multipleChoice
+  defaultChecked?: boolean; // For checkbox
+  barcodeType?: "qr" | "barcode"; // For qrBarcode
 };
 
 type FormSection = {
-  id: string;     // Unique per section
-  name: string;   // Section title
+  id: string;
+  name: string;
   fields: FieldTemplate[];
 };
 
@@ -169,6 +179,9 @@ const FormBuilderPage: React.FC = () => {
     type: "text",
     required: false,
   });
+
+  // State for managing options for definedList and multipleChoice
+  const [optionsInput, setOptionsInput] = useState<string>("");
 
   // Edit mode for fields in the current section
   const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null);
@@ -206,6 +219,7 @@ const FormBuilderPage: React.FC = () => {
     ]);
     setActiveSection(0);
     setNewField({ name: "", type: "text", required: false });
+    setOptionsInput("");
     setEditingFieldIndex(null);
     setIsSheetOpen(false);
   }, [location.search]);
@@ -229,12 +243,13 @@ const FormBuilderPage: React.FC = () => {
         },
       ];
     });
-    setActiveSection(sections.length); // Focus the new section
+    setActiveSection(sections.length);
     setNewField({ name: "", type: "text", required: false });
+    setOptionsInput("");
     toast.success("Section added. Switch to the new section to add fields!");
   };
 
-  // Rename an existing section (now allows section 0 too)
+  // Rename an existing section
   const handleRenameSection = (idx: number, newName: string) => {
     setSections((prev) =>
       prev.map((s, i) => (i === idx ? { ...s, name: newName.trim() || s.name } : s))
@@ -242,24 +257,33 @@ const FormBuilderPage: React.FC = () => {
     toast.success("Section renamed!");
   };
 
-  // Remove a section (now allows first section too)
+  // Remove a section
   const handleRemoveSection = (idx: number) => {
     setSections((prev) => {
       const newSections = prev.slice();
       newSections.splice(idx, 1);
-
-      // Reselect to previous section or fallback
       setActiveSection(Math.max(0, activeSection - 1));
       return newSections;
     });
     toast.success("Section removed.");
   };
 
-  // FIELD CRUD (all operations are now specific to the currently selected section)
+  // FIELD CRUD
+
+  // Handle options for definedList and multipleChoice
+  const handleOptionsChange = (value: string) => {
+    setOptionsInput(value);
+    const options = value.split(",").map(opt => opt.trim()).filter(opt => opt);
+    setNewField(prev => ({ ...prev, options }));
+  };
 
   const handleAddField = () => {
     if (!newField.name.trim()) {
       toast.error("Please enter a field name");
+      return;
+    }
+    if ((newField.type === "definedList" || newField.type === "multipleChoice") && (!newField.options || newField.options.length === 0)) {
+      toast.error("Please provide at least one option for this field");
       return;
     }
     setSections((prev) =>
@@ -270,12 +294,15 @@ const FormBuilderPage: React.FC = () => {
       )
     );
     setNewField({ name: "", type: "text", required: false });
+    setOptionsInput("");
     toast.success("Custom field added");
   };
 
   const handleEditField = (fieldIdx: number) => {
+    const field = sections[activeSection].fields[fieldIdx];
     setEditingFieldIndex(fieldIdx);
-    setNewField({ ...sections[activeSection].fields[fieldIdx] });
+    setNewField({ ...field });
+    setOptionsInput(field.options?.join(", ") || "");
     if (isMobile) setIsSheetOpen(true);
   };
 
@@ -284,21 +311,26 @@ const FormBuilderPage: React.FC = () => {
       toast.error("Field name cannot be empty");
       return;
     }
+    if ((newField.type === "definedList" || newField.type === "multipleChoice") && (!newField.options || newField.options.length === 0)) {
+      toast.error("Please provide at least one option for this field");
+      return;
+    }
     if (editingFieldIndex !== null) {
       setSections(prev =>
         prev.map((section, idx) =>
           idx === activeSection
             ? {
-                ...section,
-                fields: section.fields.map((f, i) =>
-                  i === editingFieldIndex ? { ...newField } : f
-                ),
-              }
+              ...section,
+              fields: section.fields.map((f, i) =>
+                i === editingFieldIndex ? { ...newField } : f
+              ),
+            }
             : section
         )
       );
       setEditingFieldIndex(null);
       setNewField({ name: "", type: "text", required: false });
+      setOptionsInput("");
       setIsSheetOpen(false);
       toast.success("Field updated");
     }
@@ -307,11 +339,11 @@ const FormBuilderPage: React.FC = () => {
   const handleCancelEdit = () => {
     setEditingFieldIndex(null);
     setNewField({ name: "", type: "text", required: false });
+    setOptionsInput("");
     setIsSheetOpen(false);
   };
 
   const handleRemoveField = (fieldIdx: number) => {
-    // System fields (first 3) of section 1 (index 0) cannot be removed
     if (activeSection === 0 && fieldIdx < 3) {
       toast.error("Cannot remove mandatory system fields");
       return;
@@ -320,9 +352,9 @@ const FormBuilderPage: React.FC = () => {
       prev.map((section, idx) =>
         idx === activeSection
           ? {
-              ...section,
-              fields: section.fields.filter((_, i) => i !== fieldIdx),
-            }
+            ...section,
+            fields: section.fields.filter((_, i) => i !== fieldIdx),
+          }
           : section
       )
     );
@@ -334,19 +366,19 @@ const FormBuilderPage: React.FC = () => {
       prev.map((section, idx) =>
         idx === activeSection
           ? {
-              ...section,
-              fields: section.fields.map((field, i) =>
-                i === fieldIdx
-                  ? { ...field, required: !field.required }
-                  : field
-              ),
-            }
+            ...section,
+            fields: section.fields.map((field, i) =>
+              i === fieldIdx
+                ? { ...field, required: !field.required }
+                : field
+            ),
+          }
           : section
       )
     );
   };
 
-  // Persist sections and projectData to localStorage as the new formFields structure
+  // Persist sections and projectData to localStorage
   const handleNext = () => {
     localStorage.setItem("formSections", JSON.stringify(sections));
     localStorage.setItem("projectData", JSON.stringify(projectData));
@@ -354,9 +386,8 @@ const FormBuilderPage: React.FC = () => {
     navigate("/dashboard/review-form");
   };
 
-  // UI -----------------------------------------------
+  // UI Components
 
-  // Section tab/accordion
   const renderSectionsNav = () => (
     <div
       className={
@@ -371,11 +402,10 @@ const FormBuilderPage: React.FC = () => {
           key={section.id}
           className={
             isMobile
-              ? `relative flex flex-col items-center justify-center bg-white rounded-lg drop-shadow-sm border min-w-[120px] px-3 py-1 mr-2 ${
-                  activeSection === idx
-                    ? "border-[#8B5CF6] shadow-md"
-                    : "border-gray-200"
-                }`
+              ? `relative flex flex-col items-center justify-center bg-white rounded-lg drop-shadow-sm border min-w-[120px] px-3 py-1 mr-2 ${activeSection === idx
+                ? "border-[#8B5CF6] shadow-md"
+                : "border-gray-200"
+              }`
               : "relative"
           }
           style={isMobile ? { minWidth: 130, marginRight: 8 } : undefined}
@@ -385,29 +415,22 @@ const FormBuilderPage: React.FC = () => {
             variant={activeSection === idx ? "default" : "outline"}
             className={
               isMobile
-                ? `w-full justify-center rounded-lg text-sm font-semibold py-2 px-3 !shadow-none transition-colors ${
-                    activeSection === idx
-                      ? "bg-[#8B5CF6] text-white"
-                      : "bg-white text-[#8B5CF6] border border-[#DDD6FE]"
-                  }`
+                ? `w-full justify-center rounded-lg text-sm font-semibold py-2 px-3 !shadow-none transition-colors ${activeSection === idx
+                  ? "bg-[#8B5CF6] text-white"
+                  : "bg-white text-[#8B5CF6] border border-[#DDD6FE]"
+                }`
                 : `rounded-full px-4 ${activeSection === idx ? "font-bold" : ""}`
             }
             style={isMobile ? { minHeight: 44, minWidth: 110 } : undefined}
             onClick={() => setActiveSection(idx)}
           >
-            {/* Truncate long names and show tooltip on hover for mobile */}
             <span
-              className={
-                isMobile
-                  ? "truncate max-w-[72px] block"
-                  : ""
-              }
+              className={isMobile ? "truncate max-w-[72px] block" : ""}
               title={section.name}
             >
               {section.name}
             </span>
           </Button>
-          {/* Mobile: Edit/Delete action row now always visible (including Section 1) */}
           {isMobile ? (
             <div className="flex justify-center gap-2 mt-1 w-full">
               <Button
@@ -436,20 +459,17 @@ const FormBuilderPage: React.FC = () => {
                   title="Rename section"
                   className="absolute right-0 top-0 bg-transparent p-1"
                   onClick={() => setEditingSectionName(section.name)}
-                  style={{
-                    marginLeft: "0.2rem"
-                  }}
+                  style={{ marginLeft: "0.2rem" }}
                 >
                   <Edit className="w-4 h-4 text-[#9b87f5]" />
                 </button>
               )}
-              {/* Delete button always visible except when there's only 1 section */}
               {sections.length > 1 && (
                 <button
                   title="Remove section"
                   className="absolute right-0 top-7 bg-transparent text-red-500 p-1"
                   onClick={() => handleRemoveSection(idx)}
-                  style={{display: "block"}}
+                  style={{ display: "block" }}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -458,7 +478,6 @@ const FormBuilderPage: React.FC = () => {
           )}
         </div>
       ))}
-      {/* Add section button */}
       <Button
         onClick={handleAddSection}
         variant="ghost"
@@ -475,7 +494,6 @@ const FormBuilderPage: React.FC = () => {
     </div>
   );
 
-  // Section name editor modal (inline for desktop, simple modal for mobile)
   const renderSectionRenameEditor = () => {
     if (!editingSectionName) return null;
     return (
@@ -503,6 +521,72 @@ const FormBuilderPage: React.FC = () => {
           </div>
         </div>
       </div>
+    );
+  };
+
+  // Render additional configuration fields based on field type
+  const renderAdditionalConfig = (isEditing: boolean) => {
+    const field = isEditing ? newField : newField;
+    return (
+      <>
+        {(field.type === "text" || field.type === "numbers" || field.type === "textAndNumbers") && (
+          <div className={isMobile ? "w-full" : "flex-1 min-w-[200px]"}>
+            <label className="text-sm mb-1 block">Placeholder</label>
+            <Input
+              value={field.placeholder || ""}
+              onChange={(e) =>
+                setNewField({ ...field, placeholder: e.target.value })
+              }
+              placeholder="Enter placeholder text"
+              className={isMobile ? "h-10 text-base" : ""}
+            />
+          </div>
+        )}
+        {(field.type === "definedList" || field.type === "multipleChoice") && (
+          <div className={isMobile ? "w-full" : "flex-1 min-w-[200px]"}>
+            <label className="text-sm mb-1 block">Options (comma-separated)</label>
+            <Input
+              value={optionsInput}
+              onChange={(e) => handleOptionsChange(e.target.value)}
+              placeholder="Option1, Option2, Option3"
+              className={isMobile ? "h-10 text-base" : ""}
+            />
+          </div>
+        )}
+        {field.type === "checkbox" && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm">Default Checked</span>
+            <Switch
+              checked={field.defaultChecked || false}
+              onCheckedChange={(checked) =>
+                setNewField({ ...field, defaultChecked: checked })
+              }
+            />
+          </div>
+        )}
+        {field.type === "qrBarcode" && (
+          <div className={isMobile ? "w-full" : "w-[180px]"}>
+            <label className="text-sm mb-1 block">Barcode Type</label>
+            <Select
+              value={field.barcodeType || "qr"}
+              onValueChange={(value) =>
+                setNewField({ ...field, barcodeType: value as "qr" | "barcode" })
+              }
+            >
+              <SelectTrigger className={isMobile ? "h-10 text-base" : ""}>
+                <SelectValue placeholder="Select barcode type" />
+              </SelectTrigger>
+              <SelectContent>
+                {barcodeTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </>
     );
   };
 
@@ -565,20 +649,17 @@ const FormBuilderPage: React.FC = () => {
                 : "Custom section—add your specific fields here."}
             </span>
           </p>
-          {/* List of fields in this section */}
           <div
-            className={`space-y-3 mb-5 ${
-              isMobile ? "max-h-[60vh] overflow-y-auto pb-2" : ""
-            }`}
+            className={`space-y-3 mb-5 ${isMobile ? "max-h-[60vh] overflow-y-auto pb-2" : ""
+              }`}
           >
             {sections[activeSection]?.fields.map((field, i) => (
               <div
                 key={i}
-                className={`flex flex-col ${isMobile ? "p-2" : "p-3"} border rounded-md ${
-                  editingFieldIndex === i && !isMobile
+                className={`flex flex-col ${isMobile ? "p-2" : "p-3"} border rounded-md ${editingFieldIndex === i && !isMobile
                     ? "border-brand-green bg-gray-50"
                     : ""
-                }`}
+                  }`}
               >
                 {editingFieldIndex === i && !isMobile ? (
                   <div className="w-full space-y-3">
@@ -618,6 +699,9 @@ const FormBuilderPage: React.FC = () => {
                         />
                       </div>
                     </div>
+                    <div className={`flex ${isMobile ? "flex-col" : "flex-wrap"} gap-3 items-end`}>
+                      {renderAdditionalConfig(true)}
+                    </div>
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
@@ -635,16 +719,32 @@ const FormBuilderPage: React.FC = () => {
                   <>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p
-                          className={`font-medium ${
-                            isMobile ? "text-base" : ""
-                          }`}
-                        >
+                        <p className={`font-medium ${isMobile ? "text-base" : ""}`}>
                           {field.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {getDataTypeName(field.type)}
                         </p>
+                        {field.placeholder && (
+                          <p className="text-xs text-muted-foreground">
+                            Placeholder: {field.placeholder}
+                          </p>
+                        )}
+                        {field.options && field.options.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Options: {field.options.join(", ")}
+                          </p>
+                        )}
+                        {field.defaultChecked !== undefined && (
+                          <p className="text-xs text-muted-foreground">
+                            Default Checked: {field.defaultChecked ? "Yes" : "No"}
+                          </p>
+                        )}
+                        {field.barcodeType && (
+                          <p className="text-xs text-muted-foreground">
+                            Barcode Type: {barcodeTypes.find(bt => bt.id === field.barcodeType)?.name}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         {field.required ? (
@@ -696,9 +796,7 @@ const FormBuilderPage: React.FC = () => {
                           size="icon"
                           onClick={() => handleToggleRequired(i)}
                           className="h-8 w-8"
-                          title={
-                            field.required ? "Make optional" : "Make required"
-                          }
+                          title={field.required ? "Make optional" : "Make required"}
                           disabled={activeSection === 0 && i < 3}
                         >
                           {field.required ? (
@@ -738,16 +836,11 @@ const FormBuilderPage: React.FC = () => {
               </div>
             ))}
           </div>
-          {/* Add field box */}
           <div
-            className={`border rounded-md p-3 mb-5 ${
-              isMobile ? "space-y-3" : ""
-            }`}
+            className={`border rounded-md p-3 mb-5 ${isMobile ? "space-y-3" : ""}`}
           >
             <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
-            <div
-              className={`flex ${isMobile ? "flex-col" : "flex-wrap"} gap-3 items-end`}
-            >
+            <div className={`flex ${isMobile ? "flex-col" : "flex-wrap"} gap-3 items-end`}>
               <div className={`${isMobile ? "w-full" : "flex-1 min-w-[200px]"}`}>
                 <label className="text-sm mb-1 block">Field Name</label>
                 <Input
@@ -788,11 +881,10 @@ const FormBuilderPage: React.FC = () => {
                   }
                 />
               </div>
+              {renderAdditionalConfig(false)}
               <Button
                 variant="outline"
-                className={`flex items-center gap-1 ${
-                  isMobile ? "w-full h-10 text-base" : ""
-                }`}
+                className={`flex items-center gap-1 ${isMobile ? "w-full h-10 text-base" : ""}`}
                 onClick={handleAddField}
               >
                 <Plus className="h-4 w-4" />
@@ -800,7 +892,6 @@ const FormBuilderPage: React.FC = () => {
               </Button>
             </div>
           </div>
-          {/* Navigation buttons */}
           <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
             <Button
               variant="outline"
@@ -818,7 +909,6 @@ const FormBuilderPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-      {/* Mobile Edit Sheet */}
       {isMobile && (
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetContent className="h-[80vh] w-full">
@@ -870,6 +960,7 @@ const FormBuilderPage: React.FC = () => {
                   }
                 />
               </div>
+              {renderAdditionalConfig(true)}
               <div className="flex flex-col gap-3 pt-4">
                 <Button onClick={handleSaveEdit} className="h-12 text-base">
                   Save Changes
