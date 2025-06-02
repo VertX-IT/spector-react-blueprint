@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -22,7 +22,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Download, ChevronDown, ChevronUp, Trash2, Edit, Camera, Upload } from "lucide-react";
+import {
+  AlertCircle,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  Edit,
+  Camera,
+  Upload,
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -37,10 +46,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { LocationSelector } from "@/components/survey/LocationSelector";
-import { getProjectById, submitFormData, deleteProject, updateProject, getProjectRecords } from "@/lib/projectOperations";
+import {
+  getProjectById,
+  submitFormData,
+  deleteProject,
+  updateProject,
+  getProjectRecords,
+} from "@/lib/projectOperations";
 import { useSectionSurvey } from "@/hooks/useSectionSurvey";
 import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
+import { Capacitor } from "@capacitor/core";
+import lz from "lz-string";
 
 interface Section {
   id: string;
@@ -110,9 +127,88 @@ const ProjectFormPage: React.FC = () => {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const { isOnline } = useNetwork();
+  const [localCompletedSections, setLocalCompletedSections] = useState<string[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<{ [key: string]: string | null }>({});
+
+  // Clean up image preview URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      Object.values(imagePreviews).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [imagePreviews]);
+
+  // Check for duplicate field IDs to ensure unique image previews
+  useEffect(() => {
+    const imageFields = sections.flatMap((section) =>
+      section.fields.filter((field) => field.type === "image")
+    );
+    const duplicateIds = imageFields.filter(
+      (field, index, self) =>
+        self.findIndex((f) => f.id === field.id) !== index
+    );
+    if (duplicateIds.length > 0) {
+      console.warn("Duplicate field IDs for image fields detected:", duplicateIds);
+    }
+  }, [sections]);
+
+  // Sync offline data when connection is restored
+  useEffect(() => {
+    if (!isOnline || !project?.id) return;
+
+    const syncOfflineData = async () => {
+      try {
+        // Sync designer data
+        const offlineDesignerData = localStorage.getItem(`offline_designer_${project.id}`);
+        if (offlineDesignerData) {
+          const decompressed = lz.decompress(offlineDesignerData);
+          const designerData = decompressed ? JSON.parse(decompressed) : null;
+          if (designerData) {
+            await updateProject(project.id, designerData);
+            localStorage.removeItem(`offline_designer_${project.id}`);
+            toast({
+              title: "Designer Data Synced",
+              description: "Offline designer data has been synced.",
+            });
+          }
+        }
+
+        // Sync collector data
+        const offlineCollectorRecords = localStorage.getItem(`offline_records_${project.id}`);
+        if (offlineCollectorRecords) {
+          const decompressed = lz.decompress(offlineCollectorRecords);
+          const recordsArray = decompressed ? JSON.parse(decompressed) : [];
+          for (const record of recordsArray) {
+            await submitFormData(project.id, record, userData.uid);
+          }
+          localStorage.removeItem(`offline_records_${project.id}`);
+          toast({
+            title: "Collector Data Synced",
+            description: "Offline collector data has been synced.",
+          });
+        }
+      } catch (error: any) {
+        console.error("Error syncing offline data:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to sync offline data.",
+        });
+      }
+    };
+
+    syncOfflineData();
+  }, [isOnline, project?.id, userData.uid]);
 
   // Fetch project details
   useEffect(() => {
+    console.log(
+      "useEffect for fetchProject triggered. projectId:",
+      projectId,
+      "currentUserId:",
+      currentUserId
+    );
     const fetchProject = async () => {
       try {
         setLoading(true);
@@ -122,20 +218,35 @@ const ProjectFormPage: React.FC = () => {
           throw new Error("Project ID is missing");
         }
 
-        const storedProjects = localStorage.getItem("myProjects");
-        let foundProject: any = null;
+        console.log("Fetching project with ID:", projectId);
 
+        const isCapacitor = Capacitor.isNativePlatform();
+        let storedProjects = null;
+        if (isCapacitor) {
+          const { Storage } = await import("@capacitor/storage");
+          const { value } = await Storage.get({ key: "myProjects" });
+          console.log("Capacitor Storage 'myProjects':", value);
+          storedProjects = value;
+        } else {
+          storedProjects = localStorage.getItem("myProjects");
+          console.log("localStorage 'myProjects':", storedProjects);
+        }
+
+        let foundProject: any = null;
         if (storedProjects) {
           const parsedProjects = JSON.parse(storedProjects);
+          console.log("Parsed projects:", parsedProjects);
           foundProject = parsedProjects.find((p: any) => p.id === projectId);
         }
 
         if (!foundProject) {
+          console.log("Project not found in storage, fetching from Firebase...");
           const firebaseProject = await getProjectById(projectId);
           if (firebaseProject) {
             foundProject = firebaseProject;
+            console.log("Fetched project from Firebase:", foundProject);
           } else {
-            throw new Error("Project not found");
+            throw new Error("Project not found in Firebase");
           }
         }
 
@@ -157,27 +268,45 @@ const ProjectFormPage: React.FC = () => {
               id: field.id || `${section.id}_${fieldIndex}`,
               name: field.name || field.label || `Field ${fieldIndex}`,
               label: field.label || field.name || `Field ${fieldIndex}`,
-              type: field.type === 'numbers' ? 'number' : field.type || "text", // Fix typo 'numbers' to 'number'
+              type: field.type === "numbers" ? "number" : field.type || "text",
               required: field.required !== undefined ? field.required : false,
               sectionId: section.id,
               placeholder: field.placeholder || "",
               options: field.options || [],
               defaultChecked: field.defaultChecked !== undefined ? field.defaultChecked : false,
               barcodeType: field.barcodeType || "qr",
-            })).filter(field => field.name !== "User ID" && field.name !== "Record No"),
+            })).filter((field) => field.name !== "User ID"),
           }));
+          console.log("Populated projectSections:", projectSections);
         } else {
+          console.warn("No formSections found, using default section with Record No.");
           projectSections = [
             {
               id: "section_default",
               name: "Section 1",
               order: 0,
-              fields: [],
+              fields: [
+                {
+                  id: "section_default_0",
+                  name: "Record No.",
+                  label: "Record No.",
+                  type: "text",
+                  required: true,
+                  sectionId: "section_default",
+                  placeholder: "Enter Record No.",
+                  options: [],
+                  defaultChecked: false,
+                  barcodeType: "qr",
+                },
+              ],
             },
           ];
         }
 
-        const allFields: FieldTemplate[] = projectSections.flatMap(section => section.fields);
+        const allFields: FieldTemplate[] = projectSections.flatMap(
+          (section) => section.fields
+        );
+        console.log("All fields:", allFields);
 
         setSections(projectSections);
         setProject({
@@ -202,6 +331,7 @@ const ProjectFormPage: React.FC = () => {
         if (recordNoField) {
           initialData[recordNoField.id] = "";
         }
+        console.log("Initial formData:", initialData);
         setFormData(initialData);
       } catch (error: any) {
         console.error("Error fetching project:", error);
@@ -221,6 +351,12 @@ const ProjectFormPage: React.FC = () => {
 
   // Fetch records when the "View Data" tab is active
   useEffect(() => {
+    console.log(
+      "useEffect for fetchRecords triggered. projectId:",
+      projectId,
+      "activeTab:",
+      activeTab
+    );
     const fetchRecords = async () => {
       if (!projectId || activeTab !== "data") return;
 
@@ -230,7 +366,7 @@ const ProjectFormPage: React.FC = () => {
 
         // Filter records based on user role
         if (isCollector && !isDesigner) {
-          records = records.filter(record => record.createdBy === currentUserId);
+          records = records.filter((record) => record.createdBy === currentUserId);
         }
         // For designer, no filtering needed; they see all records
 
@@ -254,127 +390,150 @@ const ProjectFormPage: React.FC = () => {
   const {
     sectionData,
     completedSections,
-    surveyCompleted,
     submitSection,
     endSurvey,
     resetSurvey,
   } = useSectionSurvey(sectionIds);
 
-  useFirebaseSync(project?.id || "", userData?.uid || "");
+  // Memoize dependencies for useFirebaseSync to prevent continuous logs
+  const memoizedProjectId = useMemo(() => project?.id || "", [project?.id]);
+  const memoizedUserId = useMemo(() => userData?.uid || "", [userData?.uid]);
+  useFirebaseSync(memoizedProjectId, memoizedUserId);
 
   const handleInputChange = (fieldId: string, value: string | File | boolean | string[] | null) => {
     setFormData((prev) => ({
       ...prev,
       [fieldId]: value,
     }));
+
+    // Handle image preview with debugging
+    if (value instanceof File) {
+      const oldUrl = imagePreviews[fieldId];
+      if (oldUrl) {
+        URL.revokeObjectURL(oldUrl);
+      }
+      const newUrl = URL.createObjectURL(value);
+      console.log("Generated preview URL for field", fieldId, ":", newUrl);
+      setImagePreviews((prev) => ({
+        ...prev,
+        [fieldId]: newUrl,
+      }));
+    } else if (value === null) {
+      const oldUrl = imagePreviews[fieldId];
+      if (oldUrl) {
+        URL.revokeObjectURL(oldUrl);
+      }
+      setImagePreviews((prev) => ({
+        ...prev,
+        [fieldId]: null,
+      }));
+    }
   };
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
+      const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSizeInBytes) {
+        reject(
+          new Error(
+            `Image size exceeds 5MB limit. File size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`
+          )
+        );
+        return;
+      }
+
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
+      reader.onload = () => {
+        const result = reader.result as string;
+        console.log("fileToBase64 success. Base64 string length:", result.length);
+        resolve(result);
+      };
+      reader.onerror = (error) => {
+        console.error("fileToBase64 error:", error);
+        reject(error);
+      };
       reader.readAsDataURL(file);
     });
   };
 
-  const handleSectionSubmit = async (
-    sectionId: string,
-    sectionFields: FieldTemplate[]
-  ) => {
-    if (!isCollector) return;
-
-    const sectionForm: Record<string, any> = {};
-    const missingFields: string[] = [];
-    const recordNoField = projectSections[0].fields.find((f) => f.name === "Record No.");
-
-    // Validate fields
-    for (const field of sectionFields) {
-      const value = formData[field.id];
-      if (field.required) {
-        if (value === null || value === undefined || value === "") {
-          missingFields.push(field.label || field.name || field.id);
-        } else if (field.type === "multipleChoice" && Array.isArray(value) && value.length === 0) {
-          missingFields.push(field.label || field.name || field.id);
-        }
-      }
-      if (field.type === "image" && value instanceof File) {
-        try {
-          const base64String = await fileToBase64(value);
-          sectionForm[field.id] = base64String;
-        } catch (error) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to process image.",
-          });
-          return;
-        }
-      } else if (field.type === "qrBarcode" && value instanceof File) {
-        try {
-          const base64String = await fileToBase64(value);
-          sectionForm[field.id] = base64String;
-        } catch (error) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to process QR/Barcode image.",
-          });
-          return;
-        }
-      } else if (field.type === "qrBarcode" && typeof value === "string") {
-        sectionForm[field.id] = value;
-      } else if (field.type === "checkbox" && typeof value === "boolean") {
-        sectionForm[field.id] = value;
-      } else if (field.type === "multipleChoice" && Array.isArray(value)) {
-        sectionForm[field.id] = value;
-      } else {
-        sectionForm[field.id] = value;
-      }
-    }
-
-    // Validate Record No. explicitly for first section
-    if (activeSectionIndex === 0 && recordNoField?.required) {
-      const recordNoValue = formData[recordNoField.id];
-      if (!recordNoValue || recordNoValue === "") {
-        missingFields.push("Record No.");
-      }
-    }
-
-    // Add User ID and Record No.
-    sectionForm["userId"] = formData["userId"];
-    if (recordNoField) {
-      sectionForm[recordNoField.id] = formData[recordNoField.id];
-    }
-
-    if (missingFields.length > 0) {
-      toast({
-        variant: "destructive",
-        title: "Missing fields",
-        description: `Please fill in: ${missingFields.join(", ")}`,
-      });
-      return;
-    }
-
-    submitSection(sectionId, sectionForm);
-
-    const record = {
-      ...sectionForm,
-      __sectionId: sectionId,
-      __timestamp: new Date().toISOString(),
-      __completed: false,
-    };
-
-    const key = `records_${project?.id}_draft`;
-    const prevDrafts = JSON.parse(localStorage.getItem(key) || "[]");
-    const updatedDrafts = prevDrafts.filter((d: any) => d.__sectionId !== sectionId);
-    updatedDrafts.push(record);
-    localStorage.setItem(key, JSON.stringify(updatedDrafts));
-
+  const clearStorage = () => {
+    localStorage.clear();
     toast({
-      title: "Section submitted",
-      description: "Section saved. Continue with the next section or finish.",
+      title: "Success",
+      description: "Storage cleared. Please try submitting again.",
     });
+  };
+
+  const handleSectionSubmit = async (sectionId: string, sectionFields: FieldTemplate[]) => {
+    try {
+      const sectionData = await sectionFields.reduce(async (accPromise, field) => {
+        const acc = await accPromise;
+        let value = formData[field.id];
+        if (field.type === "image" && value instanceof File) {
+          value = await fileToBase64(value);
+        } else if (field.type === "qrBarcode" && value instanceof File) {
+          value = await fileToBase64(value);
+        }
+        acc[field.id] = value;
+        return acc;
+      }, Promise.resolve({} as FormData));
+
+      const record = {
+        sectionId,
+        data: sectionData,
+        timestamp: new Date().toISOString(),
+        userId: currentUserId,
+      };
+
+      const offlineRecords = localStorage.getItem("offline_records");
+      let recordsArray = [];
+      if (offlineRecords) {
+        const decompressed = lz.decompress(offlineRecords);
+        recordsArray = decompressed ? JSON.parse(decompressed) : [];
+      }
+
+      recordsArray.push(record);
+
+      if (recordsArray.length > 5) {
+        recordsArray = recordsArray.slice(-5);
+      }
+
+      const compressedRecords = lz.compress(JSON.stringify(recordsArray));
+      localStorage.setItem("offline_records", compressedRecords);
+
+      setLocalCompletedSections((prev) => {
+        if (!prev.includes(sectionId)) {
+          return [...prev, sectionId];
+        }
+        return prev;
+      });
+
+      submitSection(sectionId, sectionData);
+      toast({
+        title: "Success",
+        description: "Section submitted successfully.",
+      });
+
+      if (activeSectionIndex < projectSections.length - 1) {
+        setActiveSectionIndex(activeSectionIndex + 1);
+      }
+    } catch (error: any) {
+      console.error("Error submitting section:", error);
+      if (error.message.includes("quota")) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Storage quota exceeded. Please clear data or sync online.",
+        });
+        localStorage.clear();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to submit section.",
+        });
+      }
+    }
   };
 
   const handleEndSurveySubmit = async () => {
@@ -385,19 +544,28 @@ const ProjectFormPage: React.FC = () => {
       Object.assign(surveyPayload, sectionData[sid] || {});
     });
 
-    // Process any remaining fields
     for (const fieldId in formData) {
       const value = formData[fieldId];
-      const field = sections.flatMap(s => s.fields).find(f => f.id === fieldId);
+      const field = sections.flatMap((s) => s.fields).find((f) => f.id === fieldId);
       if (field?.type === "image" && value instanceof File) {
         try {
+          console.log(
+            "Processing image for field:",
+            fieldId,
+            "File size:",
+            value.size,
+            "File type:",
+            value.type
+          );
           const base64String = await fileToBase64(value);
+          console.log("Image converted to Base64. Length:", base64String.length);
           surveyPayload[fieldId] = base64String;
-        } catch (error) {
+        } catch (error: any) {
+          console.error("Error processing image:", error);
           toast({
             variant: "destructive",
             title: "Error",
-            description: "Failed to process image.",
+            description: error.message || "Failed to process image.",
           });
           return;
         }
@@ -424,29 +592,37 @@ const ProjectFormPage: React.FC = () => {
       }
     }
 
-    // Ensure User ID and Record No. are included
     surveyPayload["userId"] = formData["userId"];
-    const recordNoField = projectSections[0].fields.find((f) => f.name === "Record No.");
+    const recordNoField = projectSections[0]?.fields.find((f) => f.name === "Record No.");
     if (recordNoField) {
       surveyPayload[recordNoField.id] = formData[recordNoField.id];
     }
 
     try {
+      console.log("isOnline status:", isOnline);
       if (isOnline) {
+        console.log("Submitting data to Firebase:", surveyPayload);
         await submitFormData(project.id, surveyPayload, userData.uid);
         toast({
           title: "Survey submitted",
           description: "Your responses have been saved.",
         });
       } else {
-        const key = `offline_records_${project.id}`;
-        const arr = JSON.parse(localStorage.getItem(key) || "[]");
-        arr.push(surveyPayload);
-        localStorage.setItem(key, JSON.stringify(arr));
+        console.log("Offline mode: Saving to localStorage");
+        const offlineRecords = localStorage.getItem(`offline_records_${project.id}`);
+        let recordsArray = [];
+        if (offlineRecords) {
+          const decompressed = lz.decompress(offlineRecords);
+          recordsArray = decompressed ? JSON.parse(decompressed) : [];
+        }
+        recordsArray.push(surveyPayload);
+        const compressedData = lz.compress(JSON.stringify(recordsArray));
+        localStorage.setItem(`offline_records_${project.id}`, compressedData);
         toast({
           title: "Offline submission",
-          description: "Data saved locally and will sync when you're back online.",
+          description: "Data will be saved after connection is restored.",
         });
+        navigate("/dashboard/my-projects"); // Navigate to project tabs
       }
       endSurvey();
       resetSurvey();
@@ -454,6 +630,7 @@ const ProjectFormPage: React.FC = () => {
       setActiveSectionIndex(0);
       localStorage.removeItem(`records_${project.id}_draft`);
     } catch (err: any) {
+      console.error("Error submitting to Firebase:", err);
       toast({
         variant: "destructive",
         title: "Error submitting survey",
@@ -463,7 +640,7 @@ const ProjectFormPage: React.FC = () => {
   };
 
   const getFieldsBySection = (sectionId: string) => {
-    const section = sections.find(s => s.id === sectionId);
+    const section = sections.find((s) => s.id === sectionId);
     return section ? section.fields : [];
   };
 
@@ -473,7 +650,9 @@ const ProjectFormPage: React.FC = () => {
     const updatedSections = sections.filter((section) => section.id !== sectionId);
 
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -481,9 +660,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Section deleted", description: "Section has been removed." });
   };
@@ -494,11 +683,13 @@ const ProjectFormPage: React.FC = () => {
     console.log("Toggling required for fieldId:", fieldId);
     let fieldFound = false;
 
-    const updatedSections = sections.map(section => {
-      const updatedFields = section.fields.map(field => {
+    const updatedSections = sections.map((section) => {
+      const updatedFields = section.fields.map((field) => {
         if (field.id === fieldId) {
           fieldFound = true;
-          console.log(`Found field ${field.id}, toggling required from ${field.required} to ${!field.required}`);
+          console.log(
+            `Found field ${field.id}, toggling required from ${field.required} to ${!field.required}`
+          );
           return { ...field, required: !field.required };
         }
         return { ...field };
@@ -513,7 +704,9 @@ const ProjectFormPage: React.FC = () => {
 
     console.log("Updated sections:", JSON.stringify(updatedSections, null, 2));
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -521,9 +714,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Field updated", description: "Required status has been toggled." });
   };
@@ -535,7 +738,9 @@ const ProjectFormPage: React.FC = () => {
       section.id === sectionId ? { ...section, name: newName } : section
     );
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -543,9 +748,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Section renamed", description: "Section name has been updated." });
   };
@@ -556,11 +771,13 @@ const ProjectFormPage: React.FC = () => {
     console.log("Updating field name for fieldId:", fieldId, "to:", newName);
     let fieldFound = false;
 
-    const updatedSections = sections.map(section => {
-      const updatedFields = section.fields.map(field => {
+    const updatedSections = sections.map((section) => {
+      const updatedFields = section.fields.map((field) => {
         if (field.id === fieldId) {
           fieldFound = true;
-          console.log(`Found field ${field.id}, updating name from ${field.name} to ${newName}`);
+          console.log(
+            `Found field ${field.id}, updating name from ${field.name} to ${newName}`
+          );
           return { ...field, label: newName, name: newName };
         }
         return { ...field };
@@ -575,7 +792,9 @@ const ProjectFormPage: React.FC = () => {
 
     console.log("Updated sections:", JSON.stringify(updatedSections, null, 2));
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -583,9 +802,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Field renamed", description: "Field name has been updated." });
   };
@@ -606,8 +835,6 @@ const ProjectFormPage: React.FC = () => {
       </Alert>
     );
   }
-
-  // console.log("project.formSections before rendering:", project.formSections);
 
   const isProjectInactive = project.status === "inactive";
   const projectSections =
@@ -651,7 +878,7 @@ const ProjectFormPage: React.FC = () => {
 
   const handleExportData = () => {
     if (!projectRecords || projectRecords.length === 0) return;
-    const allFields = projectSections.flatMap(s => s.fields);
+    const allFields = projectSections.flatMap((s) => s.fields);
     const headers = [
       ...allFields.map((f) => f.label || f.name || f.id),
       "User ID",
@@ -734,6 +961,7 @@ const ProjectFormPage: React.FC = () => {
           }
           : prev
       );
+      navigate("/dashboard/my-projects"); // Navigate to project tabs after ending survey
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -833,7 +1061,9 @@ const ProjectFormPage: React.FC = () => {
                           {isEditMode ? (
                             <Input
                               value={section.name}
-                              onChange={(e) => handleRenameSection(section.id, e.target.value)}
+                              onChange={(e) =>
+                                handleRenameSection(section.id, e.target.value)
+                              }
                               className="w-full border p-1"
                             />
                           ) : (
@@ -857,13 +1087,17 @@ const ProjectFormPage: React.FC = () => {
                               {isEditMode ? (
                                 <Input
                                   value={field.label || field.name || ""}
-                                  onChange={(e) => handleUpdateFieldName(field.id, e.target.value)}
+                                  onChange={(e) =>
+                                    handleUpdateFieldName(field.id, e.target.value)
+                                  }
                                   className="w-full border p-1"
                                 />
                               ) : (
                                 <span className="text-sm font-medium">
                                   {field.label || field.name}
-                                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                                  {field.required && (
+                                    <span className="text-red-500 ml-1">*</span>
+                                  )}
                                 </span>
                               )}
                               {isEditMode && (
@@ -871,7 +1105,10 @@ const ProjectFormPage: React.FC = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleToggleRequired(field.id)}
-                                  className={`ml-2 ${field.required ? "text-red-500" : "text-green-500"}`}
+                                  className={`ml-2 ${field.required
+                                    ? "text-red-500"
+                                    : "text-green-500"
+                                    }`}
                                 >
                                   {field.required ? "Required" : "Optional"}
                                 </Button>
@@ -896,7 +1133,7 @@ const ProjectFormPage: React.FC = () => {
                           }`}
                       >
                         {section.name}
-                        {completedSections.includes(section.id) && (
+                        {localCompletedSections.includes(section.id) && (
                           <span className="ml-2 text-green-600 text-sm">✓</span>
                         )}
                       </button>
@@ -917,9 +1154,18 @@ const ProjectFormPage: React.FC = () => {
                   }}
                   className="space-y-4 mt-4"
                 >
+                  <Button
+                    variant="outline"
+                    onClick={clearStorage}
+                    className="mt-2"
+                  >
+                    Clear Storage
+                  </Button>
                   {(() => {
                     const section = projectSections[activeSectionIndex];
                     const sectionFields = getFieldsBySection(section.id);
+                    console.log("Current section:", section);
+                    console.log("Section fields:", sectionFields);
 
                     return (
                       <div className="mb-6">
@@ -931,7 +1177,10 @@ const ProjectFormPage: React.FC = () => {
                           {activeSectionIndex === 0 && (
                             <>
                               <div className="space-y-2">
-                                <label htmlFor="userId" className="text-sm font-medium flex items-center">
+                                <label
+                                  htmlFor="userId"
+                                  className="text-sm font-medium flex items-center"
+                                >
                                   User ID
                                 </label>
                                 <Input
@@ -943,21 +1192,35 @@ const ProjectFormPage: React.FC = () => {
                                 />
                               </div>
                               {(() => {
-                                const recordNoField = projectSections[0].fields.find((f) => f.name === "Record No.");
+                                const recordNoField = projectSections[0]?.fields.find(
+                                  (f) => f.name === "Record No."
+                                );
+                                console.log("Record No. field:", recordNoField);
                                 if (recordNoField) {
                                   return (
                                     <div className="space-y-2">
-                                      <label htmlFor={recordNoField.id} className="text-sm font-medium flex items-center">
+                                      <label
+                                        htmlFor={recordNoField.id}
+                                        className="text-sm font-medium flex items-center"
+                                      >
                                         Record No.
-                                        {recordNoField.required && <span className="text-red-500 ml-1">*</span>}
+                                        {recordNoField.required && (
+                                          <span className="text-red-500 ml-1">*</span>
+                                        )}
                                       </label>
                                       <Input
                                         id={recordNoField.id}
                                         value={formData[recordNoField.id] as string || ""}
-                                        onChange={(e) => handleInputChange(recordNoField.id, e.target.value)}
+                                        onChange={(e) =>
+                                          handleInputChange(
+                                            recordNoField.id,
+                                            e.target.value
+                                          )
+                                        }
                                         placeholder="Enter Record No."
                                         disabled={isProjectInactive}
-                                        className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""
+                                          }`}
                                       />
                                     </div>
                                   );
@@ -968,9 +1231,18 @@ const ProjectFormPage: React.FC = () => {
                           )}
                           {sectionFields.length > 0 ? (
                             sectionFields.map((field: FieldTemplate) => {
-                              // Avoid duplicating Record No. if it exists as a custom field
-                              const recordNoField = activeSectionIndex === 0 ? projectSections[0].fields.find((f) => f.name === "Record No.") : null;
-                              if (field.name === "Record No." && recordNoField && formData[recordNoField.id] !== undefined) return null;
+                              const recordNoField =
+                                activeSectionIndex === 0
+                                  ? projectSections[0]?.fields.find(
+                                    (f) => f.name === "Record No."
+                                  )
+                                  : null;
+                              if (
+                                field.name === "Record No." &&
+                                recordNoField &&
+                                formData[recordNoField.id] !== undefined
+                              )
+                                return null;
 
                               return (
                                 <div key={field.id} className="space-y-2">
@@ -993,7 +1265,8 @@ const ProjectFormPage: React.FC = () => {
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
                                       disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""
+                                        }`}
                                     />
                                   )}
                                   {field.type === "textAndNumbers" && (
@@ -1006,26 +1279,31 @@ const ProjectFormPage: React.FC = () => {
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
                                       disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""
+                                        }`}
                                     />
                                   )}
-                                  {(field.type === "number" || field.type === "numbers") && (
-                                    <Input
-                                      id={field.id}
-                                      type="number"
-                                      value={formData[field.id] as string || ""}
-                                      onChange={(e) =>
-                                        handleInputChange(field.id, e.target.value)
-                                      }
-                                      placeholder={field.placeholder || "Enter a number"}
-                                      required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                    />
-                                  )}
+                                  {(field.type === "number" ||
+                                    field.type === "numbers") && (
+                                      <Input
+                                        id={field.id}
+                                        type="number"
+                                        value={formData[field.id] as string || ""}
+                                        onChange={(e) =>
+                                          handleInputChange(field.id, e.target.value)
+                                        }
+                                        placeholder={field.placeholder || "Enter a number"}
+                                        required={field.required}
+                                        disabled={isProjectInactive}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""
+                                          }`}
+                                      />
+                                    )}
                                   {field.type === "textarea" && (
                                     <Textarea
                                       id={field.id}
+
+
                                       value={formData[field.id] as string || ""}
                                       onChange={(e) =>
                                         handleInputChange(field.id, e.target.value)
@@ -1033,7 +1311,8 @@ const ProjectFormPage: React.FC = () => {
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
                                       disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""
+                                        }`}
                                     />
                                   )}
                                   {field.type === "definedList" && (
@@ -1046,7 +1325,8 @@ const ProjectFormPage: React.FC = () => {
                                     >
                                       <SelectTrigger
                                         id={field.id}
-                                        className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""
+                                          }`}
                                       >
                                         <SelectValue
                                           placeholder={
@@ -1088,42 +1368,74 @@ const ProjectFormPage: React.FC = () => {
                                     />
                                   )}
                                   {field.type === "image" && (
-                                    <div className="flex items-center space-x-2">
-                                      <Input
-                                        id={field.id}
-                                        type="file"
-                                        accept="image/*"
-                                        capture="environment"
-                                        onChange={(e) =>
-                                          handleInputChange(
-                                            field.id,
-                                            e.target.files?.[0] || null
-                                          )
-                                        }
-                                        required={field.required}
-                                        disabled={isProjectInactive}
-                                        className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
-                                      />
-                                      <Button
-                                        type="button"
-                                        onClick={() => document.getElementById(field.id)?.click()}
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex items-center space-x-2"
-                                      >
-                                        <Camera className="h-4 w-4" />
-                                        <span>Capture</span>
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        onClick={() => document.getElementById(field.id)?.click()}
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex items-center space-x-2"
-                                      >
-                                        <Upload className="h-4 w-4" />
-                                        <span>Upload</span>
-                                      </Button>
+                                    <div className="space-y-2">
+                                      <div className="flex items-center space-x-2">
+                                        <Input
+                                          id={field.id}
+                                          type="file"
+                                          accept="image/*"
+                                          capture="environment"
+                                          onChange={(e) =>
+                                            handleInputChange(
+                                              field.id,
+                                              e.target.files?.[0] || null
+                                            )
+                                          }
+                                          required={field.required}
+                                          disabled={isProjectInactive}
+                                          className={`${isProjectInactive ? "bg-gray-100" : ""
+                                            } hidden`}
+                                        />
+                                        <Button
+                                          type="button"
+                                          onClick={() =>
+                                            document.getElementById(field.id)?.click()
+                                          }
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
+                                        >
+                                          <Camera className="h-4 w-4" />
+                                          <span>Capture</span>
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          onClick={() =>
+                                            document.getElementById(field.id)?.click()
+                                          }
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
+                                        >
+                                          <Upload className="h-4 w-4" />
+                                          <span>Upload</span>
+                                        </Button>
+                                        {formData[field.id] && (
+                                          <Button
+                                            type="button"
+                                            onClick={() => handleInputChange(field.id, null)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center space-x-2 text-red-500"
+                                            disabled={isProjectInactive}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                            <span>Clear</span>
+                                          </Button>
+                                        )}
+                                      </div>
+                                      {imagePreviews[field.id] && (
+                                        <div className="mt-2">
+                                          <img
+                                            src={imagePreviews[field.id]!}
+                                            alt="Preview"
+                                            className="max-w-full h-auto rounded-md"
+                                            style={{ maxHeight: "200px" }}
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   {field.type === "date" && (
@@ -1136,7 +1448,8 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       required={field.required}
                                       disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""
+                                        }`}
                                     />
                                   )}
                                   {field.type === "dateTime" && (
@@ -1149,7 +1462,8 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       required={field.required}
                                       disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""
+                                        }`}
                                     />
                                   )}
                                   {field.type === "checkbox" && (
@@ -1171,24 +1485,34 @@ const ProjectFormPage: React.FC = () => {
                                     </div>
                                   )}
                                   {field.type === "multipleChoice" && (
-                                    <div className="space-y-2">
+                                    <div className="space-y-1">
                                       {field.options?.map((option: string) => (
-                                        <div key={option} className="flex items-center space-x-2">
+                                        <div
+                                          key={option}
+                                          className="flex items-center space-x-1"
+                                        >
                                           <Checkbox
                                             id={`${field.id}-${option}`}
-                                            checked={(formData[field.id] as string[] || []).includes(option)}
+                                            checked={
+                                              (formData[field.id] as string[] || []).includes(
+                                                option
+                                              )
+                                            }
                                             onCheckedChange={(checked) => {
-                                              const currentValues = formData[field.id] as string[] || [];
+                                              const currentValues =
+                                                formData[field.id] as string[] || [];
                                               const newValues = checked
                                                 ? [...currentValues, option]
-                                                : currentValues.filter((val) => val !== option);
+                                                : currentValues.filter(
+                                                  (val) => val !== option
+                                                );
                                               handleInputChange(field.id, newValues);
                                             }}
                                             disabled={isProjectInactive}
                                           />
                                           <label
                                             htmlFor={`${field.id}-${option}`}
-                                            className="text-sm text-muted-foreground"
+                                            className="text-xs text-muted-foreground"
                                           >
                                             {option}
                                           </label>
@@ -1201,7 +1525,11 @@ const ProjectFormPage: React.FC = () => {
                                       <div className="flex items-center space-x-2">
                                         <Input
                                           id={`${field.id}-text`}
-                                          value={typeof formData[field.id] === "string" ? formData[field.id] as string : ""}
+                                          value={
+                                            typeof formData[field.id] === "string"
+                                              ? (formData[field.id] as string)
+                                              : ""
+                                          }
                                           onChange={(e) =>
                                             handleInputChange(field.id, e.target.value)
                                           }
@@ -1211,7 +1539,8 @@ const ProjectFormPage: React.FC = () => {
                                               : "Enter Barcode value"
                                           }
                                           disabled={isProjectInactive}
-                                          className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                          className={`${isProjectInactive ? "bg-gray-100" : ""
+                                            }`}
                                         />
                                       </div>
                                       <div className="flex items-center space-x-2">
@@ -1228,11 +1557,14 @@ const ProjectFormPage: React.FC = () => {
                                           }
                                           required={field.required}
                                           disabled={isProjectInactive}
-                                          className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
+                                          className={`${isProjectInactive ? "bg-gray-100" : ""
+                                            } hidden`}
                                         />
                                         <Button
                                           type="button"
-                                          onClick={() => document.getElementById(`${field.id}-image`)?.click()}
+                                          onClick={() =>
+                                            document.getElementById(`${field.id}-image`)?.click()
+                                          }
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
@@ -1242,7 +1574,9 @@ const ProjectFormPage: React.FC = () => {
                                         </Button>
                                         <Button
                                           type="button"
-                                          onClick={() => document.getElementById(`${field.id}-image`)?.click()}
+                                          onClick={() =>
+                                            document.getElementById(`${field.id}-image`)?.click()
+                                          }
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
@@ -1258,7 +1592,8 @@ const ProjectFormPage: React.FC = () => {
                             })
                           ) : (
                             <p className="text-sm text-muted-foreground">
-                              No fields available for this section.
+                              No fields available for this section. Please check project
+                              configuration.
                             </p>
                           )}
                         </div>
@@ -1270,20 +1605,30 @@ const ProjectFormPage: React.FC = () => {
                     projectSections[activeSectionIndex].id
                   ) && (
                       <div className="flex justify-end">
-                        <Button type="submit" className="w-full sm:w-auto" disabled={isProjectInactive}>
+                        <Button
+                          type="submit"
+                          className="w-full sm:w-auto"
+                          disabled={isProjectInactive}
+                        >
                           Submit Section
                         </Button>
                       </div>
                     )}
                 </form>
               )}
-              {isCollector && !isDesigner && completedSections.length === sectionIds.length && !surveyCompleted && (
-                <div className="flex justify-end mt-4">
-                  <Button onClick={handleEndSurveySubmit} className="w-full sm:w-auto" disabled={isProjectInactive}>
-                    End Survey
-                  </Button>
-                </div>
-              )}
+              {isCollector &&
+                !isDesigner &&
+                completedSections.length === sectionIds.length && (
+                  <div className="flex justify-end mt-4">
+                    <Button
+                      onClick={handleEndSurveySubmit}
+                      className="w-full sm:w-auto"
+                      disabled={isProjectInactive}
+                    >
+                      End Survey
+                    </Button>
+                  </div>
+                )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1307,10 +1652,15 @@ const ProjectFormPage: React.FC = () => {
                 <div className="overflow-auto">
                   <div className="space-y-4">
                     {projectRecords.map((record, index) => (
-                      <Card key={record.id || index} className="border">
+                      <Card
+                        key={record.id || index}
+                        className="border"
+                      >
                         <div
                           className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50"
-                          onClick={() => handleToggleRowExpand(record.id || `record_${index}`)}
+                          onClick={() =>
+                            handleToggleRowExpand(record.id || `record_${index}`)
+                          }
                         >
                           <div>
                             <p className="font-medium text-sm">
@@ -1323,7 +1673,9 @@ const ProjectFormPage: React.FC = () => {
                             size="icon"
                             className="h-8 w-8"
                           >
-                            {expandedRows.includes(record.id || `record_${index}`) ? (
+                            {expandedRows.includes(
+                              record.id || `record_${index}`
+                            ) ? (
                               <ChevronUp className="h-4 w-4" />
                             ) : (
                               <ChevronDown className="h-4 w-4" />
@@ -1345,29 +1697,47 @@ const ProjectFormPage: React.FC = () => {
                                 </div>
                                 <div>{record.data?.recordNo || "-"}</div>
                               </div>
-                              {projectSections.flatMap(s => s.fields).map((field: any) => (
-                                <div
-                                  key={field.id}
-                                  className="grid grid-cols-2 gap-2 text-sm"
-                                >
-                                  <div className="font-medium text-muted-foreground">
-                                    {field.label || field.name}:
+                              {projectSections
+                                .flatMap((s) => s.fields)
+                                .map((field: any) => (
+                                  <div
+                                    key={field.id}
+                                    className="grid grid-cols-2 gap-2 text-sm"
+                                  >
+                                    <div className="font-medium text-muted-foreground">
+                                      {field.label || field.name}:
+                                    </div>
+                                    <div>
+                                      {field.type === "location" ||
+                                        field.type === "coordinates"
+                                        ? formatLocationForDisplay(
+                                          record.data[field.id] || ""
+                                        )
+                                        : (field.type === "image" ||
+                                          field.type === "qrBarcode") &&
+                                          typeof record.data[field.id] ===
+                                          "string" &&
+                                          record.data[field.id].startsWith(
+                                            "data:image/"
+                                          )
+                                          ? (
+                                            <img
+                                              src={record.data[field.id]}
+                                              alt="Uploaded"
+                                              style={{ maxWidth: "100px" }}
+                                            />
+                                          )
+                                          : field.type === "multipleChoice" &&
+                                            Array.isArray(record.data[field.id])
+                                            ? record.data[field.id].join(", ")
+                                            : field.type === "checkbox"
+                                              ? record.data[field.id]
+                                                ? "Yes"
+                                                : "No"
+                                              : record.data[field.id] || "-"}
+                                    </div>
                                   </div>
-                                  <div>
-                                    {field.type === "location" || field.type === "coordinates"
-                                      ? formatLocationForDisplay(
-                                        record.data[field.id] || ""
-                                      )
-                                      : (field.type === "image" || field.type === "qrBarcode") && typeof record.data[field.id] === "string" && record.data[field.id].startsWith("data:image/")
-                                        ? <img src={record.data[field.id]} alt="Uploaded" style={{ maxWidth: "100px" }} />
-                                        : field.type === "multipleChoice" && Array.isArray(record.data[field.id])
-                                          ? record.data[field.id].join(", ")
-                                          : field.type === "checkbox"
-                                            ? record.data[field.id] ? "Yes" : "No"
-                                            : record.data[field.id] || "-"}
-                                  </div>
-                                </div>
-                              ))}
+                                ))}
                             </div>
                           </CardContent>
                         )}
@@ -1421,10 +1791,7 @@ const ProjectFormPage: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      <AlertDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-      >
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
