@@ -7,17 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:712619670595:android:0cb53616545cc0c3f868f6",
+        "mobilesdk_app_id": "1:712619670595:android:42553bfa0c071155f868f6",
         "android_client_info": {
-          "package_name": "com.leafnode.spector"
+          "package_name": "com.lovable.surveysync"
         }
       },
       "oauth_client": [
         {
-          "client_id": "712619670595-vdshkac43ki4ld2stupumrer7t90tagn.apps.googleusercontent.com",
+          "client_id": "712619670595-f7r29127a51n7d6e7tlo8aiutpj0drnp.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.leafnode.spector",
+            "package_name": "com.lovable.surveysync",
             "certificate_hash": "a62ed5d8627ae7d0f053f69cec1d7e13953e6f73"
           }
         },
