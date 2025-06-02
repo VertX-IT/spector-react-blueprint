@@ -1153,7 +1153,7 @@ const ProjectFormPage: React.FC = () => {
                                     />
                                   )}
                                   {field.type === "checkbox" && (
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex items-center space-x-1">
                                       <Checkbox
                                         id={field.id}
                                         checked={formData[field.id] as boolean || false}
@@ -1164,7 +1164,7 @@ const ProjectFormPage: React.FC = () => {
                                       />
                                       <label
                                         htmlFor={field.id}
-                                        className="text-sm text-muted-foreground"
+                                        className="text-xs text-muted-foreground"
                                       >
                                         {field.label || field.name}
                                       </label>
