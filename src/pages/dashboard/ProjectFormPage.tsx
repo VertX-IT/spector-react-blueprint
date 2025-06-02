@@ -188,7 +188,8 @@ const ProjectFormPage: React.FC = () => {
           formSections: projectSections,
         });
 
-        const initialData: FormData = {};
+        const initialData: FormData = { userId: currentUserId };
+        const recordNoField = allFields.find((field) => field.name === "Record No.");
         allFields.forEach((field: FieldTemplate) => {
           if (field.type === "checkbox") {
             initialData[field.id] = field.defaultChecked || false;
@@ -198,8 +199,9 @@ const ProjectFormPage: React.FC = () => {
             initialData[field.id] = "";
           }
         });
-        initialData["userId"] = currentUserId;
-        initialData["recordNo"] = "";
+        if (recordNoField) {
+          initialData[recordNoField.id] = "";
+        }
         setFormData(initialData);
       } catch (error: any) {
         console.error("Error fetching project:", error);
@@ -284,11 +286,12 @@ const ProjectFormPage: React.FC = () => {
 
     const sectionForm: Record<string, any> = {};
     const missingFields: string[] = [];
+    const recordNoField = projectSections[0].fields.find((f) => f.name === "Record No.");
 
-    // Process fields including image to base64
+    // Validate fields
     for (const field of sectionFields) {
       const value = formData[field.id];
-      if (field.required && field.id !== "recordNo" && field.id !== "userId") {
+      if (field.required) {
         if (value === null || value === undefined || value === "") {
           missingFields.push(field.label || field.name || field.id);
         } else if (field.type === "multipleChoice" && Array.isArray(value) && value.length === 0) {
@@ -330,9 +333,19 @@ const ProjectFormPage: React.FC = () => {
       }
     }
 
-    // Add User ID and Record No. to the submitted form only if not already present
-    if (!sectionForm["userId"]) sectionForm["userId"] = formData["userId"];
-    if (!sectionForm["recordNo"]) sectionForm["recordNo"] = formData["recordNo"];
+    // Validate Record No. explicitly for first section
+    if (activeSectionIndex === 0 && recordNoField?.required) {
+      const recordNoValue = formData[recordNoField.id];
+      if (!recordNoValue || recordNoValue === "") {
+        missingFields.push("Record No.");
+      }
+    }
+
+    // Add User ID and Record No.
+    sectionForm["userId"] = formData["userId"];
+    if (recordNoField) {
+      sectionForm[recordNoField.id] = formData[recordNoField.id];
+    }
 
     if (missingFields.length > 0) {
       toast({
@@ -412,8 +425,11 @@ const ProjectFormPage: React.FC = () => {
     }
 
     // Ensure User ID and Record No. are included
-    if (!surveyPayload["userId"]) surveyPayload["userId"] = formData["userId"];
-    if (!surveyPayload["recordNo"]) surveyPayload["recordNo"] = formData["recordNo"];
+    surveyPayload["userId"] = formData["userId"];
+    const recordNoField = projectSections[0].fields.find((f) => f.name === "Record No.");
+    if (recordNoField) {
+      surveyPayload[recordNoField.id] = formData[recordNoField.id];
+    }
 
     try {
       if (isOnline) {
@@ -591,7 +607,7 @@ const ProjectFormPage: React.FC = () => {
     );
   }
 
-  console.log("project.formSections before rendering:", project.formSections);
+  // console.log("project.formSections before rendering:", project.formSections);
 
   const isProjectInactive = project.status === "inactive";
   const projectSections =
@@ -926,25 +942,35 @@ const ProjectFormPage: React.FC = () => {
                                   className="bg-gray-100"
                                 />
                               </div>
-                              <div className="space-y-2">
-                                <label htmlFor="recordNo" className="text-sm font-medium flex items-center">
-                                  Record No.
-                                </label>
-                                <Input
-                                  id="recordNo"
-                                  value={formData["recordNo"] as string || ""}
-                                  onChange={(e) => handleInputChange("recordNo", e.target.value)}
-                                  placeholder="Enter Record No."
-                                  disabled={isProjectInactive}
-                                  className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                />
-                              </div>
+                              {(() => {
+                                const recordNoField = projectSections[0].fields.find((f) => f.name === "Record No.");
+                                if (recordNoField) {
+                                  return (
+                                    <div className="space-y-2">
+                                      <label htmlFor={recordNoField.id} className="text-sm font-medium flex items-center">
+                                        Record No.
+                                        {recordNoField.required && <span className="text-red-500 ml-1">*</span>}
+                                      </label>
+                                      <Input
+                                        id={recordNoField.id}
+                                        value={formData[recordNoField.id] as string || ""}
+                                        onChange={(e) => handleInputChange(recordNoField.id, e.target.value)}
+                                        placeholder="Enter Record No."
+                                        disabled={isProjectInactive}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      />
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </>
                           )}
                           {sectionFields.length > 0 ? (
                             sectionFields.map((field: FieldTemplate) => {
                               // Avoid duplicating Record No. if it exists as a custom field
-                              if (field.name === "Record No." && formData["recordNo"] !== undefined) return null;
+                              const recordNoField = activeSectionIndex === 0 ? projectSections[0].fields.find((f) => f.name === "Record No.") : null;
+                              if (field.name === "Record No." && recordNoField && formData[recordNoField.id] !== undefined) return null;
 
                               return (
                                 <div key={field.id} className="space-y-2">
