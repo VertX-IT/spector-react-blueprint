@@ -51,78 +51,263 @@ const categories = [
 // Template fields per category
 const templatesByCategory = {
   land: [
-    { name: "Land Name", type: "text", required: true },
-    { name: "Address", type: "textAndNumbers", required: true },
+    {
+      name: "Land Name",
+      type: "text",
+      required: true,
+      placeholder: "Enter land name",
+    },
+    {
+      name: "Address",
+      type: "textAndNumbers",
+      required: true,
+      placeholder: "Enter address",
+    },
     { name: "Geographic Coordinates", type: "coordinates", required: true },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    {
+      name: "Comments",
+      type: "text",
+      required: false,
+      placeholder: "Add comments",
+    },
   ],
   buildings: [
-    { name: "Building Name", type: "text", required: true },
-    { name: "Address", type: "textAndNumbers", required: true },
+    {
+      name: "Building Name",
+      type: "text",
+      required: true,
+      placeholder: "Enter building name",
+    },
+    {
+      name: "Address",
+      type: "textAndNumbers",
+      required: true,
+      placeholder: "Enter address",
+    },
     { name: "Geographic Coordinates", type: "coordinates", required: true },
-    { name: "Year of Construction", type: "numbers", required: false },
-    { name: "Building Area", type: "definedList", required: true },
+    {
+      name: "Year of Construction",
+      type: "numbers",
+      required: false,
+      placeholder: "Enter year",
+    },
+    {
+      name: "Building Area",
+      type: "definedList",
+      required: true,
+      options: ["Small", "Medium", "Large"],
+    },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Condition", type: "definedList", required: true },
-    { name: "Comments", type: "text", required: false },
+    {
+      name: "Condition",
+      type: "definedList",
+      required: true,
+      options: ["Good", "Fair", "Poor"],
+    },
+    {
+      name: "Comments",
+      type: "text",
+      required: false,
+      placeholder: "Add comments",
+    },
   ],
   biological: [
-    { name: "Location", type: "text", required: true },
-    { name: "Field Name", type: "text", required: true },
+    {
+      name: "Location",
+      type: "text",
+      required: true,
+      placeholder: "Enter location",
+    },
+    {
+      name: "Field Name",
+      type: "text",
+      required: true,
+      placeholder: "Enter field name",
+    },
     { name: "Geographic Coordinates", type: "coordinates", required: true },
-    { name: "Species", type: "text", required: true },
+    {
+      name: "Species",
+      type: "text",
+      required: true,
+      placeholder: "Enter species",
+    },
     { name: "Inspection Image", type: "image", required: true },
-    { name: "Diameter", type: "numbers", required: false },
-    { name: "Comments", type: "text", required: false },
+    {
+      name: "Diameter",
+      type: "numbers",
+      required: false,
+      placeholder: "Enter diameter in cm",
+    },
+    {
+      name: "Comments",
+      type: "text",
+      required: false,
+      placeholder: "Add comments",
+    },
   ],
   machinery: [
-    { name: "Machine Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Asset Code", type: "qrBarcode", required: true },
-    { name: "Model Number", type: "textAndNumbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    {
+      name: "Machine Name",
+      type: "text",
+      required: true,
+      placeholder: "Enter machine name",
+    },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    {
+      name: "Asset Code",
+      type: "qrBarcode",
+      required: true,
+      barcodeType: "qr",
+    },
+    {
+      name: "Model Number",
+      type: "textAndNumbers",
+      required: true,
+      placeholder: "Enter model number",
+    },
+    {
+      name: "Quantity",
+      type: "numbers",
+      required: true,
+      placeholder: "Enter quantity",
+    },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    {
+      name: "Comments",
+      type: "text",
+      required: false,
+      placeholder: "Add comments",
+    },
   ],
   furniture: [
-    { name: "Furniture Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Asset Code", type: "qrBarcode", required: true },
-    { name: "Model Number", type: "textAndNumbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    {
+      name: "Furniture Name",
+      type: "text",
+      required: true,
+      placeholder: "Enter furniture name",
+    },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    {
+      name: "Asset Code",
+      type: "qrBarcode",
+      required: true,
+      barcodeType: "qr",
+    },
+    {
+      name: "Model Number",
+      type: "textAndNumbers",
+      required: true,
+      placeholder: "Enter model number",
+    },
+    {
+      name: "Quantity",
+      type: "numbers",
+      required: true,
+      placeholder: "Enter quantity",
+    },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    {
+      name: "Comments",
+      type: "text",
+      required: false,
+      placeholder: "Add comments",
+    },
   ],
   equipment: [
-    { name: "Equipment Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Asset Code", type: "qrBarcode", required: true },
-    { name: "Model Number", type: "textAndNumbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    {
+      name: "Equipment Name",
+      type: "text",
+      required: true,
+      placeholder: "Enter equipment name",
+    },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    {
+      name: "Asset Code",
+      type: "qrBarcode",
+      required: true,
+      barcodeType: "qr",
+    },
+    {
+      name: "Model Number",
+      type: "textAndNumbers",
+      required: true,
+      placeholder: "Enter model number",
+    },
+    {
+      name: "Quantity",
+      type: "numbers",
+      required: true,
+      placeholder: "Enter quantity",
+    },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    {
+      name: "Comments",
+      type: "text",
+      required: false,
+      placeholder: "Add comments",
+    },
   ],
   vehicles: [
-    { name: "Vehicle Name", type: "text", required: true },
-    { name: "Brand", type: "text", required: true },
-    { name: "Model", type: "text", required: true },
-    { name: "YOM", type: "numbers", required: true },
-    { name: "Quantity", type: "numbers", required: true },
+    {
+      name: "Vehicle Name",
+      type: "text",
+      required: true,
+      placeholder: "Enter vehicle name",
+    },
+    { name: "Brand", type: "text", required: true, placeholder: "Enter brand" },
+    { name: "Model", type: "text", required: true, placeholder: "Enter model" },
+    {
+      name: "YOM",
+      type: "numbers",
+      required: true,
+      placeholder: "Enter year of manufacture",
+    },
+    {
+      name: "Quantity",
+      type: "numbers",
+      required: true,
+      placeholder: "Enter quantity",
+    },
     { name: "Inspection Images", type: "image", required: true },
-    { name: "Comments", type: "text", required: false },
+    {
+      name: "Comments",
+      type: "text",
+      required: false,
+      placeholder: "Add comments",
+    },
   ],
   other: [
-    { name: "Record No.", type: "textAndNumbers", required: true },
-    { name: "User ID", type: "textAndNumbers", required: true },
+    {
+      name: "Record No.",
+      type: "textAndNumbers",
+      required: true,
+      placeholder: "Enter record number",
+    },
+    {
+      name: "User ID",
+      type: "textAndNumbers",
+      required: true,
+      placeholder: "Enter user ID",
+    },
     { name: "Date and Time", type: "dateTime", required: true },
   ],
 };
 
 // Fields always included at top of every form section 1.
 const systemFields = [
-  { name: "Record No.", type: "textAndNumbers", required: true },
-  { name: "User ID", type: "textAndNumbers", required: true },
+  {
+    name: "Record No.",
+    type: "textAndNumbers",
+    required: true,
+    placeholder: "Enter record number",
+  },
+  {
+    name: "User ID",
+    type: "textAndNumbers",
+    required: true,
+    placeholder: "Enter user ID",
+  },
   { name: "Date and Time", type: "dateTime", required: true },
 ];
 
@@ -137,8 +322,8 @@ type FieldTemplate = {
 };
 
 type FormSection = {
-  id: string;     // Unique per section
-  name: string;   // Section title
+  id: string; // Unique per section
+  name: string; // Section title
   fields: FieldTemplate[];
 };
 
@@ -171,7 +356,9 @@ const FormBuilderPage: React.FC = () => {
   });
 
   // Edit mode for fields in the current section
-  const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null);
+  const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(
+    null
+  );
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   // Section name editing
@@ -237,7 +424,9 @@ const FormBuilderPage: React.FC = () => {
   // Rename an existing section (now allows section 0 too)
   const handleRenameSection = (idx: number, newName: string) => {
     setSections((prev) =>
-      prev.map((s, i) => (i === idx ? { ...s, name: newName.trim() || s.name } : s))
+      prev.map((s, i) =>
+        i === idx ? { ...s, name: newName.trim() || s.name } : s
+      )
     );
     toast.success("Section renamed!");
   };
@@ -255,11 +444,28 @@ const FormBuilderPage: React.FC = () => {
     toast.success("Section removed.");
   };
 
-  // FIELD CRUD (all operations are now specific to the currently selected section)
+  // FIELD CRUD
+
+  // Handle options for definedList and multipleChoice
+  const handleOptionsChange = (value: string) => {
+    setOptionsInput(value);
+    const options = value
+      .split(",")
+      .map((opt) => opt.trim())
+      .filter((opt) => opt);
+    setNewField((prev) => ({ ...prev, options }));
+  };
 
   const handleAddField = () => {
     if (!newField.name.trim()) {
       toast.error("Please enter a field name");
+      return;
+    }
+    if (
+      (newField.type === "definedList" || newField.type === "multipleChoice") &&
+      (!newField.options || newField.options.length === 0)
+    ) {
+      toast.error("Please provide at least one option for this field");
       return;
     }
     setSections((prev) =>
@@ -284,8 +490,15 @@ const FormBuilderPage: React.FC = () => {
       toast.error("Field name cannot be empty");
       return;
     }
+    if (
+      (newField.type === "definedList" || newField.type === "multipleChoice") &&
+      (!newField.options || newField.options.length === 0)
+    ) {
+      toast.error("Please provide at least one option for this field");
+      return;
+    }
     if (editingFieldIndex !== null) {
-      setSections(prev =>
+      setSections((prev) =>
         prev.map((section, idx) =>
           idx === activeSection
             ? {
@@ -330,15 +543,13 @@ const FormBuilderPage: React.FC = () => {
   };
 
   const handleToggleRequired = (fieldIdx: number) => {
-    setSections(prev =>
+    setSections((prev) =>
       prev.map((section, idx) =>
         idx === activeSection
           ? {
               ...section,
               fields: section.fields.map((field, i) =>
-                i === fieldIdx
-                  ? { ...field, required: !field.required }
-                  : field
+                i === fieldIdx ? { ...field, required: !field.required } : field
               ),
             }
           : section
@@ -390,18 +601,16 @@ const FormBuilderPage: React.FC = () => {
                       ? "bg-[#8B5CF6] text-white"
                       : "bg-white text-[#8B5CF6] border border-[#DDD6FE]"
                   }`
-                : `rounded-full px-4 ${activeSection === idx ? "font-bold" : ""}`
+                : `rounded-full px-4 ${
+                    activeSection === idx ? "font-bold" : ""
+                  }`
             }
             style={isMobile ? { minHeight: 44, minWidth: 110 } : undefined}
             onClick={() => setActiveSection(idx)}
           >
             {/* Truncate long names and show tooltip on hover for mobile */}
             <span
-              className={
-                isMobile
-                  ? "truncate max-w-[72px] block"
-                  : ""
-              }
+              className={isMobile ? "truncate max-w-[72px] block" : ""}
               title={section.name}
             >
               {section.name}
@@ -437,7 +646,7 @@ const FormBuilderPage: React.FC = () => {
                   className="absolute right-0 top-0 bg-transparent p-1"
                   onClick={() => setEditingSectionName(section.name)}
                   style={{
-                    marginLeft: "0.2rem"
+                    marginLeft: "0.2rem",
                   }}
                 >
                   <Edit className="w-4 h-4 text-[#9b87f5]" />
@@ -449,7 +658,7 @@ const FormBuilderPage: React.FC = () => {
                   title="Remove section"
                   className="absolute right-0 top-7 bg-transparent text-red-500 p-1"
                   onClick={() => handleRemoveSection(idx)}
-                  style={{display: "block"}}
+                  style={{ display: "block" }}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -506,14 +715,93 @@ const FormBuilderPage: React.FC = () => {
     );
   };
 
+  // Render additional configuration fields based on field type
+  const renderAdditionalConfig = (isEditing: boolean) => {
+    const field = isEditing ? newField : newField;
+    return (
+      <>
+        {(field.type === "text" ||
+          field.type === "numbers" ||
+          field.type === "textAndNumbers") && (
+          <div className={isMobile ? "w-full" : "flex-1 min-w-[200px]"}>
+            <label className="text-sm mb-1 block">Placeholder</label>
+            <Input
+              value={field.placeholder || ""}
+              onChange={(e) =>
+                setNewField({ ...field, placeholder: e.target.value })
+              }
+              placeholder="Enter placeholder text"
+              className={isMobile ? "h-10 text-base" : ""}
+            />
+          </div>
+        )}
+        {(field.type === "definedList" || field.type === "multipleChoice") && (
+          <div className={isMobile ? "w-full" : "flex-1 min-w-[200px]"}>
+            <label className="text-sm mb-1 block">
+              Options (comma-separated)
+            </label>
+            <Input
+              value={optionsInput}
+              onChange={(e) => handleOptionsChange(e.target.value)}
+              placeholder="Option1, Option2, Option3"
+              className={isMobile ? "h-10 text-base" : ""}
+            />
+          </div>
+        )}
+        {field.type === "checkbox" && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm">Default Checked</span>
+            <Switch
+              checked={field.defaultChecked || false}
+              onCheckedChange={(checked) =>
+                setNewField({ ...field, defaultChecked: checked })
+              }
+            />
+          </div>
+        )}
+        {field.type === "qrBarcode" && (
+          <div className={isMobile ? "w-full" : "w-[180px]"}>
+            <label className="text-sm mb-1 block">Barcode Type</label>
+            <Select
+              value={field.barcodeType || "qr"}
+              onValueChange={(value) =>
+                setNewField({
+                  ...field,
+                  barcodeType: value as "qr" | "barcode",
+                })
+              }
+            >
+              <SelectTrigger className={isMobile ? "h-10 text-base" : ""}>
+                <SelectValue placeholder="Select barcode type" />
+              </SelectTrigger>
+              <SelectContent>
+                {barcodeTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </>
+    );
+  };
+
   return (
     <>
       <div className="mb-4 px-1">
-        <h1 className="text-xl font-bold tracking-tight">Create Form Sections & Fields</h1>
+        <h1 className="text-xl font-bold tracking-tight">
+          Create Form Sections & Fields
+        </h1>
         <p className="text-sm text-muted-foreground mb-4">
           Define your form by sections (e.g., Personal Info, Equipment Details).
         </p>
-        <ProgressSteps currentStep={currentStep} totalSteps={steps.length} labels={steps} />
+        <ProgressSteps
+          currentStep={currentStep}
+          totalSteps={steps.length}
+          labels={steps}
+        />
       </div>
 
       <Card className={`mb-4 ${isMobile ? "mx-1 shadow-sm" : ""}`}>
@@ -530,12 +818,15 @@ const FormBuilderPage: React.FC = () => {
               <div>
                 <p className="text-sm font-semibold">Asset Type</p>
                 <p className="text-sm text-muted-foreground">
-                  {categories.find((c) => c.id === projectData.category)?.name || projectData.category}
+                  {categories.find((c) => c.id === projectData.category)
+                    ?.name || projectData.category}
                 </p>
               </div>
               <div>
                 <p className="text-sm font-semibold">Asset Name</p>
-                <p className="text-sm text-muted-foreground">{projectData.assetName}</p>
+                <p className="text-sm text-muted-foreground">
+                  {projectData.assetName}
+                </p>
               </div>
               {projectData.description && (
                 <div>
@@ -556,7 +847,9 @@ const FormBuilderPage: React.FC = () => {
       <Card className={isMobile ? "mx-1 shadow-sm" : ""}>
         <CardContent className={isMobile ? "p-3" : "pt-4"}>
           <h2 className="text-lg font-medium mb-3">
-            {sections[activeSection]?.name ? `${sections[activeSection].name} Fields` : "Section Fields"}
+            {sections[activeSection]?.name
+              ? `${sections[activeSection].name} Fields`
+              : "Section Fields"}
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
             <span>
@@ -574,7 +867,9 @@ const FormBuilderPage: React.FC = () => {
             {sections[activeSection]?.fields.map((field, i) => (
               <div
                 key={i}
-                className={`flex flex-col ${isMobile ? "p-2" : "p-3"} border rounded-md ${
+                className={`flex flex-col ${
+                  isMobile ? "p-2" : "p-3"
+                } border rounded-md ${
                   editingFieldIndex === i && !isMobile
                     ? "border-brand-green bg-gray-50"
                     : ""
@@ -618,6 +913,13 @@ const FormBuilderPage: React.FC = () => {
                         />
                       </div>
                     </div>
+                    <div
+                      className={`flex ${
+                        isMobile ? "flex-col" : "flex-wrap"
+                      } gap-3 items-end`}
+                    >
+                      {renderAdditionalConfig(true)}
+                    </div>
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
@@ -645,6 +947,32 @@ const FormBuilderPage: React.FC = () => {
                         <p className="text-xs text-muted-foreground">
                           {getDataTypeName(field.type)}
                         </p>
+                        {field.placeholder && (
+                          <p className="text-xs text-muted-foreground">
+                            Placeholder: {field.placeholder}
+                          </p>
+                        )}
+                        {field.options && field.options.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Options: {field.options.join(", ")}
+                          </p>
+                        )}
+                        {field.defaultChecked !== undefined && (
+                          <p className="text-xs text-muted-foreground">
+                            Default Checked:{" "}
+                            {field.defaultChecked ? "Yes" : "No"}
+                          </p>
+                        )}
+                        {field.barcodeType && (
+                          <p className="text-xs text-muted-foreground">
+                            Barcode Type:{" "}
+                            {
+                              barcodeTypes.find(
+                                (bt) => bt.id === field.barcodeType
+                              )?.name
+                            }
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         {field.required ? (
@@ -746,9 +1074,13 @@ const FormBuilderPage: React.FC = () => {
           >
             <h3 className="text-md font-medium mb-3">Add Custom Field</h3>
             <div
-              className={`flex ${isMobile ? "flex-col" : "flex-wrap"} gap-3 items-end`}
+              className={`flex ${
+                isMobile ? "flex-col" : "flex-wrap"
+              } gap-3 items-end`}
             >
-              <div className={`${isMobile ? "w-full" : "flex-1 min-w-[200px]"}`}>
+              <div
+                className={`${isMobile ? "w-full" : "flex-1 min-w-[200px]"}`}
+              >
                 <label className="text-sm mb-1 block">Field Name</label>
                 <Input
                   value={newField.name}
