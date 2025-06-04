@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import { LogOut, Database, CreditCard, Lock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import InlineBackButton from '@/components/ui/CustomButton';
 
 // Define the profile form schema
 const profileFormSchema = z.object({
@@ -44,7 +46,7 @@ const ProfilePage: React.FC = () => {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  
+
   // Setup form
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -54,7 +56,7 @@ const ProfilePage: React.FC = () => {
       phoneNumber: userData?.phoneNumber || '',
     },
   });
-  
+
   // Setup password form
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -64,7 +66,7 @@ const ProfilePage: React.FC = () => {
       confirmPassword: '',
     },
   });
-  
+
   // Handle profile update
   const onSubmit = async (data: ProfileFormValues) => {
     try {
@@ -95,7 +97,7 @@ const ProfilePage: React.FC = () => {
       // Error handling is done in the auth context
     }
   };
-  
+
   // Handle logout
   const handleLogout = async () => {
     try {
@@ -109,16 +111,17 @@ const ProfilePage: React.FC = () => {
       });
     }
   };
-  
+
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+        <InlineBackButton path="/dashboard/my-projects" />
+        <h1 className="text-2xl font-bold tracking-tight mt-2">Profile</h1>
         <p className="text-muted-foreground">
           Manage your account settings and preferences
         </p>
       </div>
-      
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -132,7 +135,7 @@ const ProfilePage: React.FC = () => {
               <AvatarImage src="" alt={userData?.displayName || "User"} />
               <AvatarFallback className="text-3xl">{userData?.displayName?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
             </Avatar>
-            
+
             <div className="text-center">
               <p className="text-xl font-semibold">{userData?.displayName}</p>
               <p className="text-muted-foreground">{userData?.email}</p>
@@ -142,7 +145,7 @@ const ProfilePage: React.FC = () => {
                 </Badge>
               </div>
             </div>
-            
+
             <div className="text-sm text-muted-foreground w-full max-w-xs">
               <div className="flex justify-between py-2 border-b">
                 <span>Phone Number</span>
@@ -154,7 +157,7 @@ const ProfilePage: React.FC = () => {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
           </CardFooter>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Account Security</CardTitle>
@@ -168,8 +171,8 @@ const ProfilePage: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 Last changed: Never
               </p>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full"
                 onClick={() => setIsPasswordDialogOpen(true)}
               >
@@ -177,14 +180,14 @@ const ProfilePage: React.FC = () => {
                 Change Password
               </Button>
             </div>
-            
+
             <div className="pt-4 border-t">
               <p className="font-medium mb-2">Danger Zone</p>
               <Button variant="destructive" className="w-full">Delete Account</Button>
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Storage Usage Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -205,7 +208,7 @@ const ProfilePage: React.FC = () => {
                   <div className="h-full w-[20%] rounded-full bg-primary" />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">File storage</span>
@@ -216,13 +219,13 @@ const ProfilePage: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-6 pt-4 border-t">
               <p className="text-sm text-muted-foreground">Need more storage? Upgrade your plan to increase your storage limits.</p>
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Pricing Plans Card */}
         <Card>
           <CardHeader>
@@ -286,7 +289,7 @@ const ProfilePage: React.FC = () => {
             </Tabs>
           </CardContent>
         </Card>
-        
+
         {/* Logout Card */}
         <Card>
           <CardHeader>
@@ -308,8 +311,8 @@ const ProfilePage: React.FC = () => {
                 <span className="text-sm">Session Type</span>
                 <span className="text-sm font-medium">Web Browser</span>
               </div>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full mt-4 border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
                 onClick={handleLogout}
               >
@@ -320,7 +323,7 @@ const ProfilePage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Edit Profile Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -345,7 +348,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="email"
@@ -359,7 +362,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="phoneNumber"
@@ -373,7 +376,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <DialogFooter>
                 <Button type="submit">Save changes</Button>
               </DialogFooter>
@@ -381,7 +384,7 @@ const ProfilePage: React.FC = () => {
           </Form>
         </DialogContent>
       </Dialog>
-      
+
       {/* Change Password Dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -406,7 +409,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={passwordForm.control}
                 name="newPassword"
@@ -420,7 +423,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={passwordForm.control}
                 name="confirmPassword"
@@ -434,7 +437,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <DialogFooter>
                 <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
                   {passwordForm.formState.isSubmitting ? "Updating..." : "Update Password"}

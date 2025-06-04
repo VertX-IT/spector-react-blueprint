@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -6,6 +7,7 @@ import { getUserProjects, getProjectById, saveProject as saveProjectToFirebase, 
 import { useAuth } from "@/contexts/AuthContext";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { toast } from "sonner";
+import InlineBackButton from "@/components/ui/CustomButton";
 
 const EditProjectPage: React.FC = () => {
   const { projectId } = useParams();
@@ -89,7 +91,8 @@ const EditProjectPage: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">Edit Project</h1>
+      <InlineBackButton path="/dashboard/my-projects" />
+      <h1 className="text-2xl font-bold mb-4 mt-2">Edit Project</h1>
       <ProjectEditForm
         project={project}
         onCancel={() => navigate("/dashboard/my-projects")}

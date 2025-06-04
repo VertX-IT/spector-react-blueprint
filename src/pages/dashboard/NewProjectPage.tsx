@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { useIsMobile } from '@/hooks/use-mobile';
+import InlineBackButton from '@/components/ui/CustomButton';
 
 // Form Schema for project creation
 const formSchema = z.object({
@@ -56,7 +57,7 @@ const NewProjectPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const isMobile = useIsMobile();
-  
+
   // Initialize the form
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -71,11 +72,11 @@ const NewProjectPage: React.FC = () => {
   // Form submission handler
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
-    
+
     try {
       // Store form data for next steps
       console.log('Project details:', data);
-      
+
       // Store project data in localStorage for the multi-step form process
       localStorage.setItem('projectData', JSON.stringify({
         name: data.name,
@@ -86,10 +87,10 @@ const NewProjectPage: React.FC = () => {
 
       // Move to next step
       setCurrentStep(2);
-      
+
       // Navigate to the form builder page with all project data as parameters
       navigate(`/dashboard/form-builder?category=${data.category}&name=${encodeURIComponent(data.name)}&assetName=${encodeURIComponent(data.assetName)}&description=${encodeURIComponent(data.description || '')}`);
-      
+
       toast.success('Basic details saved! Ready for form creation.');
     } catch (error) {
       console.error('Error creating project:', error);
@@ -102,12 +103,13 @@ const NewProjectPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 px-1">
-        <h1 className="text-xl font-bold tracking-tight">Create New Project</h1>
+        <InlineBackButton path="/dashboard/my-projects" />
+        <h1 className="text-xl font-bold tracking-tight mt-2">Create New Project</h1>
         <p className="text-sm text-muted-foreground mb-4">
           Set up a new data collection project
         </p>
-        
-        <ProgressSteps 
+
+        <ProgressSteps
           currentStep={currentStep}
           totalSteps={steps.length}
           labels={steps}
@@ -134,15 +136,15 @@ const NewProjectPage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="category"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-base">Asset Category</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
+                    <Select
+                      onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -165,7 +167,7 @@ const NewProjectPage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="assetName"
@@ -182,7 +184,7 @@ const NewProjectPage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="description"
@@ -190,21 +192,21 @@ const NewProjectPage: React.FC = () => {
                   <FormItem>
                     <FormLabel className="text-base">Description (Optional)</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Brief description of this project's purpose..." 
+                      <Textarea
+                        placeholder="Brief description of this project's purpose..."
                         className={`resize-none ${isMobile ? 'text-base' : ''}`}
-                        {...field} 
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <Separator />
-              
+
               <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
-                <Button 
+                <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/dashboard/my-projects')}
@@ -212,7 +214,7 @@ const NewProjectPage: React.FC = () => {
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   type="submit"
                   disabled={isSubmitting}
                   className={isMobile ? 'h-12 text-base w-full' : ''}

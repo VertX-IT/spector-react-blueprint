@@ -58,6 +58,8 @@ import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { Capacitor } from "@capacitor/core";
 import lz from "lz-string";
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import InlineBackButton from "@/components/ui/CustomButton";
 
 interface Section {
   id: string;
@@ -955,8 +957,19 @@ const ProjectFormPage: React.FC = () => {
     return "-";
   }
 
-  const handleExportData = () => {
+  const requestStoragePermission = async () => {
+    if (!Capacitor.isNativePlatform()) return true;
+    const permission = await Filesystem.requestPermissions();
+    if (permission.publicStorage !== 'granted') {
+      alert('Storage permission is required to save the CSV file.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleExportData = async () => {
     if (!projectRecords || projectRecords.length === 0) return;
+
     const allFields = projectSections.flatMap((s) => s.fields);
     const headers = [
       ...allFields.map((f) => f.label || f.name || f.id),
@@ -988,17 +1001,46 @@ const ProjectFormPage: React.FC = () => {
       }),
     ];
     const csvContent = rows.map((r) => r.join(",")).join("\r\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${project?.name || "project"}-data.csv`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // Request storage permissions for mobile
+        const hasPermission = await requestStoragePermission();
+        if (!hasPermission) return;
+
+        // Mobile app logic with corrected encoding
+        const fileName = `${project?.name || "project"}-data-${new Date().toISOString().slice(0, 10)}.csv`;
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: csvContent,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8, // Corrected to use Encoding.UTF8
+        });
+        console.log('File written to:', result.uri);
+
+        const uri = await Filesystem.getUri({
+          path: fileName,
+          directory: Directory.Documents,
+        });
+        alert(`CSV file saved to: ${uri.uri}. Check your device storage (Documents folder).`);
+      } else {
+        // Web browser logic (existing code)
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${project?.name || "project"}-data.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert(`Failed to export CSV: ${error.message}`);
+    }
   };
 
   const handleDeleteProject = async () => {
@@ -1053,6 +1095,7 @@ const ProjectFormPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 space-y-3">
+        <InlineBackButton path="/dashboard/my-projects" />
         <div className="flex flex-col">
           <h1 className="text-xl font-bold tracking-tight line-clamp-2">
             {project.name}
