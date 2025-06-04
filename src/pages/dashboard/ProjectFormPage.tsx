@@ -223,8 +223,8 @@ const ProjectFormPage: React.FC = () => {
         const isCapacitor = Capacitor.isNativePlatform();
         let storedProjects = null;
         if (isCapacitor) {
-          const { Storage } = await import("@capacitor/storage");
-          const { value } = await Storage.get({ key: "myProjects" });
+          const { Preferences } = await import("@capacitor/preferences");
+          const { value } = await Preferences.get({ key: "myProjects" });
           console.log("Capacitor Storage 'myProjects':", value);
           storedProjects = value;
         } else {
@@ -430,6 +430,58 @@ const ProjectFormPage: React.FC = () => {
     }
   };
 
+  // Helper function to resize an image
+  const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate new dimensions while preserving aspect ratio
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Failed to convert image to blob"));
+            }
+          },
+          file.type,
+          0.8 // JPEG quality (0 to 1)
+        );
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => {
+        reject(new Error("Failed to load image"));
+        URL.revokeObjectURL(img.src);
+      };
+    });
+  };
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
@@ -442,17 +494,26 @@ const ProjectFormPage: React.FC = () => {
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        console.log("fileToBase64 success. Base64 string length:", result.length);
-        resolve(result);
-      };
-      reader.onerror = (error) => {
-        console.error("fileToBase64 error:", error);
-        reject(error);
-      };
-      reader.readAsDataURL(file);
+      // Use an IIFE to handle async logic inside the executor
+      (async () => {
+        try {
+          // Resize the image to a maximum of 800x800 pixels
+          const resizedBlob = await resizeImage(file, 800, 800);
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            console.log("fileToBase64 success. Base64 string length:", result.length);
+            resolve(result);
+          };
+          reader.onerror = (error) => {
+            console.error("fileToBase64 error:", error);
+            reject(error);
+          };
+          reader.readAsDataURL(resizedBlob);
+        } catch (error) {
+          reject(error);
+        }
+      })();
     });
   };
 
@@ -547,6 +608,7 @@ const ProjectFormPage: React.FC = () => {
     for (const fieldId in formData) {
       const value = formData[fieldId];
       const field = sections.flatMap((s) => s.fields).find((f) => f.id === fieldId);
+
       if (field?.type === "image" && value instanceof File) {
         try {
           console.log(
@@ -559,6 +621,16 @@ const ProjectFormPage: React.FC = () => {
           );
           const base64String = await fileToBase64(value);
           console.log("Image converted to Base64. Length:", base64String.length);
+
+          // Check if the Base64 string is too large for Firestore (1 MB limit per document)
+          const base64SizeInBytes = (base64String.length * 3) / 4 - 2; // Approximate size in bytes
+          const maxFirestoreSize = 1 * 1024 * 1024; // 1 MB
+          if (base64SizeInBytes > maxFirestoreSize) {
+            throw new Error(
+              `Base64 image size exceeds Firestore limit of 1 MB. Size: ${(base64SizeInBytes / (1024 * 1024)).toFixed(2)} MB`
+            );
+          }
+
           surveyPayload[fieldId] = base64String;
         } catch (error: any) {
           console.error("Error processing image:", error);
@@ -572,6 +644,13 @@ const ProjectFormPage: React.FC = () => {
       } else if (field?.type === "qrBarcode" && value instanceof File) {
         try {
           const base64String = await fileToBase64(value);
+          const base64SizeInBytes = (base64String.length * 3) / 4 - 2;
+          const maxFirestoreSize = 1 * 1024 * 1024;
+          if (base64SizeInBytes > maxFirestoreSize) {
+            throw new Error(
+              `Base64 QR/Barcode image size exceeds Firestore limit of 1 MB. Size: ${(base64SizeInBytes / (1024 * 1024)).toFixed(2)} MB`
+            );
+          }
           surveyPayload[fieldId] = base64String;
         } catch (error) {
           toast({
@@ -587,7 +666,7 @@ const ProjectFormPage: React.FC = () => {
         surveyPayload[fieldId] = value;
       } else if (field?.type === "multipleChoice" && Array.isArray(value)) {
         surveyPayload[fieldId] = value;
-      } else {
+      } else if (value !== undefined) { // Explicitly exclude undefined values
         surveyPayload[fieldId] = value;
       }
     }
