@@ -133,9 +133,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         description: "Please check your email and click the verification link, then return to this page to access your dashboard.",
       });
     } catch (error: any) {
+      let errorMessage = "An error occurred while creating your account. Please try again.";
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "An account with this email address already exists. Please try signing in instead, or use a different email address.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Please enter a valid email address.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "Password is too weak. Please choose a stronger password with at least 8 characters, including uppercase, lowercase, numbers, and special characters.";
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = "Email/password accounts are not enabled. Please contact support.";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Too many failed attempts. Please try again later.";
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      } else if (error.message) {
+        // Fallback to Firebase error message if it's not one of the known codes
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Error creating account",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
@@ -166,9 +186,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (error.message === "Email not verified") {
         throw error;
       }
+
+      let errorMessage = "An error occurred while signing in. Please try again.";
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = "No account found with this email address. Please check your email or create a new account.";
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = "Incorrect password. Please check your password and try again.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Please enter a valid email address.";
+      } else if (error.code === 'auth/user-disabled') {
+        errorMessage = "This account has been disabled. Please contact support.";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Too many failed sign-in attempts. Please try again later or reset your password.";
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      } else if (error.message) {
+        // Fallback to Firebase error message if it's not one of the known codes
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Error signing in",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
@@ -213,9 +254,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         });
       }
     } catch (error: any) {
+      let errorMessage = "An error occurred while signing in with Google. Please try again.";
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = "Sign-in was cancelled. Please try again.";
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = "Pop-up was blocked by your browser. Please allow pop-ups for this site and try again.";
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = "Sign-in was cancelled. Please try again.";
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        errorMessage = "An account already exists with this email address using a different sign-in method. Please try signing in with email/password instead.";
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = "Google sign-in is not enabled. Please contact support.";
+      } else if (error.message) {
+        // Fallback to Firebase error message if it's not one of the known codes
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Error signing in with Google",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
@@ -247,9 +308,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         description: "Check your inbox for further instructions.",
       });
     } catch (error: any) {
+      let errorMessage = "An error occurred while sending the password reset email. Please try again.";
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = "No account found with this email address. Please check your email or create a new account.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Please enter a valid email address.";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Too many password reset attempts. Please try again later.";
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      } else if (error.message) {
+        // Fallback to Firebase error message if it's not one of the known codes
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Error resetting password",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
