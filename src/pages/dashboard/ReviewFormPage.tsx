@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ProgressSteps } from "@/components/ui/progress-steps";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { BackButton } from "@/components/ui/back-button";
 
 // Steps for project creation
 const steps = ["Basic Details", "Form Fields", "Review", "Security"];
@@ -96,6 +97,15 @@ const ReviewFormPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 px-1">
+        <div className="mb-3">
+          <BackButton 
+            to={`/dashboard/form-builder${location.search}`}
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
         <h1 className="text-xl font-bold tracking-tight">Review Form</h1>
         <p className="text-sm text-muted-foreground mb-4">
           Review your form layout before deploying

@@ -21,6 +21,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { BackButton } from "@/components/ui/back-button";
 
 // Data types available for form fields
 const dataTypes = [
@@ -593,11 +594,25 @@ const FormBuilderPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 px-1">
-        <h1 className="text-xl font-bold tracking-tight">Create Form Sections & Fields</h1>
+        <div className="mb-3">
+          <BackButton 
+            to="/dashboard/new-project"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
+        <h1 className="text-xl font-bold tracking-tight">Form Builder</h1>
         <p className="text-sm text-muted-foreground mb-4">
-          Define your form by sections (e.g., Personal Info, Equipment Details).
+          Design your data collection form
         </p>
-        <ProgressSteps currentStep={currentStep} totalSteps={steps.length} labels={steps} />
+        
+        <ProgressSteps
+          currentStep={currentStep}
+          totalSteps={steps.length}
+          labels={steps}
+        />
       </div>
 
       <Card className={`mb-4 ${isMobile ? "mx-1 shadow-sm" : ""}`}>

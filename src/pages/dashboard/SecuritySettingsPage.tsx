@@ -10,6 +10,7 @@ import { Copy, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveProject, verifyFirebaseConnection, generateSequentialPin } from '@/lib/projectOperations';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { BackButton } from '@/components/ui/back-button';
 
 // Steps for project creation
 const steps = [
@@ -232,6 +233,15 @@ const SecuritySettingsPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 px-1">
+        <div className="mb-3">
+          <BackButton 
+            to={`/dashboard/review-form${location.search}`}
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
         <h1 className="text-xl font-bold tracking-tight">Security Settings</h1>
         <p className="text-sm text-muted-foreground mb-4">
           Configure access for your project

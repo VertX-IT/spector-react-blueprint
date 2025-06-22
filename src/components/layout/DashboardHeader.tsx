@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,10 +34,12 @@ export const DashboardHeader: React.FC = () => {
           </Button>
         )}
         
-        <Avatar className="h-8 w-8 border-2 border-brand-lightblue">
-          <AvatarImage src="" alt={userData?.displayName || "User"} />
-          <AvatarFallback className="bg-brand-navy text-white">{userData?.displayName?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
-        </Avatar>
+        <Link to="/dashboard/profile" className="cursor-pointer">
+          <Avatar className="h-8 w-8 border-2 border-brand-lightblue hover:opacity-80 transition-opacity">
+            <AvatarImage src={userData?.profilePictureURL || ""} alt={userData?.displayName || "User"} />
+            <AvatarFallback className="bg-brand-navy text-white">{userData?.displayName?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
+          </Avatar>
+        </Link>
       </div>
     </header>
   );

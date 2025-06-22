@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
@@ -14,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { BackButton } from '@/components/ui/back-button';
 
 // Form Schema for project creation
 const formSchema = z.object({
@@ -102,6 +102,16 @@ const NewProjectPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 px-1">
+        {/* Back Button */}
+        <div className="mb-3">
+          <BackButton 
+            to="/dashboard/my-projects"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
         <h1 className="text-xl font-bold tracking-tight">Create New Project</h1>
         <p className="text-sm text-muted-foreground mb-4">
           Set up a new data collection project

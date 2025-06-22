@@ -41,6 +41,7 @@ import { getProjectById, submitFormData, deleteProject, updateProject, getProjec
 import { useSectionSurvey } from "@/hooks/useSectionSurvey";
 import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
+import { BackButton } from "@/components/ui/back-button";
 
 interface Section {
   id: string;
@@ -192,7 +193,7 @@ const ProjectFormPage: React.FC = () => {
         allFields.forEach((field: FieldTemplate) => {
           if (field.type === "checkbox") {
             initialData[field.id] = field.defaultChecked || false;
-          } else if (field.type === "multipleChoice") {
+          } else if (field.type === "multipleChoice" && Array.isArray(field.options)) {
             initialData[field.id] = [];
           } else {
             initialData[field.id] = "";
@@ -576,18 +577,27 @@ const ProjectFormPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <p>Loading project...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading project...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !project) {
     return (
-      <Alert variant="destructive" className="mb-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error || "Failed to load project"}</AlertDescription>
-      </Alert>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-lg font-semibold mb-2">Error Loading Project</h2>
+          <p className="text-muted-foreground mb-4">{error || "Project not found"}</p>
+          <Button onClick={() => navigate("/dashboard/my-projects")}>
+            Back to Projects
+          </Button>
+        </div>
+      </div>
     );
   }
 
@@ -728,57 +738,58 @@ const ProjectFormPage: React.FC = () => {
   };
 
   return (
-    <>
-      <div className="mb-4 space-y-3">
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold tracking-tight line-clamp-2">
-            {project.name}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {project.description ||
-              `Data collection form for ${project.category}`}
-          </p>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <Badge variant="outline" className="text-xs">
-              PIN: {project.projectPin}
-            </Badge>
-            {isProjectInactive && (
-              <Badge variant="destructive" className="text-xs">
-                Survey Ended
-              </Badge>
+    <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="mb-4 px-1">
+        <div className="mb-3">
+          <BackButton 
+            to="/dashboard/my-projects"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">{project.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {project.category} • {project.recordCount} records
+            </p>
+          </div>
+          
+          {/* Project Actions */}
+          <div className="flex gap-2">
+            {isDesigner && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditMode(!isEditMode)}
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  {isEditMode ? "Done" : "Edit"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEndSurveyDialogOpen(true)}
+                  disabled={project.status === "inactive"}
+                >
+                  End Survey
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+              </>
             )}
           </div>
         </div>
-
-        {isDesigner && (
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditMode(!isEditMode)}
-              className="flex-1 min-w-[80px] sm:flex-none"
-            >
-              {isEditMode ? "Cancel Edit" : "Edit Form"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[80px] sm:flex-none text-amber-500 hover:text-amber-600"
-              onClick={() => setIsEndSurveyDialogOpen(true)}
-              disabled={isProjectInactive}
-            >
-              {isProjectInactive ? "Survey Ended" : "End Survey"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[80px] sm:flex-none text-destructive hover:text-destructive"
-              onClick={() => setIsDeleteDialogOpen(true)}
-            >
-              Delete
-            </Button>
-          </div>
-        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1446,7 +1457,7 @@ const ProjectFormPage: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 };
 

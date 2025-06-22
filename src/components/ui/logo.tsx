@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -17,27 +16,29 @@ export const Logo: React.FC<LogoProps> = ({
 }) => {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {/* Icon Logo */}
-      <div className={cn(
-        "bg-brand-navy text-white rounded-full flex items-center justify-center",
-        size === 'sm' && "w-8 h-8",
-        size === 'md' && "w-10 h-10",
-        size === 'lg' && "w-12 h-12",
-      )}>
-        <img 
-          src="/lovable-uploads/f72ff0c9-f713-436c-a88a-f9138dd1a98d.png" 
-          alt="SPECTOR logo icon" 
-          className={cn(
-            "object-contain",
-            size === 'sm' && "w-6 h-6",
-            size === 'md' && "w-8 h-8",
-            size === 'lg' && "w-10 h-10",
-          )}
-        />
-      </div>
+      {/* Icon Logo (conditionally shown) */}
+      {!iconOnly && (
+        <div className={cn(
+          "flex items-center justify-center",
+          size === 'sm' && "w-8 h-8",
+          size === 'md' && "w-10 h-10",
+          size === 'lg' && "w-12 h-12",
+        )}>
+          <img 
+            src="/lovable-uploads/f72ff0c9-f713-436c-a88a-f9138dd1a98d.png" 
+            alt="SPECTOR logo icon" 
+            className={cn(
+              "object-contain",
+              size === 'sm' && "w-6 h-6",
+              size === 'md' && "w-8 h-8",
+              size === 'lg' && "w-10 h-10",
+            )}
+          />
+        </div>
+      )}
 
       {/* Text Logo (conditionally shown) */}
-      {!iconOnly && showAppName && (
+      {showAppName && (
         <img 
           src="/lovable-uploads/22148018-39eb-4c9f-b829-858c04b59724.png" 
           alt="SPECTOR" 
