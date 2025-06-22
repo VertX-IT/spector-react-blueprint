@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,6 +14,8 @@ import { toast } from 'sonner';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { BackButton } from '@/components/ui/back-button';
+import { loadProjectData, autoSaveProjectData } from '@/lib/projectCreationState';
+import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator';
 
 // Form Schema for project creation
 const formSchema = z.object({
@@ -55,6 +57,9 @@ const NewProjectPage: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const isMobile = useIsMobile();
   
   // Initialize the form
@@ -67,6 +72,49 @@ const NewProjectPage: React.FC = () => {
       category: '',
     },
   });
+
+  // Load existing project data when component mounts
+  useEffect(() => {
+    const loadExistingData = () => {
+      const existingData = loadProjectData();
+      if (existingData) {
+        form.reset({
+          name: existingData.name || '',
+          assetName: existingData.assetName || '',
+          description: existingData.description || '',
+          category: existingData.category || '',
+        });
+      }
+      setIsDataLoaded(true);
+    };
+
+    loadExistingData();
+  }, [form]);
+
+  // Auto-save form data when it changes
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    
+    const subscription = form.watch((data) => {
+      if (data.name || data.assetName || data.category) {
+        setIsSaving(true);
+        autoSaveProjectData({
+          name: data.name || '',
+          assetName: data.assetName || '',
+          description: data.description || '',
+          category: data.category || '',
+        });
+        
+        // Simulate save completion
+        setTimeout(() => {
+          setIsSaving(false);
+          setLastSaved(new Date());
+        }, 300);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, isDataLoaded]);
 
   // Form submission handler
   const onSubmit = async (data: FormValues) => {
@@ -112,7 +160,14 @@ const NewProjectPage: React.FC = () => {
           />
         </div>
         
-        <h1 className="text-xl font-bold tracking-tight">Create New Project</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-xl font-bold tracking-tight">Create New Project</h1>
+          <AutoSaveIndicator 
+            isSaving={isSaving}
+            lastSaved={lastSaved}
+          />
+        </div>
+        
         <p className="text-sm text-muted-foreground mb-4">
           Set up a new data collection project
         </p>
