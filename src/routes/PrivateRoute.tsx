@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +7,7 @@ interface PrivateRouteProps {
 }
 
 export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { currentUser, isLoading } = useAuth();
+  const { currentUser, isLoading, isEmailVerified } = useAuth();
   
   // Wait until the auth state is loaded
   if (isLoading) {
@@ -18,6 +17,11 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
   // Redirect to sign in if not logged in
   if (!currentUser) {
     return <Navigate to="/signin" />;
+  }
+  
+  // Redirect to email verification if email is not verified
+  if (!isEmailVerified) {
+    return <Navigate to="/email-verification" />;
   }
   
   return <>{children}</>;
