@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { SignUpForm } from '@/components/auth/SignUpForm';
@@ -6,8 +5,8 @@ import { SignUpForm } from '@/components/auth/SignUpForm';
 const SignUpPage: React.FC = () => {
   return (
     <AuthLayout 
-      title="Create an account" 
-      subtitle="Sign up to get started with SurveySync Nexus"
+      title="Create your account" 
+      subtitle="Sign up to get started with Spector"
     >
       <SignUpForm />
     </AuthLayout>
