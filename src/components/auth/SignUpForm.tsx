@@ -40,12 +40,12 @@ const passwordSchema = z.string()
   .regex(/[!@#$%^&*(),.?":{}|<>]/, { message: "Password must contain at least one special character" });
 
 const signUpSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-  email: z.string().email({ message: "Please enter a valid email address" }),
-  phoneNumber: z.string().min(10, { message: "Please enter a valid phone number" }),
+  name: z.string().min(1, { message: "Full name is required" }).min(2, { message: "Name must be at least 2 characters" }),
+  email: z.string().min(1, { message: "Email is required" }).email({ message: "Please enter a valid email address" }),
+  phoneNumber: z.string().min(1, { message: "Phone number is required" }).min(10, { message: "Please enter a valid phone number" }),
   password: passwordSchema,
-  confirmPassword: z.string(),
-  role: z.enum(['designer', 'collector']),
+  confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
+  role: z.enum(['designer', 'collector'], { required_error: "Please select an account type" }),
   termsAccepted: z.boolean().refine(val => val === true, {
     message: "You must accept the terms and conditions",
   }),
@@ -247,7 +247,7 @@ export const SignUpForm: React.FC = () => {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Full Name</FormLabel>
+                <FormLabel>Full Name *</FormLabel>
                 <FormControl>
                   <Input placeholder="John Doe" {...field} />
                 </FormControl>
@@ -261,7 +261,7 @@ export const SignUpForm: React.FC = () => {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>Email *</FormLabel>
                 <FormControl>
                   <Input placeholder="your.email@example.com" {...field} />
                 </FormControl>
@@ -275,7 +275,7 @@ export const SignUpForm: React.FC = () => {
             name="phoneNumber"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone Number</FormLabel>
+                <FormLabel>Phone Number *</FormLabel>
                 <FormControl>
                   <Input placeholder="+1 (123) 456-7890" {...field} />
                 </FormControl>
@@ -289,7 +289,7 @@ export const SignUpForm: React.FC = () => {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>Password *</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Input 
@@ -323,7 +323,7 @@ export const SignUpForm: React.FC = () => {
             name="confirmPassword"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Confirm Password</FormLabel>
+                <FormLabel>Confirm Password *</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Input 
@@ -356,7 +356,7 @@ export const SignUpForm: React.FC = () => {
             name="role"
             render={({ field }) => (
               <FormItem className="space-y-3">
-                <FormLabel>Account Type</FormLabel>
+                <FormLabel>Account Type *</FormLabel>
                 <FormControl>
                   <RadioGroup
                     onValueChange={field.onChange}
@@ -395,7 +395,7 @@ export const SignUpForm: React.FC = () => {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel>
-                    I agree to the <a href="/terms" className="text-primary hover:underline">Terms of Service</a> and <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
+                    I agree to the <a href="/terms" className="text-primary hover:underline">Terms of Service</a> and <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a> *
                   </FormLabel>
                   <FormMessage />
                 </div>
