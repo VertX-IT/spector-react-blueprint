@@ -18,6 +18,11 @@ import LandingPage from '@/pages/LandingPage';
 import SignInPage from '@/pages/auth/SignInPage';
 import SignUpPage from '@/pages/auth/SignUpPage';
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
+import { EmailVerificationPage } from '@/pages/auth/EmailVerificationPage';
+
+// Legal Pages
+import TermsOfServicePage from '@/pages/TermsOfServicePage';
+import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 
 // Dashboard Pages
 import DashboardHomePage from '@/pages/dashboard/DashboardHomePage';
@@ -45,6 +50,10 @@ const App: React.FC = () => {
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
               
+              {/* Legal Routes */}
+              <Route path="/terms" element={<TermsOfServicePage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              
               {/* Auth Routes */}
               <Route 
                 path="/signin" 
@@ -59,6 +68,14 @@ const App: React.FC = () => {
                 element={
                   <AuthRoute>
                     <SignUpPage />
+                  </AuthRoute>
+                } 
+              />
+              <Route 
+                path="/email-verification" 
+                element={
+                  <AuthRoute>
+                    <EmailVerificationPage />
                   </AuthRoute>
                 } 
               />
