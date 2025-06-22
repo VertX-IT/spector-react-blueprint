@@ -42,6 +42,7 @@ import { useSectionSurvey } from "@/hooks/useSectionSurvey";
 import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { BackButton } from "@/components/ui/back-button";
+import { generateSystemFieldValues, isSystemField, formatDateForDisplay } from "@/lib/formUtils";
 
 interface Section {
   id: string;
@@ -165,7 +166,7 @@ const ProjectFormPage: React.FC = () => {
               options: field.options || [],
               defaultChecked: field.defaultChecked !== undefined ? field.defaultChecked : false,
               barcodeType: field.barcodeType || "qr",
-            })).filter(field => field.name !== "User ID" && field.name !== "Record No"),
+            })),
           }));
         } else {
           projectSections = [
@@ -199,8 +200,17 @@ const ProjectFormPage: React.FC = () => {
             initialData[field.id] = "";
           }
         });
-        initialData["userId"] = currentUserId;
-        initialData["recordNo"] = "";
+
+        // Generate automatic values for system fields
+        const systemValues = generateSystemFieldValues(currentUserId, foundProject.recordCount || 0);
+        
+        // Set system field values
+        allFields.forEach((field: FieldTemplate) => {
+          if (isSystemField(field.name)) {
+            initialData[field.id] = systemValues[field.name] || "";
+          }
+        });
+
         setFormData(initialData);
       } catch (error: any) {
         console.error("Error fetching project:", error);
@@ -281,7 +291,7 @@ const ProjectFormPage: React.FC = () => {
     sectionId: string,
     sectionFields: FieldTemplate[]
   ) => {
-    if (!isCollector) return;
+    if (!isCollector && !isDesigner) return;
 
     const sectionForm: Record<string, any> = {};
     const missingFields: string[] = [];
@@ -289,13 +299,16 @@ const ProjectFormPage: React.FC = () => {
     // Process fields including image to base64
     for (const field of sectionFields) {
       const value = formData[field.id];
-      if (field.required && field.id !== "recordNo" && field.id !== "userId") {
+      
+      // Skip validation for system fields as they are auto-filled
+      if (field.required && !isSystemField(field.name)) {
         if (value === null || value === undefined || value === "") {
           missingFields.push(field.label || field.name || field.id);
         } else if (field.type === "multipleChoice" && Array.isArray(value) && value.length === 0) {
           missingFields.push(field.label || field.name || field.id);
         }
       }
+      
       if (field.type === "image" && value instanceof File) {
         try {
           const base64String = await fileToBase64(value);
@@ -331,9 +344,14 @@ const ProjectFormPage: React.FC = () => {
       }
     }
 
-    // Add User ID and Record No. to the submitted form only if not already present
-    if (!sectionForm["userId"]) sectionForm["userId"] = formData["userId"];
-    if (!sectionForm["recordNo"]) sectionForm["recordNo"] = formData["recordNo"];
+    // Ensure system fields are included in the submitted form
+    const systemValues = generateSystemFieldValues(currentUserId, project?.recordCount || 0);
+    Object.keys(systemValues).forEach(systemFieldName => {
+      const field = sectionFields.find(f => f.name === systemFieldName);
+      if (field && !sectionForm[field.id]) {
+        sectionForm[field.id] = systemValues[systemFieldName];
+      }
+    });
 
     if (missingFields.length > 0) {
       toast({
@@ -347,26 +365,87 @@ const ProjectFormPage: React.FC = () => {
     submitSection(sectionId, sectionForm);
 
     const record = {
-      ...sectionForm,
-      __sectionId: sectionId,
-      __timestamp: new Date().toISOString(),
-      __completed: false,
+      projectId: projectId!,
+      data: sectionForm,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUserId,
     };
 
-    const key = `records_${project?.id}_draft`;
-    const prevDrafts = JSON.parse(localStorage.getItem(key) || "[]");
-    const updatedDrafts = prevDrafts.filter((d: any) => d.__sectionId !== sectionId);
-    updatedDrafts.push(record);
-    localStorage.setItem(key, JSON.stringify(updatedDrafts));
+    try {
+      // Submit to Firebase if online
+      if (isOnline) {
+        await submitFormData(projectId!, sectionForm, currentUserId);
+      }
 
-    toast({
-      title: "Section submitted",
-      description: "Section saved. Continue with the next section or finish.",
-    });
+      // Update local storage
+      const existingRecords = localStorage.getItem(`projectRecords_${projectId}`)
+        ? JSON.parse(localStorage.getItem(`projectRecords_${projectId}`) || '[]')
+        : [];
+      
+      existingRecords.push(record);
+      localStorage.setItem(`projectRecords_${projectId}`, JSON.stringify(existingRecords));
+
+      // Update project record count
+      if (project) {
+        const updatedProject = {
+          ...project,
+          recordCount: (project.recordCount || 0) + 1
+        };
+        setProject(updatedProject);
+        
+        // Update localStorage project data
+        const storedProjects = localStorage.getItem('myProjects');
+        if (storedProjects) {
+          const projects = JSON.parse(storedProjects);
+          const projectIndex = projects.findIndex((p: any) => p.id === projectId);
+          if (projectIndex !== -1) {
+            projects[projectIndex].recordCount = updatedProject.recordCount;
+            localStorage.setItem('myProjects', JSON.stringify(projects));
+          }
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Form data submitted successfully!",
+      });
+
+      // Reset form data for next submission
+      const newSystemValues = generateSystemFieldValues(currentUserId, (project?.recordCount || 0) + 1);
+      const newFormData: FormData = {};
+      
+      // Reset all fields
+      sectionFields.forEach((field: FieldTemplate) => {
+        if (field.type === "checkbox") {
+          newFormData[field.id] = field.defaultChecked || false;
+        } else if (field.type === "multipleChoice" && Array.isArray(field.options)) {
+          newFormData[field.id] = [];
+        } else {
+          newFormData[field.id] = "";
+        }
+      });
+      
+      // Set new system field values
+      sectionFields.forEach((field: FieldTemplate) => {
+        if (isSystemField(field.name)) {
+          newFormData[field.id] = newSystemValues[field.name] || "";
+        }
+      });
+      
+      setFormData(prev => ({ ...prev, ...newFormData }));
+
+    } catch (error: any) {
+      console.error("Error submitting form:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit form data. Please try again.",
+      });
+    }
   };
 
   const handleEndSurveySubmit = async () => {
-    if (!project?.id || !isCollector) return;
+    if (!project?.id || (!isCollector && !isDesigner)) return;
 
     const surveyPayload: Record<string, any> = {};
     sectionIds.forEach((sid) => {
@@ -818,69 +897,9 @@ const ProjectFormPage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isDesigner ? (
+              {(isCollector || isDesigner) && (
                 <div className="space-y-4">
                   {projectSections
-                    .sort((a, b) => a.order - b.order)
-                    .map((section, idx) => (
-                      <div key={section.id} className="relative">
-                        <div className="flex items-center gap-2">
-                          {isEditMode ? (
-                            <Input
-                              value={section.name}
-                              onChange={(e) => handleRenameSection(section.id, e.target.value)}
-                              className="w-full border p-1"
-                            />
-                          ) : (
-                            <h3 className="text-lg font-medium">{section.name}</h3>
-                          )}
-                          {isEditMode && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteSection(section.id)}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                        <Separator className="my-2" />
-                        <div className="ml-4 space-y-2">
-                          {section.fields.map((field: FieldTemplate) => (
-                            <div key={field.id} className="flex items-center gap-2">
-                              {isEditMode ? (
-                                <Input
-                                  value={field.label || field.name || ""}
-                                  onChange={(e) => handleUpdateFieldName(field.id, e.target.value)}
-                                  className="w-full border p-1"
-                                />
-                              ) : (
-                                <span className="text-sm font-medium">
-                                  {field.label || field.name}
-                                  {field.required && <span className="text-red-500 ml-1">*</span>}
-                                </span>
-                              )}
-                              {isEditMode && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleToggleRequired(field.id)}
-                                  className={`ml-2 ${field.required ? "text-red-500" : "text-green-500"}`}
-                                >
-                                  {field.required ? "Required" : "Optional"}
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              ) : isCollector ? (
-                <div className="flex overflow-x-auto gap-2 pb-2 mb-2">
-                  {projectSections
-                    .sort((a, b) => a.order - b.order)
                     .map((section, idx) => (
                       <button
                         key={section.id}
@@ -897,12 +916,8 @@ const ProjectFormPage: React.FC = () => {
                       </button>
                     ))}
                 </div>
-              ) : (
-                <p className="text-center text-muted-foreground">
-                  You do not have permission to view or edit this form.
-                </p>
               )}
-              {isCollector && !isDesigner && (
+              {(isCollector || isDesigner) && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -923,39 +938,11 @@ const ProjectFormPage: React.FC = () => {
                           <Separator className="mt-2" />
                         </div>
                         <div className="space-y-4 pl-0 sm:pl-2">
-                          {activeSectionIndex === 0 && (
-                            <>
-                              <div className="space-y-2">
-                                <label htmlFor="userId" className="text-sm font-medium flex items-center">
-                                  User ID
-                                </label>
-                                <Input
-                                  id="userId"
-                                  value={formData["userId"] as string || ""}
-                                  readOnly
-                                  disabled
-                                  className="bg-gray-100"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label htmlFor="recordNo" className="text-sm font-medium flex items-center">
-                                  Record No.
-                                </label>
-                                <Input
-                                  id="recordNo"
-                                  value={formData["recordNo"] as string || ""}
-                                  onChange={(e) => handleInputChange("recordNo", e.target.value)}
-                                  placeholder="Enter Record No."
-                                  disabled={isProjectInactive}
-                                  className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                />
-                              </div>
-                            </>
-                          )}
                           {sectionFields.length > 0 ? (
                             sectionFields.map((field: FieldTemplate) => {
-                              // Avoid duplicating Record No. if it exists as a custom field
-                              if (field.name === "Record No." && formData["recordNo"] !== undefined) return null;
+                              // Check if this is a system field
+                              const isSystem = isSystemField(field.name);
+                              const isReadOnly = isSystem || isProjectInactive;
 
                               return (
                                 <div key={field.id} className="space-y-2">
@@ -967,6 +954,9 @@ const ProjectFormPage: React.FC = () => {
                                     {field.required && (
                                       <span className="text-red-500 ml-1">*</span>
                                     )}
+                                    {isSystem && (
+                                      <span className="text-xs text-muted-foreground ml-2">(Auto-filled)</span>
+                                    )}
                                   </label>
                                   {field.type === "text" && (
                                     <Input
@@ -977,8 +967,9 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                     />
                                   )}
                                   {field.type === "textAndNumbers" && (
@@ -990,8 +981,9 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                     />
                                   )}
                                   {(field.type === "number" || field.type === "numbers") && (
@@ -1004,8 +996,9 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       placeholder={field.placeholder || "Enter a number"}
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                     />
                                   )}
                                   {field.type === "textarea" && (
@@ -1017,8 +1010,9 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                     />
                                   )}
                                   {field.type === "definedList" && (
@@ -1027,11 +1021,11 @@ const ProjectFormPage: React.FC = () => {
                                       onValueChange={(value) =>
                                         handleInputChange(field.id, value)
                                       }
-                                      disabled={isProjectInactive}
+                                      disabled={isReadOnly}
                                     >
                                       <SelectTrigger
                                         id={field.id}
-                                        className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                        className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                       >
                                         <SelectValue
                                           placeholder={
@@ -1057,7 +1051,7 @@ const ProjectFormPage: React.FC = () => {
                                       placeholder={
                                         field.placeholder || "Enter location"
                                       }
-                                      disabled={isProjectInactive}
+                                      disabled={isReadOnly}
                                     />
                                   )}
                                   {field.type === "coordinates" && (
@@ -1069,7 +1063,7 @@ const ProjectFormPage: React.FC = () => {
                                       placeholder={
                                         field.placeholder || "Enter coordinates"
                                       }
-                                      disabled={isProjectInactive}
+                                      disabled={isReadOnly}
                                     />
                                   )}
                                   {field.type === "image" && (
@@ -1086,8 +1080,8 @@ const ProjectFormPage: React.FC = () => {
                                           )
                                         }
                                         required={field.required}
-                                        disabled={isProjectInactive}
-                                        className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
+                                        disabled={isReadOnly}
+                                        className={`${isReadOnly ? "bg-gray-100" : ""} hidden`}
                                       />
                                       <Button
                                         type="button"
@@ -1095,6 +1089,7 @@ const ProjectFormPage: React.FC = () => {
                                         variant="outline"
                                         size="sm"
                                         className="flex items-center space-x-2"
+                                        disabled={isReadOnly}
                                       >
                                         <Camera className="h-4 w-4" />
                                         <span>Capture</span>
@@ -1105,6 +1100,7 @@ const ProjectFormPage: React.FC = () => {
                                         variant="outline"
                                         size="sm"
                                         className="flex items-center space-x-2"
+                                        disabled={isReadOnly}
                                       >
                                         <Upload className="h-4 w-4" />
                                         <span>Upload</span>
@@ -1120,8 +1116,9 @@ const ProjectFormPage: React.FC = () => {
                                         handleInputChange(field.id, e.target.value)
                                       }
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                     />
                                   )}
                                   {field.type === "dateTime" && (
@@ -1133,8 +1130,9 @@ const ProjectFormPage: React.FC = () => {
                                         handleInputChange(field.id, e.target.value)
                                       }
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""}`}
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                     />
                                   )}
                                   {field.type === "checkbox" && (
@@ -1145,7 +1143,7 @@ const ProjectFormPage: React.FC = () => {
                                         onCheckedChange={(checked) =>
                                           handleInputChange(field.id, checked)
                                         }
-                                        disabled={isProjectInactive}
+                                        disabled={isReadOnly}
                                       />
                                       <label
                                         htmlFor={field.id}
@@ -1169,7 +1167,7 @@ const ProjectFormPage: React.FC = () => {
                                                 : currentValues.filter((val) => val !== option);
                                               handleInputChange(field.id, newValues);
                                             }}
-                                            disabled={isProjectInactive}
+                                            disabled={isReadOnly}
                                           />
                                           <label
                                             htmlFor={`${field.id}-${option}`}
@@ -1185,23 +1183,7 @@ const ProjectFormPage: React.FC = () => {
                                     <div className="space-y-2">
                                       <div className="flex items-center space-x-2">
                                         <Input
-                                          id={`${field.id}-text`}
-                                          value={typeof formData[field.id] === "string" ? formData[field.id] as string : ""}
-                                          onChange={(e) =>
-                                            handleInputChange(field.id, e.target.value)
-                                          }
-                                          placeholder={
-                                            field.barcodeType === "qr"
-                                              ? "Enter QR Code value"
-                                              : "Enter Barcode value"
-                                          }
-                                          disabled={isProjectInactive}
-                                          className={`${isProjectInactive ? "bg-gray-100" : ""}`}
-                                        />
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <Input
-                                          id={`${field.id}-image`}
+                                          id={field.id}
                                           type="file"
                                           accept="image/*"
                                           capture="environment"
@@ -1212,38 +1194,49 @@ const ProjectFormPage: React.FC = () => {
                                             )
                                           }
                                           required={field.required}
-                                          disabled={isProjectInactive}
-                                          className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
+                                          disabled={isReadOnly}
+                                          className={`${isReadOnly ? "bg-gray-100" : ""} hidden`}
                                         />
                                         <Button
                                           type="button"
-                                          onClick={() => document.getElementById(`${field.id}-image`)?.click()}
+                                          onClick={() => document.getElementById(field.id)?.click()}
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
+                                          disabled={isReadOnly}
                                         >
                                           <Camera className="h-4 w-4" />
                                           <span>Capture</span>
                                         </Button>
                                         <Button
                                           type="button"
-                                          onClick={() => document.getElementById(`${field.id}-image`)?.click()}
+                                          onClick={() => document.getElementById(field.id)?.click()}
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
+                                          disabled={isReadOnly}
                                         >
                                           <Upload className="h-4 w-4" />
                                           <span>Upload</span>
                                         </Button>
                                       </div>
+                                      <Input
+                                        placeholder="Or enter QR/Barcode manually"
+                                        value={formData[field.id] as string || ""}
+                                        onChange={(e) =>
+                                          handleInputChange(field.id, e.target.value)
+                                        }
+                                        disabled={isReadOnly}
+                                        className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                                      />
                                     </div>
                                   )}
                                 </div>
                               );
                             })
                           ) : (
-                            <p className="text-sm text-muted-foreground">
-                              No fields available for this section.
+                            <p className="text-center text-muted-foreground">
+                              No fields in this section.
                             </p>
                           )}
                         </div>
@@ -1262,7 +1255,7 @@ const ProjectFormPage: React.FC = () => {
                     )}
                 </form>
               )}
-              {isCollector && !isDesigner && completedSections.length === sectionIds.length && !surveyCompleted && (
+              {(isCollector || isDesigner) && completedSections.length === sectionIds.length && !surveyCompleted && (
                 <div className="flex justify-end mt-4">
                   <Button onClick={handleEndSurveySubmit} className="w-full sm:w-auto" disabled={isProjectInactive}>
                     End Survey
@@ -1318,18 +1311,6 @@ const ProjectFormPage: React.FC = () => {
                         {expandedRows.includes(record.id || `record_${index}`) && (
                           <CardContent className="pt-0 border-t">
                             <div className="space-y-2">
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="font-medium text-muted-foreground">
-                                  User ID:
-                                </div>
-                                <div>{record.data?.userId || "-"}</div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="font-medium text-muted-foreground">
-                                  Record No.:
-                                </div>
-                                <div>{record.data?.recordNo || "-"}</div>
-                              </div>
                               {projectSections.flatMap(s => s.fields).map((field: any) => (
                                 <div
                                   key={field.id}
@@ -1345,11 +1326,13 @@ const ProjectFormPage: React.FC = () => {
                                       )
                                       : (field.type === "image" || field.type === "qrBarcode") && typeof record.data[field.id] === "string" && record.data[field.id].startsWith("data:image/")
                                         ? <img src={record.data[field.id]} alt="Uploaded" style={{ maxWidth: "100px" }} />
-                                        : field.type === "multipleChoice" && Array.isArray(record.data[field.id])
-                                          ? record.data[field.id].join(", ")
-                                          : field.type === "checkbox"
-                                            ? record.data[field.id] ? "Yes" : "No"
-                                            : record.data[field.id] || "-"}
+                                        : field.name === "Date and Time" && record.data[field.id]
+                                          ? formatDateForDisplay(record.data[field.id])
+                                          : field.type === "multipleChoice" && Array.isArray(record.data[field.id])
+                                            ? record.data[field.id].join(", ")
+                                            : field.type === "checkbox"
+                                              ? record.data[field.id] ? "Yes" : "No"
+                                              : record.data[field.id] || "-"}
                                   </div>
                                 </div>
                               ))}

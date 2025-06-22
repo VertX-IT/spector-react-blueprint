@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { saveProject, verifyFirebaseConnection, generateSequentialPin } from '@/lib/projectOperations';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BackButton } from '@/components/ui/back-button';
+import { loadProjectData, clearProjectCreationData } from '@/lib/projectCreationState';
 
 // Steps for project creation
 const steps = [
@@ -71,10 +72,10 @@ const SecuritySettingsPage: React.FC = () => {
 
   // Retrieve project data from localStorage
   useEffect(() => {
-    const storedProjectData = localStorage.getItem('projectData');
+    const storedProjectData = loadProjectData();
 
     if (storedProjectData) {
-      setProjectData(JSON.parse(storedProjectData));
+      setProjectData(storedProjectData);
     } else {
       // Fall back to URL params if localStorage is not available
       const params = new URLSearchParams(location.search);
@@ -213,10 +214,8 @@ const SecuritySettingsPage: React.FC = () => {
       existingProjects.push(newProject);
       localStorage.setItem('myProjects', JSON.stringify(existingProjects));
 
-      // Clear form data from localStorage
-      localStorage.removeItem('formFields');
-      localStorage.removeItem('formSections'); // Clear formSections as well
-      localStorage.removeItem('projectData');
+      // Clear form data from localStorage using utility function
+      clearProjectCreationData();
 
       toast.success('Project successfully deployed!');
       navigate('/dashboard/my-projects');

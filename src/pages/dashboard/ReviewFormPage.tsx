@@ -6,6 +6,7 @@ import { ProgressSteps } from "@/components/ui/progress-steps";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { BackButton } from "@/components/ui/back-button";
+import { loadProjectData, loadFormSections } from "@/lib/projectCreationState";
 
 // Steps for project creation
 const steps = ["Basic Details", "Form Fields", "Review", "Security"];
@@ -58,14 +59,18 @@ const ReviewFormPage: React.FC = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    const storedSections = localStorage.getItem("formSections");
-    const storedProjectData = localStorage.getItem("projectData");
+    // Load data from localStorage using utility functions
+    const storedSections = loadFormSections();
+    const storedProjectData = loadProjectData();
+    
     if (storedSections) {
-      setSections(JSON.parse(storedSections));
+      setSections(storedSections);
     }
+    
     if (storedProjectData) {
-      setProjectData(JSON.parse(storedProjectData));
+      setProjectData(storedProjectData);
     } else {
+      // Fallback to URL params only if no localStorage data
       const params = new URLSearchParams(location.search);
       const category = params.get("category") || "";
       const name = params.get("name") || "";
