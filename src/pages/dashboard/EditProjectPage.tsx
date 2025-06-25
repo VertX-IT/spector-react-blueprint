@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ProjectEditForm } from "@/components/dashboard/ProjectEditForm";
@@ -6,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { toast } from "sonner";
 import { BackButton } from "@/components/ui/back-button";
+
 
 const EditProjectPage: React.FC = () => {
   const { projectId } = useParams();
@@ -89,6 +91,7 @@ const EditProjectPage: React.FC = () => {
 
   return (
     <div>
+
       <div className="mb-4 px-1">
         {/* Back Button */}
         <div className="mb-3">
@@ -106,6 +109,7 @@ const EditProjectPage: React.FC = () => {
         </p>
       </div>
       
+
       <ProjectEditForm
         project={project}
         onCancel={() => navigate("/dashboard/my-projects")}

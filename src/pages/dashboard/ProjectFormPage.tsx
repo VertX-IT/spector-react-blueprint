@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -22,7 +22,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Download, ChevronDown, ChevronUp, Trash2, Edit, Camera, Upload } from "lucide-react";
+import {
+  AlertCircle,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  Edit,
+  Camera,
+  Upload,
+  ScanLine,
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -37,12 +47,26 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { LocationSelector } from "@/components/survey/LocationSelector";
-import { getProjectById, submitFormData, deleteProject, updateProject, getProjectRecords } from "@/lib/projectOperations";
+import {
+  getProjectById,
+  submitFormData,
+  deleteProject,
+  updateProject,
+  getProjectRecords,
+} from "@/lib/projectOperations";
 import { useSectionSurvey } from "@/hooks/useSectionSurvey";
 import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
+
 import { BackButton } from "@/components/ui/back-button";
 import { generateSystemFieldValues, isSystemField, formatDateForDisplay } from "@/lib/formUtils";
+
+import { Capacitor } from "@capacitor/core";
+import lz from "lz-string";
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import InlineBackButton from "@/components/ui/CustomButton";
+import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
+
 
 interface Section {
   id: string;
@@ -112,9 +136,88 @@ const ProjectFormPage: React.FC = () => {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const { isOnline } = useNetwork();
+  const [localCompletedSections, setLocalCompletedSections] = useState<string[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<{ [key: string]: string | null }>({});
+
+  // Clean up image preview URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      Object.values(imagePreviews).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [imagePreviews]);
+
+  // Check for duplicate field IDs to ensure unique image previews
+  useEffect(() => {
+    const imageFields = sections.flatMap((section) =>
+      section.fields.filter((field) => field.type === "image" || field.type === "qrBarcode")
+    );
+    const duplicateIds = imageFields.filter(
+      (field, index, self) =>
+        self.findIndex((f) => f.id === field.id) !== index
+    );
+    if (duplicateIds.length > 0) {
+      console.warn("Duplicate field IDs for image or qrBarcode fields detected:", duplicateIds);
+    }
+  }, [sections]);
+
+  // Sync offline data when connection is restored
+  useEffect(() => {
+    if (!isOnline || !project?.id) return;
+
+    const syncOfflineData = async () => {
+      try {
+        // Sync designer data
+        const offlineDesignerData = localStorage.getItem(`offline_designer_${project.id}`);
+        if (offlineDesignerData) {
+          const decompressed = lz.decompress(offlineDesignerData);
+          const designerData = decompressed ? JSON.parse(decompressed) : null;
+          if (designerData) {
+            await updateProject(project.id, designerData);
+            localStorage.removeItem(`offline_designer_${project.id}`);
+            toast({
+              title: "Designer Data Synced",
+              description: "Offline designer data has been synced.",
+            });
+          }
+        }
+
+        // Sync collector data
+        const offlineCollectorRecords = localStorage.getItem(`offline_records_${project.id}`);
+        if (offlineCollectorRecords) {
+          const decompressed = lz.decompress(offlineCollectorRecords);
+          const recordsArray = decompressed ? JSON.parse(decompressed) : [];
+          for (const record of recordsArray) {
+            await submitFormData(project.id, record, userData.uid);
+          }
+          localStorage.removeItem(`offline_records_${project.id}`);
+          toast({
+            title: "Collector Data Synced",
+            description: "Offline collector data has been synced.",
+          });
+        }
+      } catch (error: any) {
+        console.error("Error syncing offline data:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to sync offline data.",
+        });
+      }
+    };
+
+    syncOfflineData();
+  }, [isOnline, project?.id, userData.uid]);
 
   // Fetch project details
   useEffect(() => {
+    console.log(
+      "useEffect for fetchProject triggered. projectId:",
+      projectId,
+      "currentUserId:",
+      currentUserId
+    );
     const fetchProject = async () => {
       try {
         setLoading(true);
@@ -124,20 +227,35 @@ const ProjectFormPage: React.FC = () => {
           throw new Error("Project ID is missing");
         }
 
-        const storedProjects = localStorage.getItem("myProjects");
-        let foundProject: any = null;
+        console.log("Fetching project with ID:", projectId);
 
+        const isCapacitor = Capacitor.isNativePlatform();
+        let storedProjects = null;
+        if (isCapacitor) {
+          const { Preferences } = await import("@capacitor/preferences");
+          const { value } = await Preferences.get({ key: "myProjects" });
+          console.log("Capacitor Storage 'myProjects':", value);
+          storedProjects = value;
+        } else {
+          storedProjects = localStorage.getItem("myProjects");
+          console.log("localStorage 'myProjects':", storedProjects);
+        }
+
+        let foundProject: any = null;
         if (storedProjects) {
           const parsedProjects = JSON.parse(storedProjects);
+          console.log("Parsed projects:", parsedProjects);
           foundProject = parsedProjects.find((p: any) => p.id === projectId);
         }
 
         if (!foundProject) {
+          console.log("Project not found in storage, fetching from Firebase...");
           const firebaseProject = await getProjectById(projectId);
           if (firebaseProject) {
             foundProject = firebaseProject;
+            console.log("Fetched project from Firebase:", foundProject);
           } else {
-            throw new Error("Project not found");
+            throw new Error("Project not found in Firebase");
           }
         }
 
@@ -159,27 +277,46 @@ const ProjectFormPage: React.FC = () => {
               id: field.id || `${section.id}_${fieldIndex}`,
               name: field.name || field.label || `Field ${fieldIndex}`,
               label: field.label || field.name || `Field ${fieldIndex}`,
-              type: field.type === 'numbers' ? 'number' : field.type || "text", // Fix typo 'numbers' to 'number'
+              type: field.type === "numbers" ? "number" : field.type || "text",
               required: field.required !== undefined ? field.required : false,
               sectionId: section.id,
               placeholder: field.placeholder || "",
               options: field.options || [],
               defaultChecked: field.defaultChecked !== undefined ? field.defaultChecked : false,
               barcodeType: field.barcodeType || "qr",
-            })),
+
+            })).filter((field) => field.name !== "User ID"),
           }));
+          console.log("Populated projectSections:", projectSections);
         } else {
+          console.warn("No formSections found, using default section with Record No.");
           projectSections = [
             {
               id: "section_default",
               name: "Section 1",
               order: 0,
-              fields: [],
+              fields: [
+                {
+                  id: "section_default_0",
+                  name: "Record No.",
+                  label: "Record No.",
+                  type: "text",
+                  required: true,
+                  sectionId: "section_default",
+                  placeholder: "Enter Record No.",
+                  options: [],
+                  defaultChecked: false,
+                  barcodeType: "qr",
+                },
+              ],
             },
           ];
         }
 
-        const allFields: FieldTemplate[] = projectSections.flatMap(section => section.fields);
+        const allFields: FieldTemplate[] = projectSections.flatMap(
+          (section) => section.fields
+        );
+        console.log("All fields:", allFields);
 
         setSections(projectSections);
         setProject({
@@ -190,7 +327,8 @@ const ProjectFormPage: React.FC = () => {
           formSections: projectSections,
         });
 
-        const initialData: FormData = {};
+        const initialData: FormData = { userId: currentUserId };
+        const recordNoField = allFields.find((field) => field.name === "Record No.");
         allFields.forEach((field: FieldTemplate) => {
           if (field.type === "checkbox") {
             initialData[field.id] = field.defaultChecked || false;
@@ -210,7 +348,6 @@ const ProjectFormPage: React.FC = () => {
             initialData[field.id] = systemValues[field.name] || "";
           }
         });
-
         setFormData(initialData);
       } catch (error: any) {
         console.error("Error fetching project:", error);
@@ -230,6 +367,12 @@ const ProjectFormPage: React.FC = () => {
 
   // Fetch records when the "View Data" tab is active
   useEffect(() => {
+    console.log(
+      "useEffect for fetchRecords triggered. projectId:",
+      projectId,
+      "activeTab:",
+      activeTab
+    );
     const fetchRecords = async () => {
       if (!projectId || activeTab !== "data") return;
 
@@ -239,7 +382,7 @@ const ProjectFormPage: React.FC = () => {
 
         // Filter records based on user role
         if (isCollector && !isDesigner) {
-          records = records.filter(record => record.createdBy === currentUserId);
+          records = records.filter((record) => record.createdBy === currentUserId);
         }
         // For designer, no filtering needed; they see all records
 
@@ -263,27 +406,95 @@ const ProjectFormPage: React.FC = () => {
   const {
     sectionData,
     completedSections,
-    surveyCompleted,
     submitSection,
     endSurvey,
     resetSurvey,
   } = useSectionSurvey(sectionIds);
 
-  useFirebaseSync(project?.id || "", userData?.uid || "");
+  // Memoize dependencies for useFirebaseSync to prevent continuous logs
+  const memoizedProjectId = useMemo(() => project?.id || "", [project?.id]);
+  const memoizedUserId = useMemo(() => userData?.uid || "", [userData?.uid]);
+  useFirebaseSync(memoizedProjectId, memoizedUserId);
 
   const handleInputChange = (fieldId: string, value: string | File | boolean | string[] | null) => {
     setFormData((prev) => ({
       ...prev,
       [fieldId]: value,
     }));
+
+    // Handle image preview with debugging
+    if (value instanceof File) {
+      const oldUrl = imagePreviews[fieldId];
+      if (oldUrl) {
+        URL.revokeObjectURL(oldUrl);
+      }
+      const newUrl = URL.createObjectURL(value);
+      console.log("Generated preview URL for field", fieldId, ":", newUrl);
+      setImagePreviews((prev) => ({
+        ...prev,
+        [fieldId]: newUrl,
+      }));
+    } else if (value === null) {
+      const oldUrl = imagePreviews[fieldId];
+if (oldUrl) {
+  URL.revokeObjectURL(oldUrl);
+}
+setImagePreviews((prev) => ({
+  ...prev,
+  [fieldId]: null,
+}));
+    }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
+  // Helper function to resize an image
+  const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<Blob> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate new dimensions while preserving aspect ratio
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Failed to convert image to blob"));
+            }
+          },
+          file.type,
+          0.8 // JPEG quality (0 to 1)
+        );
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => {
+        reject(new Error("Failed to load image"));
+        URL.revokeObjectURL(img.src);
+      };
     });
   };
 
@@ -322,27 +533,77 @@ const ProjectFormPage: React.FC = () => {
           return;
         }
       } else if (field.type === "qrBarcode" && value instanceof File) {
-        try {
-          const base64String = await fileToBase64(value);
-          sectionForm[field.id] = base64String;
-        } catch (error) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to process QR/Barcode image.",
-          });
-          return;
-        }
-      } else if (field.type === "qrBarcode" && typeof value === "string") {
-        sectionForm[field.id] = value;
-      } else if (field.type === "checkbox" && typeof value === "boolean") {
-        sectionForm[field.id] = value;
-      } else if (field.type === "multipleChoice" && Array.isArray(value)) {
-        sectionForm[field.id] = value;
-      } else {
-        sectionForm[field.id] = value;
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSizeInBytes) {
+        reject(
+          new Error(
+            `Image size exceeds 5MB limit. File size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`
+          )
+        );
+        return;
       }
+
+      // Use an IIFE to handle async logic inside the executor
+      (async () => {
+
+        try {
+          // Resize the image to a maximum of 800x800 pixels
+          const resizedBlob = await resizeImage(file, 800, 800);
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            console.log("fileToBase64 success. Base64 string length:", result.length);
+            resolve(result);
+          };
+          reader.onerror = (error) => {
+            console.error("fileToBase64 error:", error);
+            reject(error);
+          };
+          reader.readAsDataURL(resizedBlob);
+        } catch (error) {
+          reject(error);
+        }
+      })();
+    });
+  };
+
+  const clearStorage = () => {
+    localStorage.clear();
+    toast({
+      title: "Success",
+      description: "Storage cleared. Please try submitting again.",
+    });
+  };
+
+  const checkCameraPermission = async () => {
+    try {
+      const permissionStatus = await BarcodeScanner.checkPermission({ force: false });
+      if (permissionStatus.granted) {
+        return true;
+      }
+      const result = await BarcodeScanner.checkPermission({ force: true });
+      if (result.granted) {
+        return true;
+      }
+      toast({
+        variant: "destructive",
+        title: "Permission Denied",
+        description: "Camera permission is required to scan QR codes or barcodes.",
+      });
+      return false;
+    } catch (error: any) {
+      console.error("Error checking camera permission:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to check camera permission.",
+      });
+      return false;
     }
+  };
 
     // Ensure system fields are included in the submitted form
     const systemValues = generateSystemFieldValues(currentUserId, project?.recordCount || 0);
@@ -354,15 +615,21 @@ const ProjectFormPage: React.FC = () => {
     });
 
     if (missingFields.length > 0) {
+
+  const handleScanQRBarcode = async (fieldId: string) => {
+    if (!Capacitor.isNativePlatform()) {
+
       toast({
         variant: "destructive",
-        title: "Missing fields",
-        description: `Please fill in: ${missingFields.join(", ")}`,
+        title: "Error",
+        description: "Barcode scanning is only available on mobile devices.",
       });
       return;
     }
 
-    submitSection(sectionId, sectionForm);
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) return;
+
 
     const record = {
       projectId: projectId!,
@@ -441,6 +708,111 @@ const ProjectFormPage: React.FC = () => {
         title: "Error",
         description: "Failed to submit form data. Please try again.",
       });
+
+    try {
+      await BarcodeScanner.hideBackground();
+      document.body.classList.add("scanner-active");
+
+      const result = await BarcodeScanner.startScan();
+      document.body.classList.remove("scanner-active");
+      await BarcodeScanner.showBackground();
+
+      if (result.hasContent) {
+        console.log("Scanned content:", result.content);
+        handleInputChange(fieldId, result.content);
+        toast({
+          title: "Scan Successful",
+          description: `Scanned value: ${result.content}`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "No Data Scanned",
+          description: "No QR code or barcode data was detected.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error scanning QR/Barcode:", error);
+      toast({
+        variant: "destructive",
+        title: "Scan Error",
+        description: "Failed to scan QR code or barcode.",
+      });
+    } finally {
+      document.body.classList.remove("scanner-active");
+      await BarcodeScanner.showBackground();
+    }
+  };
+
+  const handleSectionSubmit = async (sectionId: string, sectionFields: FieldTemplate[]) => {
+    try {
+      const sectionData = await sectionFields.reduce(async (accPromise, field) => {
+        const acc = await accPromise;
+        let value = formData[field.id];
+        if (field.type === "image" && value instanceof File) {
+          value = await fileToBase64(value);
+        } else if (field.type === "qrBarcode" && value instanceof File) {
+          value = await fileToBase64(value);
+        }
+        acc[field.id] = value;
+        return acc;
+      }, Promise.resolve({} as FormData));
+
+      const record = {
+        sectionId,
+        data: sectionData,
+        timestamp: new Date().toISOString(),
+        userId: currentUserId,
+      };
+
+      const offlineRecords = localStorage.getItem("offline_records");
+      let recordsArray = [];
+      if (offlineRecords) {
+        const decompressed = lz.decompress(offlineRecords);
+        recordsArray = decompressed ? JSON.parse(decompressed) : [];
+      }
+
+      recordsArray.push(record);
+
+      if (recordsArray.length > 5) {
+        recordsArray = recordsArray.slice(-5);
+      }
+
+      const compressedRecords = lz.compress(JSON.stringify(recordsArray));
+      localStorage.setItem("offline_records", compressedRecords);
+
+      setLocalCompletedSections((prev) => {
+        if (!prev.includes(sectionId)) {
+          return [...prev, sectionId];
+        }
+        return prev;
+      });
+
+      submitSection(sectionId, sectionData);
+      toast({
+        title: "Success",
+        description: "Section submitted successfully.",
+      });
+
+      if (activeSectionIndex < projectSections.length - 1) {
+        setActiveSectionIndex(activeSectionIndex + 1);
+      }
+    } catch (error: any) {
+      console.error("Error submitting section:", error);
+      if (error.message.includes("quota")) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Storage quota exceeded. Please clear data or sync online.",
+        });
+        localStorage.clear();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to submit section.",
+        });
+      }
     }
   };
 
@@ -452,25 +824,52 @@ const ProjectFormPage: React.FC = () => {
       Object.assign(surveyPayload, sectionData[sid] || {});
     });
 
-    // Process any remaining fields
     for (const fieldId in formData) {
       const value = formData[fieldId];
-      const field = sections.flatMap(s => s.fields).find(f => f.id === fieldId);
+      const field = sections.flatMap((s) => s.fields).find((f) => f.id === fieldId);
+
       if (field?.type === "image" && value instanceof File) {
         try {
+          console.log(
+            "Processing image for field:",
+            fieldId,
+            "File size:",
+            value.size,
+            "File type:",
+            value.type
+          );
           const base64String = await fileToBase64(value);
+          console.log("Image converted to Base64. Length:", base64String.length);
+
+          // Check if the Base64 string is too large for Firestore (1 MB limit per document)
+          const base64SizeInBytes = (base64String.length * 3) / 4 - 2; // Approximate size in bytes
+          const maxFirestoreSize = 1 * 1024 * 1024; // 1 MB
+          if (base64SizeInBytes > maxFirestoreSize) {
+            throw new Error(
+              `Base64 image size exceeds Firestore limit of 1 MB. Size: ${(base64SizeInBytes / (1024 * 1024)).toFixed(2)} MB`
+            );
+          }
+
           surveyPayload[fieldId] = base64String;
-        } catch (error) {
+        } catch (error: any) {
+          console.error("Error processing image:", error);
           toast({
             variant: "destructive",
             title: "Error",
-            description: "Failed to process image.",
+            description: error.message || "Failed to process image.",
           });
           return;
         }
       } else if (field?.type === "qrBarcode" && value instanceof File) {
         try {
           const base64String = await fileToBase64(value);
+          const base64SizeInBytes = (base64String.length * 3) / 4 - 2;
+          const maxFirestoreSize = 1 * 1024 * 1024;
+          if (base64SizeInBytes > maxFirestoreSize) {
+            throw new Error(
+              `Base64 QR/Barcode image size exceeds Firestore limit of 1 MB. Size: ${(base64SizeInBytes / (1024 * 1024)).toFixed(2)} MB`
+            );
+          }
           surveyPayload[fieldId] = base64String;
         } catch (error) {
           toast({
@@ -486,31 +885,42 @@ const ProjectFormPage: React.FC = () => {
         surveyPayload[fieldId] = value;
       } else if (field?.type === "multipleChoice" && Array.isArray(value)) {
         surveyPayload[fieldId] = value;
-      } else {
+      } else if (value !== undefined) { // Explicitly exclude undefined values
         surveyPayload[fieldId] = value;
       }
     }
 
-    // Ensure User ID and Record No. are included
-    if (!surveyPayload["userId"]) surveyPayload["userId"] = formData["userId"];
-    if (!surveyPayload["recordNo"]) surveyPayload["recordNo"] = formData["recordNo"];
+    surveyPayload["userId"] = formData["userId"];
+    const recordNoField = projectSections[0]?.fields.find((f) => f.name === "Record No.");
+    if (recordNoField) {
+      surveyPayload[recordNoField.id] = formData[recordNoField.id];
+    }
 
     try {
+      console.log("isOnline status:", isOnline);
       if (isOnline) {
+        console.log("Submitting data to Firebase:", surveyPayload);
         await submitFormData(project.id, surveyPayload, userData.uid);
         toast({
           title: "Survey submitted",
           description: "Your responses have been saved.",
         });
       } else {
-        const key = `offline_records_${project.id}`;
-        const arr = JSON.parse(localStorage.getItem(key) || "[]");
-        arr.push(surveyPayload);
-        localStorage.setItem(key, JSON.stringify(arr));
+        console.log("Offline mode: Saving to localStorage");
+        const offlineRecords = localStorage.getItem(`offline_records_${project.id}`);
+        let recordsArray = [];
+        if (offlineRecords) {
+          const decompressed = lz.decompress(offlineRecords);
+          recordsArray = decompressed ? JSON.parse(decompressed) : [];
+        }
+        recordsArray.push(surveyPayload);
+        const compressedData = lz.compress(JSON.stringify(recordsArray));
+        localStorage.setItem(`offline_records_${project.id}`, compressedData);
         toast({
           title: "Offline submission",
-          description: "Data saved locally and will sync when you're back online.",
+          description: "Data will be saved after connection is restored.",
         });
+        navigate("/dashboard/my-projects"); // Navigate to project tabs
       }
       endSurvey();
       resetSurvey();
@@ -518,6 +928,7 @@ const ProjectFormPage: React.FC = () => {
       setActiveSectionIndex(0);
       localStorage.removeItem(`records_${project.id}_draft`);
     } catch (err: any) {
+      console.error("Error submitting to Firebase:", err);
       toast({
         variant: "destructive",
         title: "Error submitting survey",
@@ -527,7 +938,7 @@ const ProjectFormPage: React.FC = () => {
   };
 
   const getFieldsBySection = (sectionId: string) => {
-    const section = sections.find(s => s.id === sectionId);
+    const section = sections.find((s) => s.id === sectionId);
     return section ? section.fields : [];
   };
 
@@ -537,7 +948,9 @@ const ProjectFormPage: React.FC = () => {
     const updatedSections = sections.filter((section) => section.id !== sectionId);
 
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -545,9 +958,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Section deleted", description: "Section has been removed." });
   };
@@ -558,11 +981,13 @@ const ProjectFormPage: React.FC = () => {
     console.log("Toggling required for fieldId:", fieldId);
     let fieldFound = false;
 
-    const updatedSections = sections.map(section => {
-      const updatedFields = section.fields.map(field => {
+    const updatedSections = sections.map((section) => {
+      const updatedFields = section.fields.map((field) => {
         if (field.id === fieldId) {
           fieldFound = true;
-          console.log(`Found field ${field.id}, toggling required from ${field.required} to ${!field.required}`);
+          console.log(
+            `Found field ${field.id}, toggling required from ${field.required} to ${!field.required}`
+          );
           return { ...field, required: !field.required };
         }
         return { ...field };
@@ -577,7 +1002,9 @@ const ProjectFormPage: React.FC = () => {
 
     console.log("Updated sections:", JSON.stringify(updatedSections, null, 2));
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -585,9 +1012,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Field updated", description: "Required status has been toggled." });
   };
@@ -599,7 +1036,9 @@ const ProjectFormPage: React.FC = () => {
       section.id === sectionId ? { ...section, name: newName } : section
     );
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -607,9 +1046,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Section renamed", description: "Section name has been updated." });
   };
@@ -620,11 +1069,13 @@ const ProjectFormPage: React.FC = () => {
     console.log("Updating field name for fieldId:", fieldId, "to:", newName);
     let fieldFound = false;
 
-    const updatedSections = sections.map(section => {
-      const updatedFields = section.fields.map(field => {
+    const updatedSections = sections.map((section) => {
+      const updatedFields = section.fields.map((field) => {
         if (field.id === fieldId) {
           fieldFound = true;
-          console.log(`Found field ${field.id}, updating name from ${field.name} to ${newName}`);
+          console.log(
+            `Found field ${field.id}, updating name from ${field.name} to ${newName}`
+          );
           return { ...field, label: newName, name: newName };
         }
         return { ...field };
@@ -639,7 +1090,9 @@ const ProjectFormPage: React.FC = () => {
 
     console.log("Updated sections:", JSON.stringify(updatedSections, null, 2));
     setSections(updatedSections);
-    setProject((prev) => prev ? { ...prev, formSections: updatedSections } : null);
+    setProject((prev) =>
+      prev ? { ...prev, formSections: updatedSections } : null
+    );
 
     if (isOnline) {
       updateProject(project.id, { formSections: updatedSections });
@@ -647,9 +1100,19 @@ const ProjectFormPage: React.FC = () => {
       const storedProjects = JSON.parse(localStorage.getItem("myProjects") || "[]");
       const projectIndex = storedProjects.findIndex((p: any) => p.id === project.id);
       if (projectIndex !== -1) {
-        storedProjects[projectIndex] = { ...storedProjects[projectIndex], formSections: updatedSections };
+        storedProjects[projectIndex] = {
+          ...storedProjects[projectIndex],
+          formSections: updatedSections,
+        };
         localStorage.setItem("myProjects", JSON.stringify(storedProjects));
       }
+      const compressedData = lz.compress(JSON.stringify({ formSections: updatedSections }));
+      localStorage.setItem(`offline_designer_${project.id}`, compressedData);
+      toast({
+        title: "Offline submission",
+        description: "Data will be saved after connection is restored.",
+      });
+      navigate("/dashboard/my-projects");
     }
     toast({ title: "Field renamed", description: "Field name has been updated." });
   };
@@ -679,8 +1142,6 @@ const ProjectFormPage: React.FC = () => {
       </div>
     );
   }
-
-  console.log("project.formSections before rendering:", project.formSections);
 
   const isProjectInactive = project.status === "inactive";
   const projectSections =
@@ -722,9 +1183,20 @@ const ProjectFormPage: React.FC = () => {
     return "-";
   }
 
-  const handleExportData = () => {
+  const requestStoragePermission = async () => {
+    if (!Capacitor.isNativePlatform()) return true;
+    const permission = await Filesystem.requestPermissions();
+    if (permission.publicStorage !== 'granted') {
+      alert('Storage permission is required to save the CSV file.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleExportData = async () => {
     if (!projectRecords || projectRecords.length === 0) return;
-    const allFields = projectSections.flatMap(s => s.fields);
+
+    const allFields = projectSections.flatMap((s) => s.fields);
     const headers = [
       ...allFields.map((f) => f.label || f.name || f.id),
       "User ID",
@@ -755,17 +1227,46 @@ const ProjectFormPage: React.FC = () => {
       }),
     ];
     const csvContent = rows.map((r) => r.join(",")).join("\r\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${project?.name || "project"}-data.csv`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // Request storage permissions for mobile
+        const hasPermission = await requestStoragePermission();
+        if (!hasPermission) return;
+
+        // Mobile app logic with corrected encoding
+        const fileName = `${project?.name || "project"}-data-${new Date().toISOString().slice(0, 10)}.csv`;
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: csvContent,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8, // Corrected to use Encoding.UTF8
+        });
+        console.log('File written to:', result.uri);
+
+        const uri = await Filesystem.getUri({
+          path: fileName,
+          directory: Directory.Documents,
+        });
+        alert(`CSV file saved to: ${uri.uri}. Check your device storage (Documents folder).`);
+      } else {
+        // Web browser logic (existing code)
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${project?.name || "project"}-data.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert(`Failed to export CSV: ${error.message}`);
+    }
   };
 
   const handleDeleteProject = async () => {
@@ -807,6 +1308,7 @@ const ProjectFormPage: React.FC = () => {
           }
           : prev
       );
+      navigate("/dashboard/my-projects"); // Navigate to project tabs after ending survey
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -817,6 +1319,7 @@ const ProjectFormPage: React.FC = () => {
   };
 
   return (
+
     <div className="space-y-6">
       {/* Header with Back Button */}
       <div className="mb-4 px-1">
@@ -866,6 +1369,27 @@ const ProjectFormPage: React.FC = () => {
                   Delete
                 </Button>
               </>
+
+    <>
+      <div className="mb-4 space-y-3">
+        <InlineBackButton path="/dashboard/my-projects" />
+        <div className="flex flex-col">
+          <h1 className="text-xl font-bold tracking-tight line-clamp-2">
+            {project.name}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {project.description ||
+              `Data collection form for ${project.category}`}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <Badge variant="outline" className="text-xs">
+              PIN: {project.projectPin}
+            </Badge>
+            {isProjectInactive && (
+              <Badge variant="destructive" className="text-xs">
+                Survey Ended
+              </Badge>
+
             )}
           </div>
         </div>
@@ -900,6 +1424,76 @@ const ProjectFormPage: React.FC = () => {
               {(isCollector || isDesigner) && (
                 <div className="space-y-4">
                   {projectSections
+
+                    .sort((a, b) => a.order - b.order)
+                    .map((section, idx) => (
+                      <div key={section.id} className="relative">
+                        <div className="flex items-center gap-2">
+                          {isEditMode ? (
+                            <Input
+                              value={section.name}
+                              onChange={(e) =>
+                                handleRenameSection(section.id, e.target.value)
+                              }
+                              className="w-full border p-1"
+                            />
+                          ) : (
+                            <h3 className="text-lg font-medium">{section.name}</h3>
+                          )}
+                          {isEditMode && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteSection(section.id)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <Separator className="my-2" />
+                        <div className="ml-4 space-y-2">
+                          {section.fields.map((field: FieldTemplate) => (
+                            <div key={field.id} className="flex items-center gap-2">
+                              {isEditMode ? (
+                                <Input
+                                  value={field.label || field.name || ""}
+                                  onChange={(e) =>
+                                    handleUpdateFieldName(field.id, e.target.value)
+                                  }
+                                  className="w-full border p-1"
+                                />
+                              ) : (
+                                <span className="text-sm font-medium">
+                                  {field.label || field.name}
+                                  {field.required && (
+                                    <span className="text-red-500 ml-1">*</span>
+                                  )}
+                                </span>
+                              )}
+                              {isEditMode && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleToggleRequired(field.id)}
+                                  className={`ml-2 ${field.required
+                                    ? "text-red-500"
+                                    : "text-green-500"
+                                    }`}
+                                >
+                                  {field.required ? "Required" : "Optional"}
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : isCollector ? (
+                <div className="flex overflow-x-auto gap-2 pb-2 mb-2">
+                  {projectSections
+                    .sort((a, b) => a.order - b.order)
                     .map((section, idx) => (
                       <button
                         key={section.id}
@@ -910,7 +1504,7 @@ const ProjectFormPage: React.FC = () => {
                           }`}
                       >
                         {section.name}
-                        {completedSections.includes(section.id) && (
+                        {localCompletedSections.includes(section.id) && (
                           <span className="ml-2 text-green-600 text-sm">✓</span>
                         )}
                       </button>
@@ -927,9 +1521,18 @@ const ProjectFormPage: React.FC = () => {
                   }}
                   className="space-y-4 mt-4"
                 >
+                  <Button
+                    variant="outline"
+                    onClick={clearStorage}
+                    className="mt-2"
+                  >
+                    Clear Storage
+                  </Button>
                   {(() => {
                     const section = projectSections[activeSectionIndex];
                     const sectionFields = getFieldsBySection(section.id);
+                    console.log("Current section:", section);
+                    console.log("Section fields:", sectionFields);
 
                     return (
                       <div className="mb-6">
@@ -943,6 +1546,76 @@ const ProjectFormPage: React.FC = () => {
                               // Check if this is a system field
                               const isSystem = isSystemField(field.name);
                               const isReadOnly = isSystem || isProjectInactive;
+
+                          {activeSectionIndex === 0 && (
+                            <>
+                              <div className="space-y-2">
+                                <label
+                                  htmlFor="userId"
+                                  className="text-sm font-medium flex items-center"
+                                >
+                                  User ID
+                                </label>
+                                <Input
+                                  id="userId"
+                                  value={formData["userId"] as string || ""}
+                                  readOnly
+                                  disabled
+                                  className="bg-gray-100"
+                                />
+                              </div>
+                              {(() => {
+                                const recordNoField = projectSections[0]?.fields.find(
+                                  (f) => f.name === "Record No."
+                                );
+                                console.log("Record No. field:", recordNoField);
+                                if (recordNoField) {
+                                  return (
+                                    <div className="space-y-2">
+                                      <label
+                                        htmlFor={recordNoField.id}
+                                        className="text-sm font-medium flex items-center"
+                                      >
+                                        Record No.
+                                        {recordNoField.required && (
+                                          <span className="text-red-500 ml-1">*</span>
+                                        )}
+                                      </label>
+                                      <Input
+                                        id={recordNoField.id}
+                                        value={formData[recordNoField.id] as string || ""}
+                                        onChange={(e) =>
+                                          handleInputChange(
+                                            recordNoField.id,
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder="Enter Record No."
+                                        disabled={isProjectInactive}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""
+                                          }`}
+                                      />
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </>
+                          )}
+                          {sectionFields.length > 0 ? (
+                            sectionFields.map((field: FieldTemplate) => {
+                              const recordNoField =
+                                activeSectionIndex === 0
+                                  ? projectSections[0]?.fields.find(
+                                    (f) => f.name === "Record No."
+                                  )
+                                  : null;
+                              if (
+                                field.name === "Record No." &&
+                                recordNoField &&
+                                formData[recordNoField.id] !== undefined
+                              )
+                                return null;
 
                               return (
                                 <div key={field.id} className="space-y-2">
@@ -967,9 +1640,10 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
-                                      disabled={isReadOnly}
-                                      readOnly={isSystem}
-                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
+                                      disabled={isProjectInactive}
+                                      className={`${isProjectInactive ? "bg-gray-100" : ""
+                                        }`}
                                     />
                                   )}
                                   {field.type === "textAndNumbers" && (
@@ -981,6 +1655,7 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
+
                                       disabled={isReadOnly}
                                       readOnly={isSystem}
                                       className={`${isReadOnly ? "bg-gray-100" : ""}`}
@@ -999,8 +1674,25 @@ const ProjectFormPage: React.FC = () => {
                                       disabled={isReadOnly}
                                       readOnly={isSystem}
                                       className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                     />
                                   )}
+                                  {(field.type === "number" ||
+                                    field.type === "numbers") && (
+                                      <Input
+                                        id={field.id}
+                                        type="number"
+                                        value={formData[field.id] as string || ""}
+                                        onChange={(e) =>
+                                          handleInputChange(field.id, e.target.value)
+                                        }
+                                        placeholder={field.placeholder || "Enter a number"}
+                                        required={field.required}
+                                        disabled={isProjectInactive}
+                                        className={`${isProjectInactive ? "bg-gray-100" : ""
+                                          }`}
+                                      />
+                                    )}
                                   {field.type === "textarea" && (
                                     <Textarea
                                       id={field.id}
@@ -1010,9 +1702,11 @@ const ProjectFormPage: React.FC = () => {
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
+
                                       disabled={isReadOnly}
                                       readOnly={isSystem}
                                       className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                     />
                                   )}
                                   {field.type === "definedList" && (
@@ -1025,7 +1719,9 @@ const ProjectFormPage: React.FC = () => {
                                     >
                                       <SelectTrigger
                                         id={field.id}
+
                                         className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                       >
                                         <SelectValue
                                           placeholder={
@@ -1105,81 +1801,7 @@ const ProjectFormPage: React.FC = () => {
                                         <Upload className="h-4 w-4" />
                                         <span>Upload</span>
                                       </Button>
-                                    </div>
-                                  )}
-                                  {field.type === "date" && (
-                                    <Input
-                                      id={field.id}
-                                      type="date"
-                                      value={formData[field.id] as string || ""}
-                                      onChange={(e) =>
-                                        handleInputChange(field.id, e.target.value)
-                                      }
-                                      required={field.required}
-                                      disabled={isReadOnly}
-                                      readOnly={isSystem}
-                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
-                                    />
-                                  )}
-                                  {field.type === "dateTime" && (
-                                    <Input
-                                      id={field.id}
-                                      type="datetime-local"
-                                      value={formData[field.id] as string || ""}
-                                      onChange={(e) =>
-                                        handleInputChange(field.id, e.target.value)
-                                      }
-                                      required={field.required}
-                                      disabled={isReadOnly}
-                                      readOnly={isSystem}
-                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
-                                    />
-                                  )}
-                                  {field.type === "checkbox" && (
-                                    <div className="flex items-center space-x-2">
-                                      <Checkbox
-                                        id={field.id}
-                                        checked={formData[field.id] as boolean || false}
-                                        onCheckedChange={(checked) =>
-                                          handleInputChange(field.id, checked)
-                                        }
-                                        disabled={isReadOnly}
-                                      />
-                                      <label
-                                        htmlFor={field.id}
-                                        className="text-sm text-muted-foreground"
-                                      >
-                                        {field.label || field.name}
-                                      </label>
-                                    </div>
-                                  )}
-                                  {field.type === "multipleChoice" && (
-                                    <div className="space-y-2">
-                                      {field.options?.map((option: string) => (
-                                        <div key={option} className="flex items-center space-x-2">
-                                          <Checkbox
-                                            id={`${field.id}-${option}`}
-                                            checked={(formData[field.id] as string[] || []).includes(option)}
-                                            onCheckedChange={(checked) => {
-                                              const currentValues = formData[field.id] as string[] || [];
-                                              const newValues = checked
-                                                ? [...currentValues, option]
-                                                : currentValues.filter((val) => val !== option);
-                                              handleInputChange(field.id, newValues);
-                                            }}
-                                            disabled={isReadOnly}
-                                          />
-                                          <label
-                                            htmlFor={`${field.id}-${option}`}
-                                            className="text-sm text-muted-foreground"
-                                          >
-                                            {option}
-                                          </label>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {field.type === "qrBarcode" && (
+
                                     <div className="space-y-2">
                                       <div className="flex items-center space-x-2">
                                         <Input
@@ -1194,6 +1816,199 @@ const ProjectFormPage: React.FC = () => {
                                             )
                                           }
                                           required={field.required}
+                                          disabled={isProjectInactive}
+                                          className={`${isProjectInactive ? "bg-gray-100" : ""
+                                            } hidden`}
+                                        />
+                                        <Button
+                                          type="button"
+                                          onClick={() =>
+                                            document.getElementById(field.id)?.click()
+                                          }
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
+                                        >
+                                          <Camera className="h-4 w-4" />
+                                          <span>Capture</span>
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          onClick={() =>
+                                            document.getElementById(field.id)?.click()
+                                          }
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
+                                        >
+                                          <Upload className="h-4 w-4" />
+                                          <span>Upload</span>
+                                        </Button>
+                                        {formData[field.id] && (
+                                          <Button
+                                            type="button"
+                                            onClick={() => handleInputChange(field.id, null)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center space-x-2 text-red-500"
+                                            disabled={isProjectInactive}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                            <span>Clear</span>
+                                          </Button>
+                                        )}
+                                      </div>
+                                      {imagePreviews[field.id] && (
+                                        <div className="mt-2">
+                                          <img
+                                            src={imagePreviews[field.id]!}
+                                            alt="Preview"
+                                            className="max-w-full h-auto rounded-md"
+                                            style={{ maxHeight: "200px" }}
+                                          />
+                                        </div>
+                                      )}
+
+                                    </div>
+                                  )}
+                                  {field.type === "date" && (
+                                    <Input
+                                      id={field.id}
+                                      type="date"
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      required={field.required}
+
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
+                                    />
+                                  )}
+                                  {field.type === "dateTime" && (
+                                    <Input
+                                      id={field.id}
+                                      type="datetime-local"
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      required={field.required}
+
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
+                                    />
+                                  )}
+                                  {field.type === "checkbox" && (
+                                    <div className="flex items-center space-x-1">
+                                      <Checkbox
+                                        id={field.id}
+                                        checked={formData[field.id] as boolean || false}
+                                        onCheckedChange={(checked) =>
+                                          handleInputChange(field.id, checked)
+                                        }
+                                        disabled={isReadOnly}
+                                      />
+                                      <label
+                                        htmlFor={field.id}
+                                        className="text-xs text-muted-foreground"
+                                      >
+                                        {field.label || field.name}
+                                      </label>
+                                    </div>
+                                  )}
+                                  {field.type === "multipleChoice" && (
+                                    <div className="space-y-1">
+                                      {field.options?.map((option: string) => (
+                                        <div
+                                          key={option}
+                                          className="flex items-center space-x-1"
+                                        >
+                                          <Checkbox
+                                            id={`${field.id}-${option}`}
+                                            checked={
+                                              (formData[field.id] as string[] || []).includes(
+                                                option
+                                              )
+                                            }
+                                            onCheckedChange={(checked) => {
+                                              const currentValues =
+                                                formData[field.id] as string[] || [];
+                                              const newValues = checked
+                                                ? [...currentValues, option]
+                                                : currentValues.filter(
+                                                  (val) => val !== option
+                                                );
+                                              handleInputChange(field.id, newValues);
+                                            }}
+                                            disabled={isReadOnly}
+                                          />
+                                          <label
+                                            htmlFor={`${field.id}-${option}`}
+                                            className="text-xs text-muted-foreground"
+                                          >
+                                            {option}
+                                          </label>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {field.type === "qrBarcode" && (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center space-x-2">
+                                        <Input
+
+                                          id={`${field.id}-text`}
+                                          value={
+                                            typeof formData[field.id] === "string"
+                                              ? (formData[field.id] as string)
+                                              : ""
+                                          }
+                                          onChange={(e) =>
+                                            handleInputChange(field.id, e.target.value)
+                                          }
+                                          placeholder={
+                                            field.barcodeType === "qr"
+                                              ? "Enter or scan QR code value"
+                                              : "Enter or scan barcode value"
+                                          }
+                                          disabled={isProjectInactive}
+                                          className={`${isProjectInactive ? "bg-gray-100" : ""
+                                            }`}
+                                        />
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Button
+                                          type="button"
+                                          onClick={() => handleScanQRBarcode(field.id)}
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
+                                        >
+                                          <ScanLine className="h-4 w-4" />
+                                          <span>Scan</span>
+                                        </Button>
+                                        <Input
+                                          id={`${field.id}-image`}
+
+                                          type="file"
+                                          accept="image/*"
+                                          capture="environment"
+                                          onChange={(e) =>
+                                            handleInputChange(
+                                              field.id,
+                                              e.target.files?.[0] || null
+                                            )
+                                          }
+                                          required={field.required}
+
                                           disabled={isReadOnly}
                                           className={`${isReadOnly ? "bg-gray-100" : ""} hidden`}
                                         />
@@ -1204,21 +2019,37 @@ const ProjectFormPage: React.FC = () => {
                                           size="sm"
                                           className="flex items-center space-x-2"
                                           disabled={isReadOnly}
+
                                         >
                                           <Camera className="h-4 w-4" />
                                           <span>Capture</span>
                                         </Button>
                                         <Button
                                           type="button"
+
                                           onClick={() => document.getElementById(field.id)?.click()}
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
                                           disabled={isReadOnly}
+
                                         >
                                           <Upload className="h-4 w-4" />
                                           <span>Upload</span>
                                         </Button>
+                                        {formData[field.id] && (
+                                          <Button
+                                            type="button"
+                                            onClick={() => handleInputChange(field.id, null)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center space-x-2 text-red-500"
+                                            disabled={isProjectInactive}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                            <span>Clear</span>
+                                          </Button>
+                                        )}
                                       </div>
                                       <Input
                                         placeholder="Or enter QR/Barcode manually"
@@ -1229,6 +2060,18 @@ const ProjectFormPage: React.FC = () => {
                                         disabled={isReadOnly}
                                         className={`${isReadOnly ? "bg-gray-100" : ""}`}
                                       />
+
+                                      {imagePreviews[field.id] && (
+                                        <div className="mt-2">
+                                          <img
+                                            src={imagePreviews[field.id]!}
+                                            alt="Preview"
+                                            className="max-w-full h-auto rounded-md"
+                                            style={{ maxHeight: "200px" }}
+                                          />
+                                        </div>
+                                      )}
+
                                     </div>
                                   )}
                                 </div>
@@ -1237,6 +2080,7 @@ const ProjectFormPage: React.FC = () => {
                           ) : (
                             <p className="text-center text-muted-foreground">
                               No fields in this section.
+
                             </p>
                           )}
                         </div>
@@ -1248,7 +2092,11 @@ const ProjectFormPage: React.FC = () => {
                     projectSections[activeSectionIndex].id
                   ) && (
                       <div className="flex justify-end">
-                        <Button type="submit" className="w-full sm:w-auto" disabled={isProjectInactive}>
+                        <Button
+                          type="submit"
+                          className="w-full sm:w-auto"
+                          disabled={isProjectInactive}
+                        >
                           Submit Section
                         </Button>
                       </div>
@@ -1262,6 +2110,7 @@ const ProjectFormPage: React.FC = () => {
                   </Button>
                 </div>
               )}
+
             </CardContent>
           </Card>
         </TabsContent>
@@ -1285,10 +2134,15 @@ const ProjectFormPage: React.FC = () => {
                 <div className="overflow-auto">
                   <div className="space-y-4">
                     {projectRecords.map((record, index) => (
-                      <Card key={record.id || index} className="border">
+                      <Card
+                        key={record.id || index}
+                        className="border"
+                      >
                         <div
                           className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50"
-                          onClick={() => handleToggleRowExpand(record.id || `record_${index}`)}
+                          onClick={() =>
+                            handleToggleRowExpand(record.id || `record_${index}`)
+                          }
                         >
                           <div>
                             <p className="font-medium text-sm">
@@ -1301,7 +2155,9 @@ const ProjectFormPage: React.FC = () => {
                             size="icon"
                             className="h-8 w-8"
                           >
-                            {expandedRows.includes(record.id || `record_${index}`) ? (
+                            {expandedRows.includes(
+                              record.id || `record_${index}`
+                            ) ? (
                               <ChevronUp className="h-4 w-4" />
                             ) : (
                               <ChevronDown className="h-4 w-4" />
@@ -1311,6 +2167,7 @@ const ProjectFormPage: React.FC = () => {
                         {expandedRows.includes(record.id || `record_${index}`) && (
                           <CardContent className="pt-0 border-t">
                             <div className="space-y-2">
+
                               {projectSections.flatMap(s => s.fields).map((field: any) => (
                                 <div
                                   key={field.id}
@@ -1333,9 +2190,60 @@ const ProjectFormPage: React.FC = () => {
                                             : field.type === "checkbox"
                                               ? record.data[field.id] ? "Yes" : "No"
                                               : record.data[field.id] || "-"}
-                                  </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="font-medium text-muted-foreground">
+                                  User ID:
                                 </div>
-                              ))}
+                                <div>{record.data?.userId || "-"}</div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="font-medium text-muted-foreground">
+                                  Record No.:
+                                </div>
+                                <div>{record.data?.recordNo || "-"}</div>
+                              </div>
+                              {projectSections
+                                .flatMap((s) => s.fields)
+                                .map((field: any) => (
+                                  <div
+                                    key={field.id}
+                                    className="grid grid-cols-2 gap-2 text-sm"
+                                  >
+                                    <div className="font-medium text-muted-foreground">
+                                      {field.label || field.name}:
+                                    </div>
+                                    <div>
+                                      {field.type === "location" ||
+                                        field.type === "coordinates"
+                                        ? formatLocationForDisplay(
+                                          record.data[field.id] || ""
+                                        )
+                                        : (field.type === "image" ||
+                                          field.type === "qrBarcode") &&
+                                          typeof record.data[field.id] ===
+                                          "string" &&
+                                          record.data[field.id].startsWith(
+                                            "data:image/"
+                                          )
+                                          ? (
+                                            <img
+                                              src={record.data[field.id]}
+                                              alt="Uploaded"
+                                              style={{ maxWidth: "100px" }}
+                                            />
+                                          )
+                                          : field.type === "multipleChoice" &&
+                                            Array.isArray(record.data[field.id])
+                                            ? record.data[field.id].join(", ")
+                                            : field.type === "checkbox"
+                                              ? record.data[field.id]
+                                                ? "Yes"
+                                                : "No"
+                                              : record.data[field.id] || "-"}
+                                    </div>
+                                  </div>
+                                ))}
                             </div>
                           </CardContent>
                         )}
@@ -1389,10 +2297,7 @@ const ProjectFormPage: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      <AlertDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-      >
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

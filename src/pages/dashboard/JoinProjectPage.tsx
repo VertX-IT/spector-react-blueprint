@@ -2,9 +2,11 @@ import React from 'react';
 import { JoinProjectForm } from '@/components/dashboard/JoinProjectForm';
 import { BackButton } from '@/components/ui/back-button';
 
+
 const JoinProjectPage: React.FC = () => {
   return (
     <>
+
       <div className="mb-4 px-1">
         {/* Back Button */}
         <div className="mb-3">

@@ -317,13 +317,17 @@ export const getProjectById = async (projectId: string) => {
 };
 
 // Submit form data for a project
+// Submit form data for a project
 export const submitFormData = async (projectId: string, data: Record<string, any>, userId: string) => {
   try {
     console.log('Submitting form data for project:', projectId);
     
+    // Sanitize the data to remove undefined values and ensure Firestore compatibility
+    const sanitizedData = sanitizeData(data);
+
     const recordData: Omit<ProjectRecord, 'id'> = {
       projectId,
-      data,
+      data: sanitizedData,
       createdAt: new Date().toISOString(),
       createdBy: userId || 'anonymous',
     };

@@ -691,8 +691,8 @@ const FormBuilderPage: React.FC = () => {
               <div
                 key={i}
                 className={`flex flex-col ${isMobile ? "p-2" : "p-3"} border rounded-md ${editingFieldIndex === i && !isMobile
-                    ? "border-brand-green bg-gray-50"
-                    : ""
+                  ? "border-brand-green bg-gray-50"
+                  : ""
                   }`}
               >
                 {editingFieldIndex === i && !isMobile ? (

@@ -31,6 +31,7 @@ export const SignInForm: React.FC = () => {
 
   const onSubmit = async (values: SignInFormValues) => {
     try {
+      console.log("Sign In ")
       await signIn(values.email, values.password);
       navigate('/dashboard');
     } catch (error: any) {

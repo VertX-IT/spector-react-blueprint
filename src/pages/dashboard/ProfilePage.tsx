@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress';
 import { uploadProfilePicture, validateImageFile, compressImageProgressive, deleteProfilePicture } from '@/lib/profileOperations';
 import { BackButton } from '@/components/ui/back-button';
 
+
 // Define the profile form schema
 const profileFormSchema = z.object({
   displayName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -52,7 +53,7 @@ const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editDialogFileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Setup form
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -62,7 +63,7 @@ const ProfilePage: React.FC = () => {
       phoneNumber: userData?.phoneNumber || '',
     },
   });
-  
+
   // Setup password form
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -272,6 +273,7 @@ const ProfilePage: React.FC = () => {
     setIsEditDialogOpen(false);
   };
   
+
   // Handle profile update
   const onSubmit = async (data: ProfileFormValues) => {
     try {
@@ -300,7 +302,7 @@ const ProfilePage: React.FC = () => {
       // Error handling is done in the auth context
     }
   };
-  
+
   // Handle logout
   const handleLogout = async () => {
     try {
@@ -336,9 +338,10 @@ const ProfilePage: React.FC = () => {
         <h1 className="text-xl font-bold tracking-tight">Profile Settings</h1>
         <p className="text-sm text-muted-foreground">
           Manage your account information and preferences
+
         </p>
       </div>
-      
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -433,6 +436,7 @@ const ProfilePage: React.FC = () => {
               )}
             </div>
             
+
             <div className="text-center">
               <p className="text-xl font-semibold">{userData?.displayName}</p>
               <p className="text-muted-foreground">{userData?.email}</p>
@@ -442,7 +446,7 @@ const ProfilePage: React.FC = () => {
                 </Badge>
               </div>
             </div>
-            
+
             <div className="text-sm text-muted-foreground w-full max-w-xs">
               <div className="flex justify-between py-2 border-b">
                 <span>Phone Number</span>
@@ -454,10 +458,7 @@ const ProfilePage: React.FC = () => {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
           </CardFooter>
         </Card>
-        
-        
-        
-        {/* Account Actions Card */}
+
         <Card>
           <CardHeader>
             <CardTitle>Account Actions</CardTitle>
@@ -491,8 +492,8 @@ const ProfilePage: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 Last changed: Never
               </p>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full"
                 onClick={() => setIsPasswordDialogOpen(true)}
               >
@@ -500,13 +501,14 @@ const ProfilePage: React.FC = () => {
                 Change Password
               </Button>
             </div>
-            
+
             <div className="pt-4 border-t">
               <p className="font-medium mb-2">Danger Zone</p>
               <Button variant="destructive" className="w-full">Delete Account</Button>
             </div>
           </CardContent>
         </Card>
+
 
       {/* Edit Profile Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
@@ -556,7 +558,96 @@ const ProfilePage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={handleEditDialogProfilePictureClick}
-                disabled={isUploading}
+
+        {/* Pricing Plans Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              <span>Pricing Plans</span>
+            </CardTitle>
+            <CardDescription>
+              Upgrade your plan to unlock more features
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <Tabs defaultValue="basic">
+              <TabsList className="grid grid-cols-3 mb-4">
+                <TabsTrigger value="basic">Basic</TabsTrigger>
+                <TabsTrigger value="standard">Standard</TabsTrigger>
+                <TabsTrigger value="premium">Premium</TabsTrigger>
+              </TabsList>
+              <TabsContent value="basic" className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-lg font-semibold">Basic Plan</h4>
+                  <Badge>Current</Badge>
+                </div>
+                <p className="text-xl font-bold">$0 <span className="text-sm font-normal text-muted-foreground">/ month</span></p>
+                <ul className="space-y-2 mt-4">
+                  <li className="flex items-center text-sm">✓ 100MB Database Storage</li>
+                  <li className="flex items-center text-sm">✓ 500MB File Storage</li>
+                  <li className="flex items-center text-sm">✓ 100 form responses/month</li>
+                  <li className="flex items-center text-sm">✓ Basic Analytics</li>
+                </ul>
+              </TabsContent>
+              <TabsContent value="standard" className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-lg font-semibold">Standard Plan</h4>
+                </div>
+                <p className="text-xl font-bold">$9.99 <span className="text-sm font-normal text-muted-foreground">/ month</span></p>
+                <ul className="space-y-2 mt-4">
+                  <li className="flex items-center text-sm">✓ 1GB Database Storage</li>
+                  <li className="flex items-center text-sm">✓ 5GB File Storage</li>
+                  <li className="flex items-center text-sm">✓ 1,000 form responses/month</li>
+                  <li className="flex items-center text-sm">✓ Advanced Analytics</li>
+                  <li className="flex items-center text-sm">✓ Custom Branding</li>
+                </ul>
+                <Button className="w-full mt-4">Upgrade to Standard</Button>
+              </TabsContent>
+              <TabsContent value="premium" className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-lg font-semibold">Premium Plan</h4>
+                </div>
+                <p className="text-xl font-bold">$29.99 <span className="text-sm font-normal text-muted-foreground">/ month</span></p>
+                <ul className="space-y-2 mt-4">
+                  <li className="flex items-center text-sm">✓ 10GB Database Storage</li>
+                  <li className="flex items-center text-sm">✓ 50GB File Storage</li>
+                  <li className="flex items-center text-sm">✓ Unlimited form responses</li>
+                  <li className="flex items-center text-sm">✓ Premium Analytics</li>
+                  <li className="flex items-center text-sm">✓ Custom Branding</li>
+                  <li className="flex items-center text-sm">✓ Priority Support</li>
+                </ul>
+                <Button className="w-full mt-4">Upgrade to Premium</Button>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Logout Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5" />
+              <span>Session</span>
+            </CardTitle>
+            <CardDescription>
+              Manage your current session
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between py-2 border-b">
+                <span className="text-sm">Last Login</span>
+                <span className="text-sm font-medium">Today at 09:30 AM</span>
+              </div>
+              <div className="flex justify-between py-2 border-b">
+                <span className="text-sm">Session Type</span>
+                <span className="text-sm font-medium">Web Browser</span>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full mt-4 border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
+                onClick={handleLogout}
               >
                 {isUploading ? (
                   <>
@@ -587,8 +678,23 @@ const ProfilePage: React.FC = () => {
                 </p>
               )}
             </div>
+
           </div>
           
+
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>
+              Make changes to your profile here. Click save when you're done.
+            </DialogDescription>
+          </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -604,6 +710,22 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+
               <FormField
                 control={form.control}
                 name="phoneNumber"
@@ -617,6 +739,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={handleEditDialogClose}>
                   Cancel
@@ -652,6 +775,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={passwordForm.control}
                 name="newPassword"
@@ -665,6 +789,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={passwordForm.control}
                 name="confirmPassword"
@@ -678,6 +803,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
                   Cancel
