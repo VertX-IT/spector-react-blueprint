@@ -31,6 +31,7 @@ import {
   Edit,
   Camera,
   Upload,
+  ScanLine,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -60,6 +61,7 @@ import { Capacitor } from "@capacitor/core";
 import lz from "lz-string";
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import InlineBackButton from "@/components/ui/CustomButton";
+import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
 
 interface Section {
   id: string;
@@ -144,14 +146,14 @@ const ProjectFormPage: React.FC = () => {
   // Check for duplicate field IDs to ensure unique image previews
   useEffect(() => {
     const imageFields = sections.flatMap((section) =>
-      section.fields.filter((field) => field.type === "image")
+      section.fields.filter((field) => field.type === "image" || field.type === "qrBarcode")
     );
     const duplicateIds = imageFields.filter(
       (field, index, self) =>
         self.findIndex((f) => f.id === field.id) !== index
     );
     if (duplicateIds.length > 0) {
-      console.warn("Duplicate field IDs for image fields detected:", duplicateIds);
+      console.warn("Duplicate field IDs for image or qrBarcode fields detected:", duplicateIds);
     }
   }, [sections]);
 
@@ -422,13 +424,13 @@ const ProjectFormPage: React.FC = () => {
       }));
     } else if (value === null) {
       const oldUrl = imagePreviews[fieldId];
-      if (oldUrl) {
-        URL.revokeObjectURL(oldUrl);
-      }
-      setImagePreviews((prev) => ({
-        ...prev,
-        [fieldId]: null,
-      }));
+if (oldUrl) {
+  URL.revokeObjectURL(oldUrl);
+}
+setImagePreviews((prev) => ({
+  ...prev,
+  [fieldId]: null,
+}));
     }
   };
 
@@ -525,6 +527,81 @@ const ProjectFormPage: React.FC = () => {
       title: "Success",
       description: "Storage cleared. Please try submitting again.",
     });
+  };
+
+  const checkCameraPermission = async () => {
+    try {
+      const permissionStatus = await BarcodeScanner.checkPermission({ force: false });
+      if (permissionStatus.granted) {
+        return true;
+      }
+      const result = await BarcodeScanner.checkPermission({ force: true });
+      if (result.granted) {
+        return true;
+      }
+      toast({
+        variant: "destructive",
+        title: "Permission Denied",
+        description: "Camera permission is required to scan QR codes or barcodes.",
+      });
+      return false;
+    } catch (error: any) {
+      console.error("Error checking camera permission:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to check camera permission.",
+      });
+      return false;
+    }
+  };
+
+  const handleScanQRBarcode = async (fieldId: string) => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Barcode scanning is only available on mobile devices.",
+      });
+      return;
+    }
+
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) return;
+
+    try {
+      await BarcodeScanner.hideBackground();
+      document.body.classList.add("scanner-active");
+
+      const result = await BarcodeScanner.startScan();
+      document.body.classList.remove("scanner-active");
+      await BarcodeScanner.showBackground();
+
+      if (result.hasContent) {
+        console.log("Scanned content:", result.content);
+        handleInputChange(fieldId, result.content);
+        toast({
+          title: "Scan Successful",
+          description: `Scanned value: ${result.content}`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "No Data Scanned",
+          description: "No QR code or barcode data was detected.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error scanning QR/Barcode:", error);
+      toast({
+        variant: "destructive",
+        title: "Scan Error",
+        description: "Failed to scan QR code or barcode.",
+      });
+    } finally {
+      document.body.classList.remove("scanner-active");
+      await BarcodeScanner.showBackground();
+    }
   };
 
   const handleSectionSubmit = async (sectionId: string, sectionFields: FieldTemplate[]) => {
@@ -1424,8 +1501,6 @@ const ProjectFormPage: React.FC = () => {
                                   {field.type === "textarea" && (
                                     <Textarea
                                       id={field.id}
-
-
                                       value={formData[field.id] as string || ""}
                                       onChange={(e) =>
                                         handleInputChange(field.id, e.target.value)
@@ -1657,8 +1732,8 @@ const ProjectFormPage: React.FC = () => {
                                           }
                                           placeholder={
                                             field.barcodeType === "qr"
-                                              ? "Enter QR Code value"
-                                              : "Enter Barcode value"
+                                              ? "Enter or scan QR code value"
+                                              : "Enter or scan barcode value"
                                           }
                                           disabled={isProjectInactive}
                                           className={`${isProjectInactive ? "bg-gray-100" : ""
@@ -1666,6 +1741,17 @@ const ProjectFormPage: React.FC = () => {
                                         />
                                       </div>
                                       <div className="flex items-center space-x-2">
+                                        <Button
+                                          type="button"
+                                          onClick={() => handleScanQRBarcode(field.id)}
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
+                                        >
+                                          <ScanLine className="h-4 w-4" />
+                                          <span>Scan</span>
+                                        </Button>
                                         <Input
                                           id={`${field.id}-image`}
                                           type="file"
@@ -1690,6 +1776,7 @@ const ProjectFormPage: React.FC = () => {
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
                                         >
                                           <Camera className="h-4 w-4" />
                                           <span>Capture</span>
@@ -1702,11 +1789,35 @@ const ProjectFormPage: React.FC = () => {
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
+                                          disabled={isProjectInactive}
                                         >
                                           <Upload className="h-4 w-4" />
                                           <span>Upload</span>
                                         </Button>
+                                        {formData[field.id] && (
+                                          <Button
+                                            type="button"
+                                            onClick={() => handleInputChange(field.id, null)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center space-x-2 text-red-500"
+                                            disabled={isProjectInactive}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                            <span>Clear</span>
+                                          </Button>
+                                        )}
                                       </div>
+                                      {imagePreviews[field.id] && (
+                                        <div className="mt-2">
+                                          <img
+                                            src={imagePreviews[field.id]!}
+                                            alt="Preview"
+                                            className="max-w-full h-auto rounded-md"
+                                            style={{ maxHeight: "200px" }}
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
