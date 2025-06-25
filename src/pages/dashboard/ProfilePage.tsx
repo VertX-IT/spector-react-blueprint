@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -13,11 +11,14 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/components/ui/use-toast';
-import { LogOut, Database, CreditCard, Lock } from 'lucide-react';
+import { LogOut, Database, CreditCard, Lock, Camera, Upload, X, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
-import InlineBackButton from '@/components/ui/CustomButton';
+import { Progress } from '@/components/ui/progress';
+import { uploadProfilePicture, validateImageFile, compressImageProgressive, deleteProfilePicture } from '@/lib/profileOperations';
+import { BackButton } from '@/components/ui/back-button';
+
 
 // Define the profile form schema
 const profileFormSchema = z.object({
@@ -41,11 +42,17 @@ const passwordFormSchema = z.object({
 type PasswordFormValues = z.infer<typeof passwordFormSchema>;
 
 const ProfilePage: React.FC = () => {
-  const { userData, logOut, currentUser, changePassword } = useAuth();
+  const { userData, logOut, currentUser, changePassword, updateUserData } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [localProfilePicture, setLocalProfilePicture] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editDialogFileInputRef = useRef<HTMLInputElement>(null);
 
   // Setup form
   const form = useForm<ProfileFormValues>({
@@ -67,16 +74,214 @@ const ProfilePage: React.FC = () => {
     },
   });
 
+  // Handle profile picture upload from main page with progress tracking
+  const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      // Validate file
+      const validation = validateImageFile(file);
+      if (!validation.isValid) {
+        toast({
+          title: "Invalid file",
+          description: validation.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Show compression feedback
+      toast({
+        title: "Processing image",
+        description: "Compressing and optimizing your image...",
+      });
+
+      // Use progressive compression for better results
+      const compressedFile = await compressImageProgressive(file);
+
+      // Show upload feedback
+      toast({
+        title: "Uploading",
+        description: "Uploading to cloud storage...",
+      });
+
+      // Upload to Firebase with progress tracking
+      const downloadURL = await uploadProfilePicture(
+        compressedFile, 
+        currentUser.uid,
+        (progress) => {
+          setUploadProgress(progress);
+        }
+      );
+
+      // Update user data in context
+      await updateUserData({
+        profilePictureURL: downloadURL,
+        profilePictureUpdatedAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: "Profile picture updated",
+        description: "Your profile picture has been uploaded successfully",
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload profile picture",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle profile picture upload from edit dialog with immediate preview and progress
+  const handleEditDialogImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    try {
+      // Validate file
+      const validation = validateImageFile(file);
+      if (!validation.isValid) {
+        toast({
+          title: "Invalid file",
+          description: validation.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create immediate local preview
+      const localURL = URL.createObjectURL(file);
+      setLocalProfilePicture(localURL);
+
+      // Show immediate feedback
+      toast({
+        title: "Image selected",
+        description: "Processing and uploading...",
+      });
+
+      // Use progressive compression for better results
+      const compressedFile = await compressImageProgressive(file);
+      
+      // Upload to Firebase in background with progress tracking
+      uploadProfilePicture(
+        compressedFile, 
+        currentUser.uid,
+        (progress) => {
+          setUploadProgress(progress);
+        }
+      )
+        .then(async (downloadURL) => {
+          // Update user data in context
+          await updateUserData({
+            profilePictureURL: downloadURL,
+            profilePictureUpdatedAt: new Date().toISOString(),
+          });
+
+          // Clear local preview and use Firebase URL
+          setLocalProfilePicture(null);
+          setUploadProgress(0);
+          
+          toast({
+            title: "Profile picture uploaded",
+            description: "Your profile picture has been saved to cloud storage",
+          });
+        })
+        .catch((error) => {
+          // Revert local preview on error
+          setLocalProfilePicture(null);
+          setUploadProgress(0);
+          toast({
+            title: "Upload failed",
+            description: "Failed to upload to cloud storage. Please try again.",
+            variant: "destructive",
+          });
+        });
+
+    } catch (error: any) {
+      toast({
+        title: "Error processing image",
+        description: error.message || "Failed to process image",
+        variant: "destructive",
+      });
+    } finally {
+      // Reset file input
+      if (editDialogFileInputRef.current) {
+        editDialogFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle profile picture removal
+  const handleRemoveProfilePicture = async () => {
+    if (!currentUser) return;
+
+    try {
+      setIsRemoving(true);
+      await deleteProfilePicture(currentUser.uid, userData?.profilePictureURL || undefined);
+      
+      // Update user data in context
+      await updateUserData({
+        profilePictureURL: null,
+        profilePictureUpdatedAt: new Date().toISOString(),
+      });
+
+      // Clear local preview
+      setLocalProfilePicture(null);
+
+      toast({
+        title: "Profile picture removed",
+        description: "Your profile picture has been removed",
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Removal failed",
+        description: error.message || "Failed to remove profile picture",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  // Handle profile picture click
+  const handleProfilePictureClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Handle edit dialog profile picture click
+  const handleEditDialogProfilePictureClick = () => {
+    editDialogFileInputRef.current?.click();
+  };
+
+  // Reset local preview when dialog closes
+  const handleEditDialogClose = () => {
+    setLocalProfilePicture(null);
+    setIsEditDialogOpen(false);
+  };
+  
+
   // Handle profile update
   const onSubmit = async (data: ProfileFormValues) => {
     try {
-      // In a real app, you would update the user profile in Firebase here
-      // For now, we'll just show a success message
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully",
+      await updateUserData({
+        displayName: data.displayName,
+        phoneNumber: data.phoneNumber,
       });
-      setIsEditDialogOpen(false);
+      handleEditDialogClose();
     } catch (error: any) {
       toast({
         title: "Error updating profile",
@@ -112,13 +317,28 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  // Get current profile picture URL (local or Firebase)
+  const getCurrentProfilePicture = () => {
+    return localProfilePicture || userData?.profilePictureURL || "";
+  };
+  
   return (
-    <>
-      <div className="mb-6">
-        <InlineBackButton path="/dashboard/my-projects" />
-        <h1 className="text-2xl font-bold tracking-tight mt-2">Profile</h1>
-        <p className="text-muted-foreground">
-          Manage your account settings and preferences
+    <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="mb-4 px-1">
+        <div className="mb-3">
+          <BackButton 
+            to="/dashboard"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
+        <h1 className="text-xl font-bold tracking-tight">Profile Settings</h1>
+        <p className="text-sm text-muted-foreground">
+          Manage your account information and preferences
+
         </p>
       </div>
 
@@ -131,10 +351,91 @@ const ProfilePage: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4 pt-2">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src="" alt={userData?.displayName || "User"} />
-              <AvatarFallback className="text-3xl">{userData?.displayName?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
-            </Avatar>
+            {/* Hidden file input for main page */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleProfilePictureUpload}
+              className="hidden"
+            />
+            
+            {/* Profile Picture */}
+            <div className="relative group">
+              <Avatar 
+                className="h-24 w-24 cursor-pointer transition-all duration-200 group-hover:opacity-80"
+                onClick={handleProfilePictureClick}
+              >
+                <AvatarImage 
+                  src={getCurrentProfilePicture()} 
+                  alt={userData?.displayName || "User"} 
+                />
+                <AvatarFallback className="text-3xl">
+                  {userData?.displayName?.charAt(0).toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              
+              {/* Upload overlay */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="bg-black/50 rounded-full p-2">
+                  <Camera className="h-6 w-6 text-white" />
+                </div>
+              </div>
+              
+              {/* Loading indicator */}
+              {(isUploading || isRemoving) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                </div>
+              )}
+            </div>
+            
+            {/* Profile Picture Actions */}
+            <div className="flex flex-col gap-2 w-full">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleProfilePictureClick}
+                  disabled={isUploading || isRemoving}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-1" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+                
+                {userData?.profilePictureURL && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveProfilePicture}
+                    disabled={isUploading || isRemoving}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    {isRemoving ? "Removing..." : "Remove"}
+                  </Button>
+                )}
+              </div>
+              
+              {/* Progress bar for upload */}
+              {isUploading && uploadProgress > 0 && (
+                <div className="space-y-1">
+                  <Progress value={uploadProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    {Math.round(uploadProgress)}% uploaded
+                  </p>
+                </div>
+              )}
+            </div>
+            
 
             <div className="text-center">
               <p className="text-xl font-semibold">{userData?.displayName}</p>
@@ -159,6 +460,26 @@ const ProfilePage: React.FC = () => {
         </Card>
 
         <Card>
+          <CardHeader>
+            <CardTitle>Account Actions</CardTitle>
+            <CardDescription>
+              Manage your account and data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={handleLogout}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="mt-6">
           <CardHeader>
             <CardTitle>Account Security</CardTitle>
             <CardDescription>
@@ -188,43 +509,55 @@ const ProfilePage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Storage Usage Card */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="space-y-1">
-              <CardTitle>Storage Usage</CardTitle>
-              <CardDescription>Your current database storage usage</CardDescription>
-            </div>
-            <Database className="h-6 w-6 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Database storage</span>
-                  <span className="text-sm font-medium">20MB / 100MB</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                  <div className="h-full w-[20%] rounded-full bg-primary" />
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>
+              Update your personal information and profile picture
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Hidden file input for edit dialog */}
+          <input
+            ref={editDialogFileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleEditDialogImageUpload}
+            className="hidden"
+          />
+          
+          {/* Profile Picture Section in Dialog */}
+          <div className="flex flex-col items-center gap-4 py-4 border-b">
+            <div className="relative group">
+              <Avatar 
+                className="h-20 w-20 cursor-pointer transition-all duration-200 group-hover:opacity-80"
+                onClick={handleEditDialogProfilePictureClick}
+              >
+                <AvatarImage 
+                  src={getCurrentProfilePicture()} 
+                  alt={userData?.displayName || "User"} 
+                />
+                <AvatarFallback className="text-2xl">
+                  {userData?.displayName?.charAt(0).toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              
+              {/* Upload overlay */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="bg-black/50 rounded-full p-2">
+                  <Camera className="h-5 w-5 text-white" />
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">File storage</span>
-                  <span className="text-sm font-medium">150MB / 500MB</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                  <div className="h-full w-[30%] rounded-full bg-primary" />
-                </div>
-              </div>
             </div>
-
-            <div className="mt-6 pt-4 border-t">
-              <p className="text-sm text-muted-foreground">Need more storage? Upgrade your plan to increase your storage limits.</p>
-            </div>
-          </CardContent>
-        </Card>
+            
+            <div className="text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEditDialogProfilePictureClick}
 
         {/* Pricing Plans Card */}
         <Card>
@@ -316,10 +649,39 @@ const ProfilePage: React.FC = () => {
                 className="w-full mt-4 border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
                 onClick={handleLogout}
               >
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
+                {isUploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-1" />
+                    Change Photo
+                  </>
+                )}
               </Button>
+              
+              {/* Progress bar for upload */}
+              {isUploading && uploadProgress > 0 && (
+                <div className="mt-2 space-y-1">
+                  <Progress value={uploadProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground">
+                    {Math.round(uploadProgress)}% uploaded
+                  </p>
+                </div>
+              )}
+              
+              {localProfilePicture && !isUploading && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Image selected, uploading to cloud storage...
+                </p>
+              )}
             </div>
+
+          </div>
+          
+
           </CardContent>
         </Card>
       </div>
@@ -340,9 +702,9 @@ const ProfilePage: React.FC = () => {
                 name="displayName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="John Doe" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -363,6 +725,7 @@ const ProfilePage: React.FC = () => {
                 )}
               />
 
+
               <FormField
                 control={form.control}
                 name="phoneNumber"
@@ -370,7 +733,7 @@ const ProfilePage: React.FC = () => {
                   <FormItem>
                     <FormLabel>Phone Number</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="+1 (123) 456-7890" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -378,7 +741,10 @@ const ProfilePage: React.FC = () => {
               />
 
               <DialogFooter>
-                <Button type="submit">Save changes</Button>
+                <Button type="button" variant="outline" onClick={handleEditDialogClose}>
+                  Cancel
+                </Button>
+                <Button type="submit">Save Changes</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -387,11 +753,11 @@ const ProfilePage: React.FC = () => {
 
       {/* Change Password Dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Password</DialogTitle>
             <DialogDescription>
-              Enter your current password and a new password below.
+              Enter your current password and choose a new one
             </DialogDescription>
           </DialogHeader>
           <Form {...passwordForm}>
@@ -403,7 +769,7 @@ const ProfilePage: React.FC = () => {
                   <FormItem>
                     <FormLabel>Current Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" placeholder="Enter current password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -417,7 +783,7 @@ const ProfilePage: React.FC = () => {
                   <FormItem>
                     <FormLabel>New Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" placeholder="Enter new password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -431,7 +797,7 @@ const ProfilePage: React.FC = () => {
                   <FormItem>
                     <FormLabel>Confirm New Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" placeholder="Confirm new password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -439,15 +805,16 @@ const ProfilePage: React.FC = () => {
               />
 
               <DialogFooter>
-                <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
-                  {passwordForm.formState.isSubmitting ? "Updating..." : "Update Password"}
+                <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
+                  Cancel
                 </Button>
+                <Button type="submit">Change Password</Button>
               </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 };
 

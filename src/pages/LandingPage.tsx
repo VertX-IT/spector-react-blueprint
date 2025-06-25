@@ -21,7 +21,9 @@ const LandingPage: React.FC = () => {
     <div className="min-h-screen flex flex-col">
       <header className="border-b px-4 py-3">
         <div className="container flex justify-between items-center">
-          <Logo size="md" iconOnly={false} />
+          <div className="flex items-center">
+            <Logo size="md" iconOnly={true} />
+          </div>
           <div className="flex gap-2">
             {currentUser ? (
               <Button onClick={() => navigate('/dashboard/my-projects')} className="flex items-center">
@@ -40,7 +42,9 @@ const LandingPage: React.FC = () => {
       <main className="flex-1">
         <section className="py-16 px-4 md:py-20">
           <div className="container mx-auto text-center max-w-4xl">
-            <Logo size="lg" className="mx-auto mb-6" showAppName={true} />
+            <div className="flex justify-center mb-6">
+              <Logo size="lg" iconOnly={true} />
+            </div>
             
             <h1 className="text-2xl md:text-3xl font-bold mb-3 text-brand-navy">
               Inspection Made Accurate.
@@ -115,10 +119,10 @@ const LandingPage: React.FC = () => {
         </section>
       </main>
 
-      <footer className="border-t py-6 px-4 bg-brand-navy text-white">
-        <div className="container mx-auto text-center">
-          <Logo className="mx-auto mb-3" />
-          <p>&copy; {new Date().getFullYear()} SPECTOR. All rights reserved.</p>
+      <footer className="border-t py-8 px-4 bg-gray-50">
+        <div className="container mx-auto text-center flex flex-col items-center">
+          <Logo className="mx-auto mb-4" />
+          <p className="text-gray-600">&copy; {new Date().getFullYear()} SPECTOR. All rights reserved.</p>
         </div>
       </footer>
     </div>

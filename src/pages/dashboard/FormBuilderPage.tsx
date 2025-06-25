@@ -21,6 +21,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { BackButton } from "@/components/ui/back-button";
+import { loadProjectData, loadFormSections, autoSaveFormSections } from "@/lib/projectCreationState";
+import { isSystemField } from "@/lib/formUtils";
 
 // Data types available for form fields
 const dataTypes = [
@@ -190,21 +193,31 @@ const FormBuilderPage: React.FC = () => {
   // Section name editing
   const [editingSectionName, setEditingSectionName] = useState<string>("");
 
-  // Load (and migrate) from params for the selected asset category,
-  // and always start with a single default section.
+  // Load project data and sections from localStorage
   useEffect(() => {
-    const category =
+    // Load project data from localStorage first, fallback to URL params
+    const projectDataFromStorage = loadProjectData();
+    
+    const category = projectDataFromStorage?.category || 
       new URLSearchParams(location.search).get("category") || "land";
     const urlParams = new URLSearchParams(location.search);
 
     setProjectData({
       category,
-      name: urlParams.get("name") || "Sample Project",
-      assetName: urlParams.get("assetName") || "Sample Asset",
-      description: urlParams.get("description") || "This is a sample project",
+      name: projectDataFromStorage?.name || urlParams.get("name") || "Sample Project",
+      assetName: projectDataFromStorage?.assetName || urlParams.get("assetName") || "Sample Asset",
+      description: projectDataFromStorage?.description || urlParams.get("description") || "This is a sample project",
     });
 
-    // All default fields into section 1.
+    // Load existing sections from localStorage if available
+    const storedSections = loadFormSections();
+    if (storedSections && storedSections.length > 0) {
+      setSections(storedSections);
+      setActiveSection(0);
+      return;
+    }
+
+    // If no stored sections, create default sections based on category
     const sectionFields = [
       ...systemFields,
       ...(templatesByCategory[category] || []),
@@ -223,6 +236,13 @@ const FormBuilderPage: React.FC = () => {
     setEditingFieldIndex(null);
     setIsSheetOpen(false);
   }, [location.search]);
+
+  // Auto-save sections whenever they change
+  useEffect(() => {
+    if (sections.length > 0) {
+      autoSaveFormSections(sections);
+    }
+  }, [sections]);
 
   // Field name prettifier
   const getDataTypeName = (typeId: string) =>
@@ -593,11 +613,25 @@ const FormBuilderPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 px-1">
-        <h1 className="text-xl font-bold tracking-tight">Create Form Sections & Fields</h1>
+        <div className="mb-3">
+          <BackButton 
+            to="/dashboard/new-project"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
+        <h1 className="text-xl font-bold tracking-tight">Form Builder</h1>
         <p className="text-sm text-muted-foreground mb-4">
-          Define your form by sections (e.g., Personal Info, Equipment Details).
+          Design your data collection form
         </p>
-        <ProgressSteps currentStep={currentStep} totalSteps={steps.length} labels={steps} />
+        
+        <ProgressSteps
+          currentStep={currentStep}
+          totalSteps={steps.length}
+          labels={steps}
+        />
       </div>
 
       <Card className={`mb-4 ${isMobile ? "mx-1 shadow-sm" : ""}`}>
@@ -765,7 +799,7 @@ const FormBuilderPage: React.FC = () => {
                           size="sm"
                           onClick={() => handleToggleRequired(i)}
                           className="flex-1 text-xs h-8"
-                          disabled={activeSection === 0 && i < 3}
+                          disabled={isSystemField(field.name)}
                         >
                           {field.required ? "Make Optional" : "Make Required"}
                         </Button>
@@ -774,7 +808,7 @@ const FormBuilderPage: React.FC = () => {
                           size="sm"
                           onClick={() => handleEditField(i)}
                           className="flex-1 text-xs h-8"
-                          disabled={activeSection === 0 && i < 3}
+                          disabled={isSystemField(field.name)}
                         >
                           Edit
                         </Button>
@@ -783,7 +817,7 @@ const FormBuilderPage: React.FC = () => {
                           size="sm"
                           onClick={() => handleRemoveField(i)}
                           className="flex-1 text-xs h-8 text-red-500"
-                          disabled={activeSection === 0 && i < 3}
+                          disabled={isSystemField(field.name)}
                         >
                           Remove
                         </Button>
@@ -797,7 +831,7 @@ const FormBuilderPage: React.FC = () => {
                           onClick={() => handleToggleRequired(i)}
                           className="h-8 w-8"
                           title={field.required ? "Make optional" : "Make required"}
-                          disabled={activeSection === 0 && i < 3}
+                          disabled={isSystemField(field.name)}
                         >
                           {field.required ? (
                             <ToggleRight className="h-4 w-4" />
@@ -810,8 +844,8 @@ const FormBuilderPage: React.FC = () => {
                           size="icon"
                           onClick={() => handleEditField(i)}
                           className="h-8 w-8"
-                          disabled={activeSection === 0 && i < 3}
-                          title="Edit field"
+                          disabled={isSystemField(field.name)}
+                          title={isSystemField(field.name) ? "System field cannot be edited" : "Edit field"}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -820,10 +854,10 @@ const FormBuilderPage: React.FC = () => {
                           size="icon"
                           onClick={() => handleRemoveField(i)}
                           className="h-8 w-8 text-red-500"
-                          disabled={activeSection === 0 && i < 3}
+                          disabled={isSystemField(field.name)}
                           title={
-                            activeSection === 0 && i < 3
-                              ? "Cannot remove system field"
+                            isSystemField(field.name)
+                              ? "System field cannot be removed"
                               : "Remove field"
                           }
                         >

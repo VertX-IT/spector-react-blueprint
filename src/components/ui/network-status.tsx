@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -18,10 +17,6 @@ export const NetworkStatus: React.FC<NetworkStatusProps> = ({ isOnline }) => {
               isOnline ? "bg-green-500" : "bg-gray-400",
             )}>
               <span className="sr-only">{isOnline ? "Online" : "Offline"}</span>
-              <div className={cn(
-                "absolute inset-0 rounded-full",
-                isOnline ? "animate-ping bg-green-500/75" : "animate-none",
-              )} />
             </div>
             <span className={cn(
               "text-sm font-medium",

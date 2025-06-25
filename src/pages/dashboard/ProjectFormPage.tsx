@@ -57,11 +57,16 @@ import {
 import { useSectionSurvey } from "@/hooks/useSectionSurvey";
 import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
+
+import { BackButton } from "@/components/ui/back-button";
+import { generateSystemFieldValues, isSystemField, formatDateForDisplay } from "@/lib/formUtils";
+
 import { Capacitor } from "@capacitor/core";
 import lz from "lz-string";
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import InlineBackButton from "@/components/ui/CustomButton";
 import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
+
 
 interface Section {
   id: string;
@@ -279,6 +284,7 @@ const ProjectFormPage: React.FC = () => {
               options: field.options || [],
               defaultChecked: field.defaultChecked !== undefined ? field.defaultChecked : false,
               barcodeType: field.barcodeType || "qr",
+
             })).filter((field) => field.name !== "User ID"),
           }));
           console.log("Populated projectSections:", projectSections);
@@ -326,16 +332,22 @@ const ProjectFormPage: React.FC = () => {
         allFields.forEach((field: FieldTemplate) => {
           if (field.type === "checkbox") {
             initialData[field.id] = field.defaultChecked || false;
-          } else if (field.type === "multipleChoice") {
+          } else if (field.type === "multipleChoice" && Array.isArray(field.options)) {
             initialData[field.id] = [];
           } else {
             initialData[field.id] = "";
           }
         });
-        if (recordNoField) {
-          initialData[recordNoField.id] = "";
-        }
-        console.log("Initial formData:", initialData);
+
+        // Generate automatic values for system fields
+        const systemValues = generateSystemFieldValues(currentUserId, foundProject.recordCount || 0);
+        
+        // Set system field values
+        allFields.forEach((field: FieldTemplate) => {
+          if (isSystemField(field.name)) {
+            initialData[field.id] = systemValues[field.name] || "";
+          }
+        });
         setFormData(initialData);
       } catch (error: any) {
         console.error("Error fetching project:", error);
@@ -486,6 +498,42 @@ setImagePreviews((prev) => ({
     });
   };
 
+  const handleSectionSubmit = async (
+    sectionId: string,
+    sectionFields: FieldTemplate[]
+  ) => {
+    if (!isCollector && !isDesigner) return;
+
+    const sectionForm: Record<string, any> = {};
+    const missingFields: string[] = [];
+
+    // Process fields including image to base64
+    for (const field of sectionFields) {
+      const value = formData[field.id];
+      
+      // Skip validation for system fields as they are auto-filled
+      if (field.required && !isSystemField(field.name)) {
+        if (value === null || value === undefined || value === "") {
+          missingFields.push(field.label || field.name || field.id);
+        } else if (field.type === "multipleChoice" && Array.isArray(value) && value.length === 0) {
+          missingFields.push(field.label || field.name || field.id);
+        }
+      }
+      
+      if (field.type === "image" && value instanceof File) {
+        try {
+          const base64String = await fileToBase64(value);
+          sectionForm[field.id] = base64String;
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to process image.",
+          });
+          return;
+        }
+      } else if (field.type === "qrBarcode" && value instanceof File) {
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
@@ -500,6 +548,7 @@ setImagePreviews((prev) => ({
 
       // Use an IIFE to handle async logic inside the executor
       (async () => {
+
         try {
           // Resize the image to a maximum of 800x800 pixels
           const resizedBlob = await resizeImage(file, 800, 800);
@@ -556,8 +605,20 @@ setImagePreviews((prev) => ({
     }
   };
 
+    // Ensure system fields are included in the submitted form
+    const systemValues = generateSystemFieldValues(currentUserId, project?.recordCount || 0);
+    Object.keys(systemValues).forEach(systemFieldName => {
+      const field = sectionFields.find(f => f.name === systemFieldName);
+      if (field && !sectionForm[field.id]) {
+        sectionForm[field.id] = systemValues[systemFieldName];
+      }
+    });
+
+    if (missingFields.length > 0) {
+
   const handleScanQRBarcode = async (fieldId: string) => {
     if (!Capacitor.isNativePlatform()) {
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -568,6 +629,85 @@ setImagePreviews((prev) => ({
 
     const hasPermission = await checkCameraPermission();
     if (!hasPermission) return;
+
+
+    const record = {
+      projectId: projectId!,
+      data: sectionForm,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUserId,
+    };
+
+    try {
+      // Submit to Firebase if online
+      if (isOnline) {
+        await submitFormData(projectId!, sectionForm, currentUserId);
+      }
+
+      // Update local storage
+      const existingRecords = localStorage.getItem(`projectRecords_${projectId}`)
+        ? JSON.parse(localStorage.getItem(`projectRecords_${projectId}`) || '[]')
+        : [];
+      
+      existingRecords.push(record);
+      localStorage.setItem(`projectRecords_${projectId}`, JSON.stringify(existingRecords));
+
+      // Update project record count
+      if (project) {
+        const updatedProject = {
+          ...project,
+          recordCount: (project.recordCount || 0) + 1
+        };
+        setProject(updatedProject);
+        
+        // Update localStorage project data
+        const storedProjects = localStorage.getItem('myProjects');
+        if (storedProjects) {
+          const projects = JSON.parse(storedProjects);
+          const projectIndex = projects.findIndex((p: any) => p.id === projectId);
+          if (projectIndex !== -1) {
+            projects[projectIndex].recordCount = updatedProject.recordCount;
+            localStorage.setItem('myProjects', JSON.stringify(projects));
+          }
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Form data submitted successfully!",
+      });
+
+      // Reset form data for next submission
+      const newSystemValues = generateSystemFieldValues(currentUserId, (project?.recordCount || 0) + 1);
+      const newFormData: FormData = {};
+      
+      // Reset all fields
+      sectionFields.forEach((field: FieldTemplate) => {
+        if (field.type === "checkbox") {
+          newFormData[field.id] = field.defaultChecked || false;
+        } else if (field.type === "multipleChoice" && Array.isArray(field.options)) {
+          newFormData[field.id] = [];
+        } else {
+          newFormData[field.id] = "";
+        }
+      });
+      
+      // Set new system field values
+      sectionFields.forEach((field: FieldTemplate) => {
+        if (isSystemField(field.name)) {
+          newFormData[field.id] = newSystemValues[field.name] || "";
+        }
+      });
+      
+      setFormData(prev => ({ ...prev, ...newFormData }));
+
+    } catch (error: any) {
+      console.error("Error submitting form:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit form data. Please try again.",
+      });
 
     try {
       await BarcodeScanner.hideBackground();
@@ -677,7 +817,7 @@ setImagePreviews((prev) => ({
   };
 
   const handleEndSurveySubmit = async () => {
-    if (!project?.id || !isCollector) return;
+    if (!project?.id || (!isCollector && !isDesigner)) return;
 
     const surveyPayload: Record<string, any> = {};
     sectionIds.forEach((sid) => {
@@ -979,18 +1119,27 @@ setImagePreviews((prev) => ({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <p>Loading project...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading project...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !project) {
     return (
-      <Alert variant="destructive" className="mb-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error || "Failed to load project"}</AlertDescription>
-      </Alert>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-lg font-semibold mb-2">Error Loading Project</h2>
+          <p className="text-muted-foreground mb-4">{error || "Project not found"}</p>
+          <Button onClick={() => navigate("/dashboard/my-projects")}>
+            Back to Projects
+          </Button>
+        </div>
+      </div>
     );
   }
 
@@ -1170,6 +1319,57 @@ setImagePreviews((prev) => ({
   };
 
   return (
+
+    <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="mb-4 px-1">
+        <div className="mb-3">
+          <BackButton 
+            to="/dashboard/my-projects"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">{project.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {project.category} • {project.recordCount} records
+            </p>
+          </div>
+          
+          {/* Project Actions */}
+          <div className="flex gap-2">
+            {isDesigner && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditMode(!isEditMode)}
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  {isEditMode ? "Done" : "Edit"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEndSurveyDialogOpen(true)}
+                  disabled={project.status === "inactive"}
+                >
+                  End Survey
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+              </>
+
     <>
       <div className="mb-4 space-y-3">
         <InlineBackButton path="/dashboard/my-projects" />
@@ -1189,39 +1389,10 @@ setImagePreviews((prev) => ({
               <Badge variant="destructive" className="text-xs">
                 Survey Ended
               </Badge>
+
             )}
           </div>
         </div>
-
-        {isDesigner && (
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditMode(!isEditMode)}
-              className="flex-1 min-w-[80px] sm:flex-none"
-            >
-              {isEditMode ? "Cancel Edit" : "Edit Form"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[80px] sm:flex-none text-amber-500 hover:text-amber-600"
-              onClick={() => setIsEndSurveyDialogOpen(true)}
-              disabled={isProjectInactive}
-            >
-              {isProjectInactive ? "Survey Ended" : "End Survey"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[80px] sm:flex-none text-destructive hover:text-destructive"
-              onClick={() => setIsDeleteDialogOpen(true)}
-            >
-              Delete
-            </Button>
-          </div>
-        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1250,9 +1421,10 @@ setImagePreviews((prev) => ({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isDesigner ? (
+              {(isCollector || isDesigner) && (
                 <div className="space-y-4">
                   {projectSections
+
                     .sort((a, b) => a.order - b.order)
                     .map((section, idx) => (
                       <div key={section.id} className="relative">
@@ -1338,12 +1510,8 @@ setImagePreviews((prev) => ({
                       </button>
                     ))}
                 </div>
-              ) : (
-                <p className="text-center text-muted-foreground">
-                  You do not have permission to view or edit this form.
-                </p>
               )}
-              {isCollector && !isDesigner && (
+              {(isCollector || isDesigner) && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1373,6 +1541,12 @@ setImagePreviews((prev) => ({
                           <Separator className="mt-2" />
                         </div>
                         <div className="space-y-4 pl-0 sm:pl-2">
+                          {sectionFields.length > 0 ? (
+                            sectionFields.map((field: FieldTemplate) => {
+                              // Check if this is a system field
+                              const isSystem = isSystemField(field.name);
+                              const isReadOnly = isSystem || isProjectInactive;
+
                           {activeSectionIndex === 0 && (
                             <>
                               <div className="space-y-2">
@@ -1453,6 +1627,9 @@ setImagePreviews((prev) => ({
                                     {field.required && (
                                       <span className="text-red-500 ml-1">*</span>
                                     )}
+                                    {isSystem && (
+                                      <span className="text-xs text-muted-foreground ml-2">(Auto-filled)</span>
+                                    )}
                                   </label>
                                   {field.type === "text" && (
                                     <Input
@@ -1463,6 +1640,7 @@ setImagePreviews((prev) => ({
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
+
                                       disabled={isProjectInactive}
                                       className={`${isProjectInactive ? "bg-gray-100" : ""
                                         }`}
@@ -1477,9 +1655,26 @@ setImagePreviews((prev) => ({
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""
-                                        }`}
+
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                                    />
+                                  )}
+                                  {(field.type === "number" || field.type === "numbers") && (
+                                    <Input
+                                      id={field.id}
+                                      type="number"
+                                      value={formData[field.id] as string || ""}
+                                      onChange={(e) =>
+                                        handleInputChange(field.id, e.target.value)
+                                      }
+                                      placeholder={field.placeholder || "Enter a number"}
+                                      required={field.required}
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                     />
                                   )}
                                   {(field.type === "number" ||
@@ -1507,9 +1702,11 @@ setImagePreviews((prev) => ({
                                       }
                                       placeholder={field.placeholder || ""}
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""
-                                        }`}
+
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                     />
                                   )}
                                   {field.type === "definedList" && (
@@ -1518,12 +1715,13 @@ setImagePreviews((prev) => ({
                                       onValueChange={(value) =>
                                         handleInputChange(field.id, value)
                                       }
-                                      disabled={isProjectInactive}
+                                      disabled={isReadOnly}
                                     >
                                       <SelectTrigger
                                         id={field.id}
-                                        className={`${isProjectInactive ? "bg-gray-100" : ""
-                                          }`}
+
+                                        className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                       >
                                         <SelectValue
                                           placeholder={
@@ -1549,7 +1747,7 @@ setImagePreviews((prev) => ({
                                       placeholder={
                                         field.placeholder || "Enter location"
                                       }
-                                      disabled={isProjectInactive}
+                                      disabled={isReadOnly}
                                     />
                                   )}
                                   {field.type === "coordinates" && (
@@ -1561,10 +1759,49 @@ setImagePreviews((prev) => ({
                                       placeholder={
                                         field.placeholder || "Enter coordinates"
                                       }
-                                      disabled={isProjectInactive}
+                                      disabled={isReadOnly}
                                     />
                                   )}
                                   {field.type === "image" && (
+                                    <div className="flex items-center space-x-2">
+                                      <Input
+                                        id={field.id}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={(e) =>
+                                          handleInputChange(
+                                            field.id,
+                                            e.target.files?.[0] || null
+                                          )
+                                        }
+                                        required={field.required}
+                                        disabled={isReadOnly}
+                                        className={`${isReadOnly ? "bg-gray-100" : ""} hidden`}
+                                      />
+                                      <Button
+                                        type="button"
+                                        onClick={() => document.getElementById(field.id)?.click()}
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex items-center space-x-2"
+                                        disabled={isReadOnly}
+                                      >
+                                        <Camera className="h-4 w-4" />
+                                        <span>Capture</span>
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        onClick={() => document.getElementById(field.id)?.click()}
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex items-center space-x-2"
+                                        disabled={isReadOnly}
+                                      >
+                                        <Upload className="h-4 w-4" />
+                                        <span>Upload</span>
+                                      </Button>
+
                                     <div className="space-y-2">
                                       <div className="flex items-center space-x-2">
                                         <Input
@@ -1633,6 +1870,7 @@ setImagePreviews((prev) => ({
                                           />
                                         </div>
                                       )}
+
                                     </div>
                                   )}
                                   {field.type === "date" && (
@@ -1644,9 +1882,11 @@ setImagePreviews((prev) => ({
                                         handleInputChange(field.id, e.target.value)
                                       }
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""
-                                        }`}
+
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                     />
                                   )}
                                   {field.type === "dateTime" && (
@@ -1658,9 +1898,11 @@ setImagePreviews((prev) => ({
                                         handleInputChange(field.id, e.target.value)
                                       }
                                       required={field.required}
-                                      disabled={isProjectInactive}
-                                      className={`${isProjectInactive ? "bg-gray-100" : ""
-                                        }`}
+
+                                      disabled={isReadOnly}
+                                      readOnly={isSystem}
+                                      className={`${isReadOnly ? "bg-gray-100" : ""}`}
+
                                     />
                                   )}
                                   {field.type === "checkbox" && (
@@ -1671,7 +1913,7 @@ setImagePreviews((prev) => ({
                                         onCheckedChange={(checked) =>
                                           handleInputChange(field.id, checked)
                                         }
-                                        disabled={isProjectInactive}
+                                        disabled={isReadOnly}
                                       />
                                       <label
                                         htmlFor={field.id}
@@ -1705,7 +1947,7 @@ setImagePreviews((prev) => ({
                                                 );
                                               handleInputChange(field.id, newValues);
                                             }}
-                                            disabled={isProjectInactive}
+                                            disabled={isReadOnly}
                                           />
                                           <label
                                             htmlFor={`${field.id}-${option}`}
@@ -1721,6 +1963,7 @@ setImagePreviews((prev) => ({
                                     <div className="space-y-2">
                                       <div className="flex items-center space-x-2">
                                         <Input
+
                                           id={`${field.id}-text`}
                                           value={
                                             typeof formData[field.id] === "string"
@@ -1754,6 +1997,7 @@ setImagePreviews((prev) => ({
                                         </Button>
                                         <Input
                                           id={`${field.id}-image`}
+
                                           type="file"
                                           accept="image/*"
                                           capture="environment"
@@ -1764,32 +2008,31 @@ setImagePreviews((prev) => ({
                                             )
                                           }
                                           required={field.required}
-                                          disabled={isProjectInactive}
-                                          className={`${isProjectInactive ? "bg-gray-100" : ""
-                                            } hidden`}
+
+                                          disabled={isReadOnly}
+                                          className={`${isReadOnly ? "bg-gray-100" : ""} hidden`}
                                         />
                                         <Button
                                           type="button"
-                                          onClick={() =>
-                                            document.getElementById(`${field.id}-image`)?.click()
-                                          }
+                                          onClick={() => document.getElementById(field.id)?.click()}
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
-                                          disabled={isProjectInactive}
+                                          disabled={isReadOnly}
+
                                         >
                                           <Camera className="h-4 w-4" />
                                           <span>Capture</span>
                                         </Button>
                                         <Button
                                           type="button"
-                                          onClick={() =>
-                                            document.getElementById(`${field.id}-image`)?.click()
-                                          }
+
+                                          onClick={() => document.getElementById(field.id)?.click()}
                                           variant="outline"
                                           size="sm"
                                           className="flex items-center space-x-2"
-                                          disabled={isProjectInactive}
+                                          disabled={isReadOnly}
+
                                         >
                                           <Upload className="h-4 w-4" />
                                           <span>Upload</span>
@@ -1808,6 +2051,16 @@ setImagePreviews((prev) => ({
                                           </Button>
                                         )}
                                       </div>
+                                      <Input
+                                        placeholder="Or enter QR/Barcode manually"
+                                        value={formData[field.id] as string || ""}
+                                        onChange={(e) =>
+                                          handleInputChange(field.id, e.target.value)
+                                        }
+                                        disabled={isReadOnly}
+                                        className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                                      />
+
                                       {imagePreviews[field.id] && (
                                         <div className="mt-2">
                                           <img
@@ -1818,15 +2071,16 @@ setImagePreviews((prev) => ({
                                           />
                                         </div>
                                       )}
+
                                     </div>
                                   )}
                                 </div>
                               );
                             })
                           ) : (
-                            <p className="text-sm text-muted-foreground">
-                              No fields available for this section. Please check project
-                              configuration.
+                            <p className="text-center text-muted-foreground">
+                              No fields in this section.
+
                             </p>
                           )}
                         </div>
@@ -1849,19 +2103,14 @@ setImagePreviews((prev) => ({
                     )}
                 </form>
               )}
-              {isCollector &&
-                !isDesigner &&
-                completedSections.length === sectionIds.length && (
-                  <div className="flex justify-end mt-4">
-                    <Button
-                      onClick={handleEndSurveySubmit}
-                      className="w-full sm:w-auto"
-                      disabled={isProjectInactive}
-                    >
-                      End Survey
-                    </Button>
-                  </div>
-                )}
+              {(isCollector || isDesigner) && completedSections.length === sectionIds.length && !surveyCompleted && (
+                <div className="flex justify-end mt-4">
+                  <Button onClick={handleEndSurveySubmit} className="w-full sm:w-auto" disabled={isProjectInactive}>
+                    End Survey
+                  </Button>
+                </div>
+              )}
+
             </CardContent>
           </Card>
         </TabsContent>
@@ -1918,6 +2167,30 @@ setImagePreviews((prev) => ({
                         {expandedRows.includes(record.id || `record_${index}`) && (
                           <CardContent className="pt-0 border-t">
                             <div className="space-y-2">
+
+                              {projectSections.flatMap(s => s.fields).map((field: any) => (
+                                <div
+                                  key={field.id}
+                                  className="grid grid-cols-2 gap-2 text-sm"
+                                >
+                                  <div className="font-medium text-muted-foreground">
+                                    {field.label || field.name}:
+                                  </div>
+                                  <div>
+                                    {field.type === "location" || field.type === "coordinates"
+                                      ? formatLocationForDisplay(
+                                        record.data[field.id] || ""
+                                      )
+                                      : (field.type === "image" || field.type === "qrBarcode") && typeof record.data[field.id] === "string" && record.data[field.id].startsWith("data:image/")
+                                        ? <img src={record.data[field.id]} alt="Uploaded" style={{ maxWidth: "100px" }} />
+                                        : field.name === "Date and Time" && record.data[field.id]
+                                          ? formatDateForDisplay(record.data[field.id])
+                                          : field.type === "multipleChoice" && Array.isArray(record.data[field.id])
+                                            ? record.data[field.id].join(", ")
+                                            : field.type === "checkbox"
+                                              ? record.data[field.id] ? "Yes" : "No"
+                                              : record.data[field.id] || "-"}
+
                               <div className="grid grid-cols-2 gap-2 text-sm">
                                 <div className="font-medium text-muted-foreground">
                                   User ID:
@@ -2072,7 +2345,7 @@ setImagePreviews((prev) => ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 };
 

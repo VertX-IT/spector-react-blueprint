@@ -10,8 +10,12 @@ import { Copy, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveProject, verifyFirebaseConnection, generateSequentialPin } from '@/lib/projectOperations';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { BackButton } from '@/components/ui/back-button';
+import { loadProjectData, clearProjectCreationData } from '@/lib/projectCreationState';
+
 import { useNetwork } from '@/contexts/NetworkContext';
 import lz from 'lz-string';
+
 
 // Steps for project creation
 const steps = [
@@ -171,10 +175,10 @@ const SecuritySettingsPage: React.FC = () => {
 
   // Retrieve project data from localStorage
   useEffect(() => {
-    const storedProjectData = localStorage.getItem('projectData');
+    const storedProjectData = loadProjectData();
 
     if (storedProjectData) {
-      setProjectData(JSON.parse(storedProjectData));
+      setProjectData(storedProjectData);
     } else {
       // Fall back to URL params if localStorage is not available
       const params = new URLSearchParams(location.search);
@@ -317,12 +321,43 @@ const SecuritySettingsPage: React.FC = () => {
         createdBy: userData?.uid || 'anonymous',
       };
 
+      console.log('Prepared project data for saving:', completeProjectData);
+
+      // Save to Firebase
+      console.log('Saving project to Firebase...');
+      const savedProject = await saveProject(completeProjectData);
+      console.log('Project saved to Firebase:', savedProject);
+
+      // Update localStorage for backward compatibility
+      const existingProjects = localStorage.getItem('myProjects')
+        ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+        : [];
+
+      const newProject = {
+        id: savedProject.id || Date.now().toString(),
+        name: completeProjectData.name,
+        category: completeProjectData.category,
+        assetName: completeProjectData.assetName,
+        description: completeProjectData.description,
+        createdAt: new Date().toISOString(),
+        recordCount: 0,
+        formFields,
+        formSections, // Include in localStorage
+        projectPin,
+      };
+
+      existingProjects.push(newProject);
+      localStorage.setItem('myProjects', JSON.stringify(existingProjects));
+
+      // Clear form data from localStorage using utility function
+      clearProjectCreationData();
       if (isOnline) {
         // Online: Proceed with Firebase submission
         const connectionCheck = await verifyFirebaseConnection();
         if (!connectionCheck.success) {
           throw new Error(`Firebase connection issue: ${connectionCheck.error}`);
         }
+
 
         console.log('Starting project deployment process');
         console.log('Prepared project data for saving:', completeProjectData);
@@ -383,6 +418,15 @@ const SecuritySettingsPage: React.FC = () => {
   return (
     <>
       <div className="mb-4 px-1">
+        <div className="mb-3">
+          <BackButton 
+            to={`/dashboard/review-form${location.search}`}
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
         <h1 className="text-xl font-bold tracking-tight">Security Settings</h1>
         <p className="text-sm text-muted-foreground mb-4">
           Configure access for your project

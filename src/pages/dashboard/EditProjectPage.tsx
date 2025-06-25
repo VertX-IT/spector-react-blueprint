@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -7,7 +6,8 @@ import { getUserProjects, getProjectById, saveProject as saveProjectToFirebase, 
 import { useAuth } from "@/contexts/AuthContext";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { toast } from "sonner";
-import InlineBackButton from "@/components/ui/CustomButton";
+import { BackButton } from "@/components/ui/back-button";
+
 
 const EditProjectPage: React.FC = () => {
   const { projectId } = useParams();
@@ -91,8 +91,25 @@ const EditProjectPage: React.FC = () => {
 
   return (
     <div>
-      <InlineBackButton path="/dashboard/my-projects" />
-      <h1 className="text-2xl font-bold mb-4 mt-2">Edit Project</h1>
+
+      <div className="mb-4 px-1">
+        {/* Back Button */}
+        <div className="mb-3">
+          <BackButton 
+            to="/dashboard/my-projects"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+          />
+        </div>
+        
+        <h1 className="text-xl font-bold tracking-tight">Edit Project</h1>
+        <p className="text-sm text-muted-foreground">
+          Update your project details and settings
+        </p>
+      </div>
+      
+
       <ProjectEditForm
         project={project}
         onCancel={() => navigate("/dashboard/my-projects")}
