@@ -62,52 +62,14 @@ import lz from "lz-string";
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import InlineBackButton from "@/components/ui/CustomButton";
 import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
-
-interface Section {
-  id: string;
-  name: string;
-  order: number;
-  fields: FieldTemplate[];
-}
-
-interface FieldTemplate {
-  id: string;
-  name: string;
-  label: string;
-  type: string;
-  required: boolean;
-  sectionId?: string;
-  options?: string[];
-  placeholder?: string;
-  defaultChecked?: boolean;
-  barcodeType?: "qr" | "barcode";
-}
-
-interface ProjectRecord {
-  id?: string;
-  projectId: string;
-  data: Record<string, any>;
-  createdAt: string;
-  createdBy: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  category: string;
-  createdAt: Date;
-  recordCount: number;
-  projectPin: string;
-  formSections?: Section[];
-  description?: string;
-  status?: "active" | "inactive";
-  endedAt?: string;
-  createdBy?: string;
-}
-
-interface FormData {
-  [key: string]: string | File | boolean | string[] | null;
-}
+import ProjectHeader from "./project-form/ProjectHeader";
+import SectionTabs from "./project-form/SectionTabs";
+import SectionForm from "./project-form/SectionForm";
+import ProjectRecordsTable from "./project-form/ProjectRecordsTable";
+import DeleteProjectDialog from "./project-form/DeleteProjectDialog";
+import EndSurveyDialog from "./project-form/EndSurveyDialog";
+import { fileToBase64, getFieldsBySection, formatLocationForDisplay, handleExportData } from "./project-form/project-form-utils";
+import { Section, FieldTemplate, ProjectRecord, Project, FormData } from "./project-form/types";
 
 const ProjectFormPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
