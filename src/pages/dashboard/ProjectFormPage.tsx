@@ -43,52 +43,14 @@ import { useFirebaseSync } from "@/hooks/useFirebaseSync";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { BackButton } from "@/components/ui/back-button";
 import { generateSystemFieldValues, isSystemField, formatDateForDisplay } from "@/lib/formUtils";
-
-interface Section {
-  id: string;
-  name: string;
-  order: number;
-  fields: FieldTemplate[];
-}
-
-interface FieldTemplate {
-  id: string;
-  name: string;
-  label: string;
-  type: string;
-  required: boolean;
-  sectionId?: string;
-  options?: string[];
-  placeholder?: string;
-  defaultChecked?: boolean;
-  barcodeType?: "qr" | "barcode";
-}
-
-interface ProjectRecord {
-  id?: string;
-  projectId: string;
-  data: Record<string, any>;
-  createdAt: string;
-  createdBy: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  category: string;
-  createdAt: Date;
-  recordCount: number;
-  projectPin: string;
-  formSections?: Section[];
-  description?: string;
-  status?: "active" | "inactive";
-  endedAt?: string;
-  createdBy?: string;
-}
-
-interface FormData {
-  [key: string]: string | File | boolean | string[] | null;
-}
+import ProjectHeader from "./project-form/ProjectHeader";
+import SectionTabs from "./project-form/SectionTabs";
+import SectionForm from "./project-form/SectionForm";
+import ProjectRecordsTable from "./project-form/ProjectRecordsTable";
+import DeleteProjectDialog from "./project-form/DeleteProjectDialog";
+import EndSurveyDialog from "./project-form/EndSurveyDialog";
+import { fileToBase64, getFieldsBySection, formatLocationForDisplay, handleExportData } from "./project-form/project-form-utils";
+import { Section, FieldTemplate, ProjectRecord, Project, FormData } from "./project-form/types";
 
 const ProjectFormPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -278,14 +240,7 @@ const ProjectFormPage: React.FC = () => {
     }));
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
+
 
   const handleSectionSubmit = async (
     sectionId: string,
@@ -526,10 +481,7 @@ const ProjectFormPage: React.FC = () => {
     }
   };
 
-  const getFieldsBySection = (sectionId: string) => {
-    const section = sections.find(s => s.id === sectionId);
-    return section ? section.fields : [];
-  };
+
 
   const handleDeleteSection = (sectionId: string) => {
     if (!project || !isDesigner) return;
@@ -703,70 +655,9 @@ const ProjectFormPage: React.FC = () => {
     );
   };
 
-  function formatLocationForDisplay(loc: any) {
-    if (!loc) return "-";
-    if (typeof loc === "object" && (loc.lat || loc.lng)) {
-      return `Lat: ${loc.lat}, Lng: ${loc.lng}`;
-    }
-    if (typeof loc === "string") {
-      try {
-        const obj = JSON.parse(loc);
-        if (obj && obj.lat && obj.lng) {
-          return `Lat: ${obj.lat}, Lng: ${obj.lng}`;
-        }
-      } catch {
-        return loc;
-      }
-      return loc;
-    }
-    return "-";
-  }
 
-  const handleExportData = () => {
-    if (!projectRecords || projectRecords.length === 0) return;
-    const allFields = projectSections.flatMap(s => s.fields);
-    const headers = [
-      ...allFields.map((f) => f.label || f.name || f.id),
-      "User ID",
-      "Record No.",
-    ];
-    const fieldIds = allFields.map((f) => f.id);
-    const rows = [
-      headers,
-      ...projectRecords.map((record) => {
-        const fieldValues = fieldIds.map((fid) => {
-          let val = record.data?.[fid];
-          if (typeof val === "string" && val.startsWith("data:image/")) {
-            val = "Image (Base64)";
-          } else if (val instanceof File) {
-            val = val.name;
-          } else if (Array.isArray(val)) {
-            val = val.join("; ");
-          } else if (typeof val === "object") {
-            val = JSON.stringify(val);
-          }
-          return `"${(val ?? "-").toString().replace(/"/g, '""')}"`;
-        });
-        return [
-          ...fieldValues,
-          `"${(record.data?.userId ?? "-").toString().replace(/"/g, '""')}"`,
-          `"${(record.data?.recordNo ?? "-").toString().replace(/"/g, '""')}"`,
-        ];
-      }),
-    ];
-    const csvContent = rows.map((r) => r.join(",")).join("\r\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${project?.name || "project"}-data.csv`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
-  };
+
+
 
   const handleDeleteProject = async () => {
     if (!projectId) return;
@@ -828,48 +719,29 @@ const ProjectFormPage: React.FC = () => {
             className="text-muted-foreground hover:text-foreground"
           />
         </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">{project.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {project.category} • {project.recordCount} records
-            </p>
-          </div>
-          
-          {/* Project Actions */}
-          <div className="flex gap-2">
-            {isDesigner && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditMode(!isEditMode)}
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  {isEditMode ? "Done" : "Edit"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEndSurveyDialogOpen(true)}
-                  disabled={project.status === "inactive"}
-                >
-                  End Survey
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
+        <ProjectHeader
+          project={project}
+          isDesigner={isDesigner}
+          isEditMode={isEditMode}
+          setIsEditMode={setIsEditMode}
+          setIsEndSurveyDialogOpen={setIsEndSurveyDialogOpen}
+          setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+        />
       </div>
+      <SectionTabs
+        sections={projectSections}
+        activeSectionIndex={activeSectionIndex}
+        setActiveSectionIndex={setActiveSectionIndex}
+        completedSections={completedSections}
+      />
+      <SectionForm
+        section={projectSections[activeSectionIndex]}
+        formData={formData}
+        handleInputChange={handleInputChange}
+        handleSectionSubmit={handleSectionSubmit}
+        isProjectInactive={isProjectInactive}
+        completedSections={completedSections}
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-4 w-full">
@@ -898,38 +770,18 @@ const ProjectFormPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               {(isCollector || isDesigner) && (
-                <div className="space-y-4">
-                  {projectSections
-                    .map((section, idx) => (
-                      <button
-                        key={section.id}
-                        onClick={() => setActiveSectionIndex(idx)}
-                        className={`flex-shrink-0 px-4 py-2 rounded-lg border ${activeSectionIndex === idx
-                          ? "border-primary bg-primary/10 font-semibold"
-                          : "border-zinc-300 bg-white"
-                          }`}
-                      >
-                        {section.name}
-                        {completedSections.includes(section.id) && (
-                          <span className="ml-2 text-green-600 text-sm">✓</span>
-                        )}
-                      </button>
-                    ))}
-                </div>
-              )}
-              {(isCollector || isDesigner) && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     const section = projectSections[activeSectionIndex];
-                    const sectionFields = getFieldsBySection(section.id);
+                    const sectionFields = getFieldsBySection(sections, section.id);
                     handleSectionSubmit(section.id, sectionFields);
                   }}
                   className="space-y-4 mt-4"
                 >
                   {(() => {
                     const section = projectSections[activeSectionIndex];
-                    const sectionFields = getFieldsBySection(section.id);
+                    const sectionFields = getFieldsBySection(sections, section.id);
 
                     return (
                       <div className="mb-6">
@@ -1282,67 +1134,14 @@ const ProjectFormPage: React.FC = () => {
                   <p>Loading records...</p>
                 </div>
               ) : projectRecords.length > 0 ? (
-                <div className="overflow-auto">
-                  <div className="space-y-4">
-                    {projectRecords.map((record, index) => (
-                      <Card key={record.id || index} className="border">
-                        <div
-                          className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50"
-                          onClick={() => handleToggleRowExpand(record.id || `record_${index}`)}
-                        >
-                          <div>
-                            <p className="font-medium text-sm">
-                              Record {index + 1} -{" "}
-                              {new Date(record.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                          >
-                            {expandedRows.includes(record.id || `record_${index}`) ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                        {expandedRows.includes(record.id || `record_${index}`) && (
-                          <CardContent className="pt-0 border-t">
-                            <div className="space-y-2">
-                              {projectSections.flatMap(s => s.fields).map((field: any) => (
-                                <div
-                                  key={field.id}
-                                  className="grid grid-cols-2 gap-2 text-sm"
-                                >
-                                  <div className="font-medium text-muted-foreground">
-                                    {field.label || field.name}:
-                                  </div>
-                                  <div>
-                                    {field.type === "location" || field.type === "coordinates"
-                                      ? formatLocationForDisplay(
-                                        record.data[field.id] || ""
-                                      )
-                                      : (field.type === "image" || field.type === "qrBarcode") && typeof record.data[field.id] === "string" && record.data[field.id].startsWith("data:image/")
-                                        ? <img src={record.data[field.id]} alt="Uploaded" style={{ maxWidth: "100px" }} />
-                                        : field.name === "Date and Time" && record.data[field.id]
-                                          ? formatDateForDisplay(record.data[field.id])
-                                          : field.type === "multipleChoice" && Array.isArray(record.data[field.id])
-                                            ? record.data[field.id].join(", ")
-                                            : field.type === "checkbox"
-                                              ? record.data[field.id] ? "Yes" : "No"
-                                              : record.data[field.id] || "-"}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        )}
-                      </Card>
-                    ))}
-                  </div>
-                </div>
+                <ProjectRecordsTable
+                  projectRecords={projectRecords}
+                  projectSections={projectSections}
+                  expandedRows={expandedRows}
+                  handleToggleRowExpand={handleToggleRowExpand}
+                  formatLocationForDisplay={formatLocationForDisplay}
+                  formatDateForDisplay={formatDateForDisplay}
+                />
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
                   <p>No data has been collected for this project yet.</p>
@@ -1370,7 +1169,7 @@ const ProjectFormPage: React.FC = () => {
                   {isDesigner ? "" : " your"} data collected for this project.
                 </p>
                 <Button
-                  onClick={handleExportData}
+                  onClick={() => handleExportData(projectRecords, projectSections, project?.name)}
                   className="mt-4 w-full sm:w-auto"
                   disabled={projectRecords.length === 0}
                 >
@@ -1389,57 +1188,16 @@ const ProjectFormPage: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      <AlertDialog
+      <DeleteProjectDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the
-              project and all associated data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
-            <AlertDialogCancel className="w-full sm:w-auto">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteProject}
-              className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
+        onDelete={handleDeleteProject}
+      />
+      <EndSurveyDialog
         open={isEndSurveyDialogOpen}
         onOpenChange={setIsEndSurveyDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>End this survey?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will close the survey and prevent any further submissions.
-              You will still be able to view collected data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
-            <AlertDialogCancel className="w-full sm:w-auto">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleEndSurvey}
-              className="w-full sm:w-auto"
-            >
-              End Survey
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onEndSurvey={handleEndSurvey}
+      />
     </div>
   );
 };
