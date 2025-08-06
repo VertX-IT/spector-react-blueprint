@@ -64,8 +64,8 @@ input, textarea, button, select, a {
 
 /* Improve touch targets */
 button, a, .btn, [role="button"] {
-  min-height: 44px;
-  min-width: 44px;
+  min-height: 14px;
+  min-width: 14px;
 }
 
 /* Enhance scrolling */

@@ -1,4 +1,14 @@
 import React from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface DeleteProjectDialogProps {
   open: boolean;
@@ -6,19 +16,29 @@ interface DeleteProjectDialogProps {
   onDelete: () => void;
 }
 
-const DeleteProjectDialog: React.FC<DeleteProjectDialogProps> = ({ open, onOpenChange, onDelete }) => {
-  if (!open) return null;
+const DeleteProjectDialog: React.FC<DeleteProjectDialogProps> = ({
+  open,
+  onOpenChange,
+  onDelete,
+}) => {
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
-      <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
-        <h2 className="text-lg font-bold mb-2">Are you absolutely sure?</h2>
-        <p className="mb-4">This action cannot be undone. This will permanently delete the project and all associated data.</p>
-        <div className="flex gap-2 justify-end">
-          <button className="px-4 py-2 rounded border" onClick={() => onOpenChange(false)}>Cancel</button>
-          <button className="px-4 py-2 rounded bg-red-600 text-white" onClick={onDelete}>Delete</button>
-        </div>
-      </div>
-    </div>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the project
+            and all associated data.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 };
 

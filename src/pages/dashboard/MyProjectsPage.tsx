@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useNetwork } from "@/contexts/NetworkContext"; // Add this import
+import { useNetwork } from "@/contexts/NetworkContext";
 import { FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,9 @@ import {
   deleteProject,
   Project,
   duplicateProject,
+  saveProject,
+  verifyFirebaseConnection,
+  generateSequentialPin,
 } from "@/lib/projectOperations";
 import {
   Dialog,
@@ -30,10 +33,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import lz from 'lz-string'; // Import lz-string for decompression
 
 const MyProjectsPage: React.FC = () => {
   const { userData, currentUser } = useAuth();
-  const { isOnline } = useNetwork(); // Add network context
+  const { isOnline } = useNetwork();
   const navigate = useNavigate();
   const isDesigner = userData?.role === "designer";
 
@@ -44,66 +48,67 @@ const MyProjectsPage: React.FC = () => {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectCategory, setNewProjectCategory] = useState("");
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const wasOfflineRef = useRef(false); // Track previous offline state
 
-  useEffect(() => {
-    const loadProjects = async () => {
-      setLoading(true);
-      try {
-        let allProjects: Project[] = [];
+  // Move loadProjects to component scope so it can be called elsewhere
+  const loadProjects = async () => {
+    setLoading(true);
+    try {
+      let allProjects: Project[] = [];
 
-        // Fetch from localStorage
-        const storedProjects = localStorage.getItem("myProjects");
-        if (storedProjects) {
-          const parsedProjects: Project[] = JSON.parse(storedProjects);
-          allProjects = parsedProjects.map((project) => ({
-            ...project,
-            createdAt: new Date(project.createdAt),
-          }));
-          console.log("LocalStorage Projects:", allProjects);
+      // Fetch from localStorage
+      const storedProjects = localStorage.getItem("myProjects");
+      if (storedProjects) {
+        const parsedProjects: Project[] = JSON.parse(storedProjects);
+        allProjects = parsedProjects.map((project) => ({
+          ...project,
+          createdAt: new Date(project.createdAt),
+        }));
+        console.log("LocalStorage Projects:", allProjects);
+      } else {
+        localStorage.setItem("myProjects", JSON.stringify([]));
+      }
+
+      // Fetch from Firebase if online and user is authenticated
+      if (isOnline && currentUser?.uid) {
+        console.log("Fetching from Firebase with UID:", currentUser.uid);
+        const firebaseProjects = await getUserProjects(currentUser.uid);
+        console.log("Firebase Projects:", firebaseProjects);
+        const firebaseProjectsWithDates = firebaseProjects.map((project) => ({
+          ...project,
+          createdAt: new Date(project.createdAt),
+          formSections: Array.isArray(project.formSections) ? project.formSections : [],
+        }));
+
+        // Merge projects, prioritizing Firebase data
+        const mergedProjects = [
+          ...allProjects.filter((local) => !firebaseProjects.some((fb) => fb.id === local.id)),
+          ...firebaseProjectsWithDates,
+        ];
+        console.log("Merged Projects before set:", mergedProjects);
+
+        if (mergedProjects.length > 0) {
+          localStorage.setItem("myProjects", JSON.stringify(mergedProjects));
+          setProjects([...mergedProjects]); // Ensure new array reference
+          console.log("Projects state set to:", mergedProjects);
         } else {
-          localStorage.setItem("myProjects", JSON.stringify([]));
-        }
-
-        // Fetch from Firebase if online and user is authenticated
-        if (isOnline && currentUser?.uid) {
-          console.log("Fetching from Firebase with UID:", currentUser.uid);
-          const firebaseProjects = await getUserProjects(currentUser.uid);
-          console.log("Firebase Projects:", firebaseProjects);
-          const firebaseProjectsWithDates = firebaseProjects.map((project) => ({
-            ...project,
-            createdAt: new Date(project.createdAt),
-            formSections: Array.isArray(project.formSections) ? project.formSections : [],
-          }));
-
-
-          // Merge projects, prioritizing Firebase data
-          const mergedProjects = [
-            ...allProjects.filter((local) => !firebaseProjects.some((fb) => fb.id === local.id)),
-            ...firebaseProjectsWithDates,
-          ];
-          console.log("Merged Projects before set:", mergedProjects);
-
-          if (mergedProjects.length > 0) {
-            localStorage.setItem("myProjects", JSON.stringify(mergedProjects));
-            setProjects([...mergedProjects]); // Ensure new array reference
-            console.log("Projects state set to:", mergedProjects);
-          } else {
-            console.log("No projects to set, using local fallback");
-            setProjects([...allProjects]); // Ensure new array reference
-          }
-        } else {
-          console.log("Offline or no user, using local projects");
+          console.log("No projects to set, using local fallback");
           setProjects([...allProjects]); // Ensure new array reference
         }
-      } catch (error) {
-        console.error("Error loading projects:", error);
-        toast.error("Failed to load projects");
-        setProjects([]); // Reset state in case of error
-      } finally {
-        setLoading(false);
+      } else {
+        console.log("Offline or no user, using local projects");
+        setProjects([...allProjects]); // Ensure new array reference
       }
-    };
+    } catch (error) {
+      console.error("Error loading projects:", error);
+      toast.error("Failed to load projects");
+      setProjects([]); // Reset state in case of error
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadProjects();
   }, [userData, currentUser, isOnline]);
 
@@ -113,6 +118,127 @@ const MyProjectsPage: React.FC = () => {
       console.log("Current projects state:", projects);
     }
   }, [projects, loading]);
+
+  // Sync offline data when connection changes from offline to online
+  useEffect(() => {
+    if (isOnline && wasOfflineRef.current && currentUser?.uid) {
+      console.log("Connection restored, initiating sync...");
+      syncOfflineProject();
+    }
+    wasOfflineRef.current = !isOnline; // Update previous state
+  }, [isOnline, currentUser?.uid]);
+
+  const syncOfflineProject = async () => {
+    const offlineData = localStorage.getItem('offline_project_creation');
+    if (!offlineData) {
+      console.log('No offline data to sync');
+      return;
+    }
+
+    try {
+      console.log('Starting offline project sync...');
+      const decompressed = lz.decompress(offlineData);
+      const projectCreationData = decompressed ? JSON.parse(decompressed) : null;
+      if (!projectCreationData) {
+        console.log('Failed to parse offline data');
+        return;
+      }
+
+      // Generate a new PIN for the offline project
+      let latestPin: string = '000000';
+      let firebaseHighestPin: string = '000000';
+      try {
+        const pinFromFirebase = await generateSequentialPin();
+        const numericPin = parseInt(pinFromFirebase);
+        if (!isNaN(numericPin) && numericPin > 0) {
+          firebaseHighestPin = (numericPin - 1).toString().padStart(6, '0');
+        }
+      } catch (e) {
+        console.log('Failed to fetch PIN from Firebase, using local fallback:', e);
+      }
+
+      const projects = localStorage.getItem('myProjects')
+        ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+        : [];
+      let localHighestPin: string = '000000';
+      if (projects.length > 0) {
+        localHighestPin = projects.reduce((max: string, prj: any) => {
+          if (typeof prj.projectPin === 'string' && /^\d{6}$/.test(prj.projectPin) && prj.projectPin > max) {
+            return prj.projectPin;
+          }
+          return max;
+        }, '000000');
+      }
+
+      latestPin = [firebaseHighestPin, localHighestPin].sort().reverse()[0] || '000000';
+      const numericPin = parseInt(latestPin, 10) || 0;
+      let newPin = numericPin + 1;
+      if (newPin > 999999) newPin = 0;
+      const offlineProjectPin = newPin.toString().padStart(6, '0');
+      console.log('Generated new PIN for offline project:', offlineProjectPin);
+
+      const formFields = localStorage.getItem('formFields')
+        ? JSON.parse(localStorage.getItem('formFields') || '[]')
+        : [];
+      const formSections = localStorage.getItem('formSections')
+        ? JSON.parse(localStorage.getItem('formSections') || '[]')
+        : [];
+      const projectDataToSync = projectCreationData.projectData || projectCreationData.data;
+
+      const completeProjectData = {
+        name: projectDataToSync.name,
+        category: projectDataToSync.category,
+        assetName: projectDataToSync.assetName,
+        description: projectDataToSync.description || '',
+        formFields,
+        formSections,
+        projectPin: offlineProjectPin,
+        createdAt: new Date(),
+        recordCount: 0,
+        createdBy: currentUser?.uid || 'anonymous',
+      };
+
+      const connectionCheck = await verifyFirebaseConnection();
+      if (!connectionCheck.success) {
+        throw new Error(`Firebase connection issue: ${connectionCheck.error}`);
+      }
+
+      const savedProject = await saveProject(completeProjectData);
+      console.log('Offline project saved to Firebase:', savedProject);
+
+      const existingProjects = localStorage.getItem('myProjects')
+        ? JSON.parse(localStorage.getItem('myProjects') || '[]')
+        : [];
+      const newProject = {
+        id: savedProject.id || Date.now().toString(),
+        name: completeProjectData.name,
+        category: completeProjectData.category,
+        assetName: completeProjectData.assetName,
+        description: completeProjectData.description,
+        createdAt: new Date().toISOString(),
+        recordCount: 0,
+        formFields,
+        formSections,
+        projectPin: completeProjectData.projectPin,
+      };
+
+      existingProjects.push(newProject);
+      localStorage.setItem('myProjects', JSON.stringify(existingProjects));
+
+      // Clear offline data
+      localStorage.removeItem('offline_project_creation');
+      localStorage.removeItem('formFields');
+      localStorage.removeItem('formSections');
+      localStorage.removeItem('projectData');
+
+      toast.success('Offline project automatically synced!');
+      // Reload projects to reflect the new synced project
+      await loadProjects();
+    } catch (error: any) {
+      console.error('Error syncing offline project:', error);
+      toast.error(`Failed to sync offline project: ${error.message}`);
+    }
+  };
 
   const handleDeleteProject = async (id: string) => {
     try {
@@ -230,17 +356,6 @@ const MyProjectsPage: React.FC = () => {
     }
   };
 
-  // Debug project to test rendering
-  // const debugProject: Project = {
-  //   id: "debug-project",
-  //   name: "Debug Project",
-  //   category: "test",
-  //   createdAt: new Date(),
-  //   recordCount: 0,
-  //   projectPin: "999999",
-  //   status: "active",
-  // };
-
   return (
     <>
       <div className="mb-4">
@@ -272,19 +387,6 @@ const MyProjectsPage: React.FC = () => {
               onDuplicate={isDesigner ? handleDuplicateClick : undefined}
             />
           ))}
-          {/* Add a debug ProjectCard to test rendering */}
-          {/* <ProjectCard
-            key={debugProject.id}
-            id={debugProject.id}
-            name={debugProject.name}
-            category={debugProject.category}
-            createdAt={debugProject.createdAt}
-            recordCount={debugProject.recordCount}
-            projectPin={debugProject.projectPin}
-            status={debugProject.status}
-            onDelete={isDesigner ? handleDeleteProject : undefined}
-            onDuplicate={isDesigner ? handleDuplicateClick : undefined}
-          /> */}
         </div>
       ) : (
         <EmptyState

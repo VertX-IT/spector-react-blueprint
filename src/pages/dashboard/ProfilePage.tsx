@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Progress } from '@/components/ui/progress';
 import { uploadProfilePicture, validateImageFile, compressImageProgressive, deleteProfilePicture } from '@/lib/profileOperations';
-import { BackButton } from '@/components/ui/back-button';
+import InlineBackButton from '@/components/ui/CustomButton';
 
 // Define the profile form schema
 const profileFormSchema = z.object({
@@ -62,7 +64,7 @@ const ProfilePage: React.FC = () => {
       phoneNumber: userData?.phoneNumber || '',
     },
   });
-  
+
   // Setup password form
   const passwordForm = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -83,142 +85,51 @@ const ProfilePage: React.FC = () => {
       setUploadProgress(0);
 
       // Validate file
-      const validation = validateImageFile(file);
-      if (!validation.isValid) {
+      const validationResult = validateImageFile(file);
+      if (!validationResult.isValid) {
         toast({
-          title: "Invalid file",
-          description: validation.error,
           variant: "destructive",
+          title: "Invalid file",
+          description: validationResult.error,
         });
         return;
       }
 
-      // Show compression feedback
-      toast({
-        title: "Processing image",
-        description: "Compressing and optimizing your image...",
+      // Compress image with progressive quality
+      const compressedBlob = await compressImageProgressive(file);
+      
+      // Show immediate preview
+      const previewUrl = URL.createObjectURL(compressedBlob);
+      setLocalProfilePicture(previewUrl);
+
+      // Upload with progress tracking
+      const downloadURL = await uploadProfilePicture(compressedBlob, currentUser.uid, (progress) => {
+        setUploadProgress(progress);
       });
-
-      // Use progressive compression for better results
-      const compressedFile = await compressImageProgressive(file);
-
-      // Show upload feedback
-      toast({
-        title: "Uploading",
-        description: "Uploading to cloud storage...",
-      });
-
-      // Upload to Firebase with progress tracking
-      const downloadURL = await uploadProfilePicture(
-        compressedFile, 
-        currentUser.uid,
-        (progress) => {
-          setUploadProgress(progress);
-        }
-      );
 
       // Update user data in context
       await updateUserData({
-        profilePictureURL: downloadURL,
-        profilePictureUpdatedAt: new Date().toISOString(),
+        ...userData,
+        photoURL: downloadURL,
       });
 
       toast({
         title: "Profile picture updated",
-        description: "Your profile picture has been uploaded successfully",
+        description: "Your profile picture has been successfully updated.",
       });
 
     } catch (error: any) {
+      console.error('Error uploading profile picture:', error);
       toast({
-        title: "Upload failed",
-        description: error.message || "Failed to upload profile picture",
         variant: "destructive",
+        title: "Upload failed",
+        description: error.message || "Failed to upload profile picture. Please try again.",
       });
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  // Handle profile picture upload from edit dialog with immediate preview and progress
-  const handleEditDialogImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !currentUser) return;
-
-    try {
-      // Validate file
-      const validation = validateImageFile(file);
-      if (!validation.isValid) {
-        toast({
-          title: "Invalid file",
-          description: validation.error,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Create immediate local preview
-      const localURL = URL.createObjectURL(file);
-      setLocalProfilePicture(localURL);
-
-      // Show immediate feedback
-      toast({
-        title: "Image selected",
-        description: "Processing and uploading...",
-      });
-
-      // Use progressive compression for better results
-      const compressedFile = await compressImageProgressive(file);
-      
-      // Upload to Firebase in background with progress tracking
-      uploadProfilePicture(
-        compressedFile, 
-        currentUser.uid,
-        (progress) => {
-          setUploadProgress(progress);
-        }
-      )
-        .then(async (downloadURL) => {
-          // Update user data in context
-          await updateUserData({
-            profilePictureURL: downloadURL,
-            profilePictureUpdatedAt: new Date().toISOString(),
-          });
-
-          // Clear local preview and use Firebase URL
-          setLocalProfilePicture(null);
-          setUploadProgress(0);
-          
-          toast({
-            title: "Profile picture uploaded",
-            description: "Your profile picture has been saved to cloud storage",
-          });
-        })
-        .catch((error) => {
-          // Revert local preview on error
-          setLocalProfilePicture(null);
-          setUploadProgress(0);
-          toast({
-            title: "Upload failed",
-            description: "Failed to upload to cloud storage. Please try again.",
-            variant: "destructive",
-          });
-        });
-
-    } catch (error: any) {
-      toast({
-        title: "Error processing image",
-        description: error.message || "Failed to process image",
-        variant: "destructive",
-      });
-    } finally {
-      // Reset file input
-      if (editDialogFileInputRef.current) {
-        editDialogFileInputRef.current.value = '';
       }
     }
   };
@@ -229,47 +140,44 @@ const ProfilePage: React.FC = () => {
 
     try {
       setIsRemoving(true);
-      await deleteProfilePicture(currentUser.uid, userData?.profilePictureURL || undefined);
+      await deleteProfilePicture(currentUser.uid);
       
       // Update user data in context
       await updateUserData({
-        profilePictureURL: null,
-        profilePictureUpdatedAt: new Date().toISOString(),
+        ...userData,
+        photoURL: null,
       });
 
-      // Clear local preview
       setLocalProfilePicture(null);
-
+      
       toast({
         title: "Profile picture removed",
-        description: "Your profile picture has been removed",
+        description: "Your profile picture has been successfully removed.",
       });
 
     } catch (error: any) {
+      console.error('Error removing profile picture:', error);
       toast({
-        title: "Removal failed",
-        description: error.message || "Failed to remove profile picture",
         variant: "destructive",
+        title: "Removal failed",
+        description: error.message || "Failed to remove profile picture. Please try again.",
       });
     } finally {
       setIsRemoving(false);
     }
   };
 
-  // Handle profile picture click
   const handleProfilePictureClick = () => {
     fileInputRef.current?.click();
   };
 
-  // Handle edit dialog profile picture click
   const handleEditDialogProfilePictureClick = () => {
     editDialogFileInputRef.current?.click();
   };
 
-  // Reset local preview when dialog closes
   const handleEditDialogClose = () => {
-    setLocalProfilePicture(null);
     setIsEditDialogOpen(false);
+    form.reset();
   };
   
   // Handle profile update
@@ -300,7 +208,7 @@ const ProfilePage: React.FC = () => {
       // Error handling is done in the auth context
     }
   };
-  
+
   // Handle logout
   const handleLogout = async () => {
     try {
@@ -317,7 +225,7 @@ const ProfilePage: React.FC = () => {
 
   // Get current profile picture URL (local or Firebase)
   const getCurrentProfilePicture = () => {
-    return localProfilePicture || userData?.profilePictureURL || "";
+    return localProfilePicture || userData?.photoURL || "";
   };
   
   return (
@@ -325,7 +233,7 @@ const ProfilePage: React.FC = () => {
       {/* Header with Back Button */}
       <div className="mb-4 px-1">
         <div className="mb-3">
-          <BackButton 
+          <InlineBackButton 
             to="/dashboard"
             variant="ghost"
             size="sm"
@@ -338,7 +246,7 @@ const ProfilePage: React.FC = () => {
           Manage your account information and preferences
         </p>
       </div>
-      
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -409,7 +317,7 @@ const ProfilePage: React.FC = () => {
                   )}
                 </Button>
                 
-                {userData?.profilePictureURL && (
+                {userData?.photoURL && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -433,162 +341,90 @@ const ProfilePage: React.FC = () => {
               )}
             </div>
             
-            <div className="text-center">
-              <p className="text-xl font-semibold">{userData?.displayName}</p>
-              <p className="text-muted-foreground">{userData?.email}</p>
-              <div className="mt-1">
-                <Badge variant="outline" className="capitalize">
-                  {userData?.role}
-                </Badge>
-              </div>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-xl font-semibold">{userData?.displayName}</p>
+            <p className="text-muted-foreground">{userData?.email}</p>
+            <div className="mt-1">
+              <Badge variant="outline" className="capitalize">
+                {userData?.role}
+              </Badge>
             </div>
-            
-            <div className="text-sm text-muted-foreground w-full max-w-xs">
-              <div className="flex justify-between py-2 border-b">
-                <span>Phone Number</span>
-                <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-center border-t pt-4">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
-          </CardFooter>
-        </Card>
-        
-        
-        
-        {/* Account Actions Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Account Actions</CardTitle>
-            <CardDescription>
-              Manage your account and data
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={handleLogout}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
 
-      <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Account Security</CardTitle>
-            <CardDescription>
-              Manage your password and authentication settings
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <p className="font-medium">Password</p>
-              <p className="text-sm text-muted-foreground">
-                Last changed: Never
-              </p>
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={() => setIsPasswordDialogOpen(true)}
-              >
-                <Lock className="mr-2 h-4 w-4" />
-                Change Password
-              </Button>
+          <div className="text-sm text-muted-foreground w-full max-w-xs">
+            <div className="flex justify-between py-2 border-b">
+              <span>Phone Number</span>
+              <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
             </div>
-            
-            <div className="pt-4 border-t">
-              <p className="font-medium mb-2">Danger Zone</p>
-              <Button variant="destructive" className="w-full">Delete Account</Button>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-center border-t pt-4">
+          <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
+        </CardFooter>
+      </Card>
+
+      {/* Account Actions Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Actions</CardTitle>
+          <CardDescription>
+            Manage your account and data
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={handleLogout}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+
+    <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Account Security</CardTitle>
+          <CardDescription>
+            Manage your password and authentication settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="font-medium">Password</p>
+            <p className="text-sm text-muted-foreground">
+              Last changed: Never
+            </p>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setIsPasswordDialogOpen(true)}
+            >
+              <Lock className="mr-2 h-4 w-4" />
+              Change Password
+            </Button>
+          </div>
+
+          <div className="pt-4 border-t">
+            <p className="font-medium mb-2">Danger Zone</p>
+            <Button variant="destructive" className="w-full">Delete Account</Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Edit Profile Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
-        <DialogContent className="max-w-md">
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Profile</DialogTitle>
             <DialogDescription>
-              Update your personal information and profile picture
+              Make changes to your profile here. Click save when you're done.
             </DialogDescription>
           </DialogHeader>
-          
-          {/* Hidden file input for edit dialog */}
-          <input
-            ref={editDialogFileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleEditDialogImageUpload}
-            className="hidden"
-          />
-          
-          {/* Profile Picture Section in Dialog */}
-          <div className="flex flex-col items-center gap-4 py-4 border-b">
-            <div className="relative group">
-              <Avatar 
-                className="h-20 w-20 cursor-pointer transition-all duration-200 group-hover:opacity-80"
-                onClick={handleEditDialogProfilePictureClick}
-              >
-                <AvatarImage 
-                  src={getCurrentProfilePicture()} 
-                  alt={userData?.displayName || "User"} 
-                />
-                <AvatarFallback className="text-2xl">
-                  {userData?.displayName?.charAt(0).toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              
-              {/* Upload overlay */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <div className="bg-black/50 rounded-full p-2">
-                  <Camera className="h-5 w-5 text-white" />
-                </div>
-              </div>
-            </div>
-            
-            <div className="text-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleEditDialogProfilePictureClick}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-1" />
-                    Change Photo
-                  </>
-                )}
-              </Button>
-              
-              {/* Progress bar for upload */}
-              {isUploading && uploadProgress > 0 && (
-                <div className="mt-2 space-y-1">
-                  <Progress value={uploadProgress} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {Math.round(uploadProgress)}% uploaded
-                  </p>
-                </div>
-              )}
-              
-              {localProfilePicture && !isUploading && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Image selected, uploading to cloud storage...
-                </p>
-              )}
-            </div>
-          </div>
-          
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -604,6 +440,21 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="phoneNumber"
@@ -652,6 +503,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={passwordForm.control}
                 name="newPassword"
@@ -665,6 +517,7 @@ const ProfilePage: React.FC = () => {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={passwordForm.control}
                 name="confirmPassword"

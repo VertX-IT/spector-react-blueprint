@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,8 @@ import { Copy, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveProject, verifyFirebaseConnection, generateSequentialPin } from '@/lib/projectOperations';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { BackButton } from '@/components/ui/back-button';
+import { useNetwork } from '@/contexts/NetworkContext';
+import lz from 'lz-string';
 import { loadProjectData, clearProjectCreationData } from '@/lib/projectCreationState';
 
 // Steps for project creation
@@ -40,8 +41,10 @@ const SecuritySettingsPage: React.FC = () => {
     connected: true,
     message: null
   });
+  const { isOnline } = useNetwork();
 
   const isMobile = useIsMobile();
+  const hasSyncedRef = useRef(false); // Track if sync has already happened
 
   // Generate the sequential 6-digit project PIN when component loads
   useEffect(() => {
@@ -49,122 +52,156 @@ const SecuritySettingsPage: React.FC = () => {
     checkFirebaseConnection();
   }, []);
 
-  // Check Firebase connection on page load
+  // Sync offline project creation data when connection is restored
+  useEffect(() => {
+    console.log('Network status changed, isOnline:', isOnline); // Debug log
+    if (!isOnline || hasSyncedRef.current) return;
+
+    const syncOfflineProject = async () => {
+      const offlineData = localStorage.getItem('offline_project_creation');
+      if (!offlineData) {
+        console.log('No offline data to sync');
+        return;
+      }
+
+      hasSyncedRef.current = true; // Mark as synced to prevent re-running
+
+      try {
+        console.log('Starting offline project sync...');
+        const decompressed = lz.decompress(offlineData);
+        const projectCreationData = decompressed ? JSON.parse(decompressed) : null;
+        if (!projectCreationData) {
+          console.log('Failed to parse offline data');
+          return;
+        }
+
+        // Regenerate a new PIN for the offline project
+        const offlineProjectPin = await generateNewPinForSync();
+        console.log('Generated new PIN for offline project:', offlineProjectPin);
+
+        // Reconstruct complete project data
+        const formFields = localStorage.getItem('formFields')
+          ? JSON.parse(localStorage.getItem('formFields') || '[]')
+          : [];
+        const formSections = localStorage.getItem('formSections')
+          ? JSON.parse(localStorage.getItem('formSections') || '[]')
+          : [];
+        const projectDataToSync = projectCreationData.projectData || projectCreationData.data;
+
+        const completeProjectData = {
+          name: projectDataToSync.name,
+          category: projectDataToSync.category,
+          assetName: projectDataToSync.assetName,
+          description: projectDataToSync.description || '',
+          formFields,
+          formSections,
+          projectPin: offlineProjectPin,
+          createdBy: userData?.uid,
+        };
+
+        // Check Firebase connection before syncing
+        const isFirebaseConnected = await verifyFirebaseConnection();
+        if (!isFirebaseConnected) {
+          console.log('Firebase not connected, skipping sync');
+          return;
+        }
+
+        // Save to Firebase
+        await saveProject(completeProjectData);
+        console.log('Offline project synced successfully');
+
+        // Clear offline data
+        localStorage.removeItem('offline_project_creation');
+        localStorage.removeItem('formFields');
+        localStorage.removeItem('formSections');
+
+        toast.success('Offline project data synced successfully!');
+
+      } catch (error: any) {
+        console.error('Error syncing offline project:', error);
+        toast.error('Failed to sync offline project data');
+      }
+    };
+
+    syncOfflineProject();
+  }, [isOnline, userData?.uid]);
+
+  // Load project data from localStorage
+  useEffect(() => {
+    const loadExistingData = () => {
+      const existingData = loadProjectData();
+      if (existingData) {
+        setProjectData({
+          category: existingData.category || '',
+          name: existingData.name || '',
+          assetName: existingData.assetName || '',
+          description: existingData.description || ''
+        });
+      }
+    };
+
+    loadExistingData();
+  }, []);
+
   const checkFirebaseConnection = async () => {
     try {
-      const result = await verifyFirebaseConnection();
+      const isConnected = await verifyFirebaseConnection();
       setFirebaseStatus({
-        connected: result.success,
-        message: result.success ? null : (result.error || 'Unable to connect to Firebase')
+        connected: isConnected,
+        message: isConnected ? null : 'Firebase connection failed'
       });
-
-      if (!result.success) {
-        toast.error(`Firebase connection issue: ${result.error}`);
-      }
-    } catch (error: any) {
-      console.error('Firebase connection check failed:', error);
+    } catch (error) {
       setFirebaseStatus({
         connected: false,
-        message: error.message || 'Failed to check Firebase connection'
+        message: 'Failed to verify Firebase connection'
       });
     }
   };
 
-  // Retrieve project data from localStorage
-  useEffect(() => {
-    const storedProjectData = loadProjectData();
-
-    if (storedProjectData) {
-      setProjectData(storedProjectData);
-    } else {
-      // Fall back to URL params if localStorage is not available
-      const params = new URLSearchParams(location.search);
-      const category = params.get('category') || '';
-      const name = params.get('name') || '';
-      const assetName = params.get('assetName') || '';
-      const description = params.get('description') || '';
-
-      setProjectData({
-        category,
-        name,
-        assetName,
-        description
-      });
-    }
-  }, [location.search]);
-
-  // NEW: Function to find the latest PIN in both Firebase and localStorage
-  const generate6DigitProjectPin = async () => {
-    let latestPin: string = '000000';
-
-    // 1. Fetch highest pin from Firebase using generateSequentialPin, 
-    //    but do NOT use its incrementing logic
-    let firebaseHighestPin: string = '000000';
+  const generateNewPinForSync = async () => {
     try {
-      const pinFromFirebase = await generateSequentialPin();
-      // generateSequentialPin returns the next available PIN (already +1),
-      // so need to take one less to get the highest in Firebase
-      const numericPin = parseInt(pinFromFirebase);
-      if (!isNaN(numericPin) && numericPin > 0) {
-        firebaseHighestPin = (numericPin - 1).toString().padStart(6, '0');
-      }
-    } catch (e) {
-      // ignore, fallback to default
+      // Get the latest PIN from Firebase
+      const latestPin = await generateSequentialPin();
+      return latestPin;
+    } catch (error) {
+      console.error('Error generating new PIN for sync:', error);
+      // Fallback to a timestamp-based PIN
+      return Date.now().toString().slice(-6);
     }
+  };
 
-    // 2. Find highest pin in localStorage
-    const projects = localStorage.getItem('myProjects')
-      ? JSON.parse(localStorage.getItem('myProjects') || '[]')
-      : [];
-    let localHighestPin: string = '000000';
-    if (projects.length > 0) {
-      localHighestPin = projects.reduce((max: string, prj: any) => {
-        if (
-          typeof prj.projectPin === 'string' &&
-          /^\d{6}$/.test(prj.projectPin) &&
-          prj.projectPin > max
-        ) {
-          return prj.projectPin;
-        }
-        return max;
-      }, '000000');
+  const generate6DigitProjectPin = async () => {
+    try {
+      const pin = await generateSequentialPin();
+      setProjectPin(pin);
+    } catch (error) {
+      console.error('Error generating project PIN:', error);
+      toast.error('Failed to generate project PIN');
     }
-
-    // 3. Decide which is the latest
-    latestPin = [firebaseHighestPin, localHighestPin].sort().reverse()[0] || '000000';
-
-    // 4. Increment for the new project (handle 999999 wrap)
-    const numericPin = parseInt(latestPin, 10) || 0;
-    let newPin = numericPin + 1;
-    if (newPin > 999999) newPin = 0;
-    const paddedPin = newPin.toString().padStart(6, '0');
-    setProjectPin(paddedPin);
   };
 
   const handleBack = () => {
-    navigate(`/dashboard/review-form${location.search}`);
+    navigate('/dashboard/review-form');
   };
 
   const handleCopyPin = () => {
-    navigator.clipboard.writeText(projectPin);
-    toast.success('Project PIN copied to clipboard');
+    if (projectPin) {
+      navigator.clipboard.writeText(projectPin);
+      toast.success('Project PIN copied to clipboard!');
+    }
   };
 
-  // SecuritySettingsPage.tsx
   const handleFinish = async () => {
+    if (!projectData.name || !projectData.category) {
+      toast.error('Please complete all required fields');
+      return;
+    }
+
     setIsDeploying(true);
     setDeployError(null);
 
     try {
-      // Verify Firebase connection
-      const connectionCheck = await verifyFirebaseConnection();
-      if (!connectionCheck.success) {
-        throw new Error(`Firebase connection issue: ${connectionCheck.error}`);
-      }
-
-      console.log('Starting project deployment process');
-
-      // Get project data from localStorage
+      // Get form data from localStorage
       const formFields = localStorage.getItem('formFields')
         ? JSON.parse(localStorage.getItem('formFields') || '[]')
         : [];
@@ -172,58 +209,41 @@ const SecuritySettingsPage: React.FC = () => {
         ? JSON.parse(localStorage.getItem('formSections') || '[]')
         : [];
 
-      // Combine all project data
-      const completeProjectData = {
+      const projectToSave = {
         name: projectData.name,
         category: projectData.category,
         assetName: projectData.assetName,
-        description: projectData.description || '',
-        formFields, // Keep for backward compatibility if needed
-        formSections, // Include the section-based structure
-        projectPin,
-        createdAt: new Date(),
-        recordCount: 0,
-        createdBy: userData?.uid || 'anonymous',
-      };
-
-      console.log('Prepared project data for saving:', completeProjectData);
-
-      // Save to Firebase
-      console.log('Saving project to Firebase...');
-      const savedProject = await saveProject(completeProjectData);
-      console.log('Project saved to Firebase:', savedProject);
-
-      // Update localStorage for backward compatibility
-      const existingProjects = localStorage.getItem('myProjects')
-        ? JSON.parse(localStorage.getItem('myProjects') || '[]')
-        : [];
-
-      const newProject = {
-        id: savedProject.id || Date.now().toString(),
-        name: completeProjectData.name,
-        category: completeProjectData.category,
-        assetName: completeProjectData.assetName,
-        description: completeProjectData.description,
-        createdAt: new Date().toISOString(),
-        recordCount: 0,
+        description: projectData.description,
         formFields,
-        formSections, // Include in localStorage
+        formSections,
         projectPin,
+        createdBy: userData?.uid,
       };
 
-      existingProjects.push(newProject);
-      localStorage.setItem('myProjects', JSON.stringify(existingProjects));
+      if (isOnline) {
+        // Save to Firebase if online
+        await saveProject(projectToSave);
+        toast.success('Project created successfully!');
+      } else {
+        // Save to localStorage if offline
+        const compressedData = lz.compress(JSON.stringify({
+          projectData: projectToSave,
+          timestamp: new Date().toISOString()
+        }));
+        localStorage.setItem('offline_project_creation', compressedData);
+        toast.success('Project saved offline! Will sync when connection is restored.');
+      }
 
-      // Clear form data from localStorage using utility function
+      // Clear project creation data
       clearProjectCreationData();
 
-      toast.success('Project successfully deployed!');
+      // Navigate to projects page
       navigate('/dashboard/my-projects');
+
     } catch (error: any) {
-      console.error('Error deploying project:', error);
-      const errorMessage = error.message || 'Unknown error occurred';
-      setDeployError(errorMessage);
-      toast.error(`Failed to deploy project: ${errorMessage}`);
+      console.error('Error creating project:', error);
+      setDeployError(error.message || 'Failed to create project');
+      toast.error('Failed to create project. Please try again.');
     } finally {
       setIsDeploying(false);
     }
@@ -313,34 +333,27 @@ const SecuritySettingsPage: React.FC = () => {
         <CardContent className={`${isMobile ? 'p-3' : 'pt-4'}`}>
           <h2 className="text-lg font-medium mb-3">Ready to Finish</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Your project is ready to be deployed. Team members can join your project using the PIN code.
+            Your project is ready to be deployed. Confirm to finalize the setup.
           </p>
-
-          {deployError && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {deployError}
-              </AlertDescription>
-            </Alert>
-          )}
-
           <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
             <Button
               variant="outline"
               onClick={handleBack}
               className={isMobile ? 'h-12 text-base w-full' : ''}
             >
-              Back to Review
+              Back
             </Button>
             <Button
               onClick={handleFinish}
-              disabled={isDeploying || !firebaseStatus.connected}
+              disabled={isDeploying}
               className={isMobile ? 'h-12 text-base w-full' : ''}
             >
-              {isDeploying ? 'Deploying...' : 'Finish & Deploy'}
+              {isDeploying ? 'Deploying...' : 'Finish Deployment'}
             </Button>
           </div>
+          {deployError && (
+            <p className="text-sm text-red-500 mt-2">{deployError}</p>
+          )}
         </CardContent>
       </Card>
     </>

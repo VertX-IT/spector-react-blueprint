@@ -42,4 +42,4 @@ export interface Project {
 
 export interface FormData {
   [key: string]: string | File | boolean | string[] | null;
-} 
+}

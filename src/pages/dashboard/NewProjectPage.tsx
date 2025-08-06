@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { ProgressSteps } from '@/components/ui/progress-steps';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { BackButton } from '@/components/ui/back-button';
+import InlineBackButton from '@/components/ui/CustomButton';
 import { loadProjectData, autoSaveProjectData } from '@/lib/projectCreationState';
 import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator';
 
@@ -61,7 +61,7 @@ const NewProjectPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const isMobile = useIsMobile();
-  
+
   // Initialize the form
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -94,193 +94,161 @@ const NewProjectPage: React.FC = () => {
   // Auto-save form data when it changes
   useEffect(() => {
     if (!isDataLoaded) return;
-    
+
     const subscription = form.watch((data) => {
-      if (data.name || data.assetName || data.category) {
+      if (data.name || data.assetName || data.description || data.category) {
         setIsSaving(true);
-        autoSaveProjectData({
-          name: data.name || '',
-          assetName: data.assetName || '',
-          description: data.description || '',
-          category: data.category || '',
-        });
-        
-        // Simulate save completion
-        setTimeout(() => {
-          setIsSaving(false);
-          setLastSaved(new Date());
-        }, 300);
+        autoSaveProjectData(data);
+        setLastSaved(new Date());
+        setIsSaving(false);
       }
     });
 
     return () => subscription.unsubscribe();
   }, [form, isDataLoaded]);
 
-  // Form submission handler
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
-    
     try {
-      // Store form data for next steps
-      console.log('Project details:', data);
-      
-      // Store project data in localStorage for the multi-step form process
-      localStorage.setItem('projectData', JSON.stringify({
-        name: data.name,
-        assetName: data.assetName,
-        description: data.description || '',
-        category: data.category
-      }));
+      // Save the form data to localStorage
+      autoSaveProjectData(data);
 
-      // Move to next step
-      setCurrentStep(2);
-      
-      // Navigate to the form builder page with all project data as parameters
-      navigate(`/dashboard/form-builder?category=${data.category}&name=${encodeURIComponent(data.name)}&assetName=${encodeURIComponent(data.assetName)}&description=${encodeURIComponent(data.description || '')}`);
-      
-      toast.success('Basic details saved! Ready for form creation.');
+      // Navigate to the next step
+      navigate('/dashboard/form-builder', {
+        state: { projectData: data }
+      });
     } catch (error) {
-      console.error('Error creating project:', error);
-      toast.error('Failed to save project details. Please try again.');
+      console.error('Error saving project data:', error);
+      toast.error('Failed to save project data');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <>
-      <div className="mb-4 px-1">
-        {/* Back Button */}
-        <div className="mb-3">
-          <BackButton 
-            to="/dashboard/my-projects"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
-          />
-        </div>
-        
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-xl font-bold tracking-tight">Create New Project</h1>
-          <AutoSaveIndicator 
-            isSaving={isSaving}
-            lastSaved={lastSaved}
-          />
-        </div>
-        
-        <p className="text-sm text-muted-foreground mb-4">
-          Set up a new data collection project
+    <div className="container mx-auto p-4">
+      <div className="mb-6">
+        <InlineBackButton path="/dashboard/my-projects" />
+        <h1 className="text-2xl font-bold tracking-tight mt-2">Create New Project</h1>
+        <p className="text-muted-foreground">
+          Set up your project details and configuration
         </p>
-        
-        <ProgressSteps 
-          currentStep={currentStep}
-          totalSteps={steps.length}
-          labels={steps}
-        />
       </div>
 
-      <Card className={`${isMobile ? 'mx-1 shadow-sm' : ''}`}>
-        <CardContent className={`pt-4 ${isMobile ? 'px-3' : ''}`}>
+      <AutoSaveIndicator isSaving={isSaving} lastSaved={lastSaved} />
+
+      <Card className="max-w-2xl mx-auto">
+        <CardContent className="p-6">
+          <div className="mb-6">
+            <ProgressSteps
+              currentStep={currentStep}
+              totalSteps={steps.length}
+              labels={steps}
+            />
+          </div>
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base">Project Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="E.g., Land Asset Survey" {...field} className={isMobile ? 'text-base h-12' : ''} />
-                    </FormControl>
-                    <FormDescription className={isMobile ? 'text-xs' : ''}>
-                      Give your data collection project a descriptive name.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base">Asset Category</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Name *</FormLabel>
                       <FormControl>
-                        <SelectTrigger className={isMobile ? 'text-base h-12' : ''}>
-                          <SelectValue placeholder="Select asset category" />
-                        </SelectTrigger>
+                        <Input
+                          placeholder="Enter project name"
+                          {...field}
+                          className={isMobile ? "h-12 text-base" : ""}
+                        />
                       </FormControl>
-                      <SelectContent className={isMobile ? 'text-base' : ''}>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription className={isMobile ? 'text-xs' : ''}>
-                      Select the type of assets this project will track.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="assetName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base">Asset Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="E.g., Main Building, Company Vehicle" {...field} className={isMobile ? 'text-base h-12' : ''} />
-                    </FormControl>
-                    <FormDescription className={isMobile ? 'text-xs' : ''}>
-                      Enter a name for the specific asset being tracked.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base">Description (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Brief description of this project's purpose..." 
-                        className={`resize-none ${isMobile ? 'text-base' : ''}`}
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="assetName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Asset Name *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter asset name"
+                          {...field}
+                          className={isMobile ? "h-12 text-base" : ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger className={isMobile ? "h-12 text-base" : ""}>
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Enter project description (optional)"
+                          {...field}
+                          rows={4}
+                          className={isMobile ? "text-base" : ""}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Provide additional details about your project
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <Separator />
-              
-              <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
-                <Button 
+
+              <div className="flex gap-2 pt-4">
+                <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/dashboard/my-projects')}
-                  className={isMobile ? 'h-12 text-base w-full' : ''}
+                  className={`flex-1 ${isMobile ? "h-12 text-base" : ""}`}
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className={isMobile ? 'h-12 text-base w-full' : ''}
+                  className={`flex-1 ${isMobile ? "h-12 text-base" : ""}`}
                 >
                   {isSubmitting ? 'Saving...' : 'Continue to Form Builder'}
                 </Button>
@@ -289,7 +257,7 @@ const NewProjectPage: React.FC = () => {
           </Form>
         </CardContent>
       </Card>
-    </>
+    </div>
   );
 };
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -11,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { findProjectByPin } from '@/lib/projectOperations';
 import { useAuth } from '@/contexts/AuthContext';
+import InlineBackButton from '../ui/CustomButton';
 
 const joinProjectSchema = z.object({
   projectPin: z.string().length(6, { message: "Project PIN must be exactly 6 characters" })
@@ -86,6 +88,7 @@ export const JoinProjectForm: React.FC = () => {
   return (
     <Card>
       <CardHeader>
+      
         <CardTitle>Join a Project</CardTitle>
         <CardDescription>
           Enter the 6-digit PIN provided by the project creator to join.
@@ -101,9 +104,9 @@ export const JoinProjectForm: React.FC = () => {
                 <FormItem>
                   <FormLabel>Project PIN</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Enter 6-digit PIN" 
-                      {...field} 
+                    <Input
+                      placeholder="Enter 6-digit PIN"
+                      {...field}
                       className="text-center text-2xl tracking-widest font-mono"
                       maxLength={6}
                     />
@@ -116,10 +119,10 @@ export const JoinProjectForm: React.FC = () => {
         </Form>
       </CardContent>
       <CardFooter>
-        <Button 
-          type="submit" 
-          form="join-project-form" 
-          className="w-full" 
+        <Button
+          type="submit"
+          form="join-project-form"
+          className="w-full"
           disabled={isJoining}
         >
           {isJoining ? "Joining..." : "Join Project"}
