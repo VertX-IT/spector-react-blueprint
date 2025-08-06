@@ -110,7 +110,7 @@ const ProfilePage: React.FC = () => {
       // Update user data in context
       await updateUserData({
         ...userData,
-        photoURL: downloadURL,
+        profilePictureURL: downloadURL,
       });
 
       toast({
@@ -145,7 +145,7 @@ const ProfilePage: React.FC = () => {
       // Update user data in context
       await updateUserData({
         ...userData,
-        photoURL: null,
+        profilePictureURL: null,
       });
 
       setLocalProfilePicture(null);
@@ -225,7 +225,7 @@ const ProfilePage: React.FC = () => {
 
   // Get current profile picture URL (local or Firebase)
   const getCurrentProfilePicture = () => {
-    return localProfilePicture || userData?.photoURL || "";
+    return localProfilePicture || userData?.profilePictureURL || "";
   };
   
   return (
@@ -234,10 +234,7 @@ const ProfilePage: React.FC = () => {
       <div className="mb-4 px-1">
         <div className="mb-3">
           <InlineBackButton 
-            to="/dashboard"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
+            path="/dashboard"
           />
         </div>
         
@@ -317,7 +314,7 @@ const ProfilePage: React.FC = () => {
                   )}
                 </Button>
                 
-                {userData?.photoURL && (
+                {userData?.profilePictureURL && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -341,52 +338,51 @@ const ProfilePage: React.FC = () => {
               )}
             </div>
             
-          </div>
-          
-          <div className="text-center">
-            <p className="text-xl font-semibold">{userData?.displayName}</p>
-            <p className="text-muted-foreground">{userData?.email}</p>
-            <div className="mt-1">
-              <Badge variant="outline" className="capitalize">
-                {userData?.role}
-              </Badge>
+            <div className="text-center">
+              <p className="text-xl font-semibold">{userData?.displayName}</p>
+              <p className="text-muted-foreground">{userData?.email}</p>
+              <div className="mt-1">
+                <Badge variant="outline" className="capitalize">
+                  {userData?.role}
+                </Badge>
+              </div>
             </div>
-          </div>
 
-          <div className="text-sm text-muted-foreground w-full max-w-xs">
-            <div className="flex justify-between py-2 border-b">
-              <span>Phone Number</span>
-              <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
+            <div className="text-sm text-muted-foreground w-full max-w-xs">
+              <div className="flex justify-between py-2 border-b">
+                <span>Phone Number</span>
+                <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
+              </div>
             </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-center border-t pt-4">
-          <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
-        </CardFooter>
-      </Card>
+          </CardContent>
+          <CardFooter className="flex justify-center border-t pt-4">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
+          </CardFooter>
+        </Card>
 
-      {/* Account Actions Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Account Actions</CardTitle>
-          <CardDescription>
-            Manage your account and data
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={handleLogout}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+        {/* Account Actions Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Account Actions</CardTitle>
+            <CardDescription>
+              Manage your account and data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={handleLogout}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
-    <Card className="mt-6">
+      {/* Account Security Card */}
+      <Card className="mt-6">
         <CardHeader>
           <CardTitle>Account Security</CardTitle>
           <CardDescription>
