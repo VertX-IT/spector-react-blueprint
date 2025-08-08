@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useNetwork } from '@/contexts/NetworkContext';
 import lz from 'lz-string';
 import { loadProjectData, clearProjectCreationData } from '@/lib/projectCreationState';
+import { BackButton } from '@/components/ui/back-button';
 
 // Steps for project creation
 const steps = [
@@ -97,6 +98,8 @@ const SecuritySettingsPage: React.FC = () => {
           formSections,
           projectPin: offlineProjectPin,
           createdBy: userData?.uid,
+          createdAt: new Date(),
+          recordCount: 0,
         };
 
         // Check Firebase connection before syncing
@@ -145,10 +148,10 @@ const SecuritySettingsPage: React.FC = () => {
 
   const checkFirebaseConnection = async () => {
     try {
-      const isConnected = await verifyFirebaseConnection();
+      const { success, error } = await verifyFirebaseConnection();
       setFirebaseStatus({
-        connected: isConnected,
-        message: isConnected ? null : 'Firebase connection failed'
+        connected: success,
+        message: success ? null : (error?.message || 'Firebase connection failed')
       });
     } catch (error) {
       setFirebaseStatus({
@@ -218,6 +221,8 @@ const SecuritySettingsPage: React.FC = () => {
         formSections,
         projectPin,
         createdBy: userData?.uid,
+        createdAt: new Date(),
+        recordCount: 0,
       };
 
       if (isOnline) {

@@ -732,7 +732,7 @@ setImagePreviews((prev) => ({
     }
   };
 
-  const getFieldsBySection = (sectionId: string) => {
+  const getFieldsBySectionSafe = (sections: Section[], sectionId: string) => {
     const section = sections.find((s) => s.id === sectionId);
     return section ? section.fields : [];
   };
@@ -1131,9 +1131,21 @@ setImagePreviews((prev) => ({
         activeSectionIndex={activeSectionIndex}
         setActiveSectionIndex={setActiveSectionIndex}
         completedSections={completedSections}
+        isDesigner={isDesigner}
+        isCollector={isCollector}
+        isEditMode={isEditMode}
+        handleRenameSection={handleRenameSection}
+        handleDeleteSection={handleDeleteSection}
+        handleToggleRequired={handleToggleRequired}
+        handleUpdateFieldName={handleUpdateFieldName}
       />
       <SectionForm
         section={projectSections[activeSectionIndex]}
+        sections={projectSections}
+        activeSectionIndex={activeSectionIndex}
+        isCollector={isCollector}
+        isDesigner={isDesigner}
+        clearStorage={clearStorage}
         formData={formData}
         handleInputChange={handleInputChange}
         handleSectionSubmit={handleSectionSubmit}
@@ -1265,7 +1277,7 @@ setImagePreviews((prev) => ({
                   onSubmit={(e) => {
                     e.preventDefault();
                     const section = projectSections[activeSectionIndex];
-                    const sectionFields = getFieldsBySection(sections, section.id);
+                    const sectionFields = getFieldsBySectionSafe(sections, section.id);
                     handleSectionSubmit(section.id, sectionFields);
                   }}
                   className="space-y-4 mt-4"
@@ -1279,7 +1291,7 @@ setImagePreviews((prev) => ({
                   </Button>
                   {(() => {
                     const section = projectSections[activeSectionIndex];
-                    const sectionFields = getFieldsBySection(section.id);
+                    const sectionFields = getFieldsBySectionSafe(sections, section.id);
                     console.log("Current section:", section);
                     console.log("Section fields:", sectionFields);
 
@@ -1370,7 +1382,7 @@ setImagePreviews((prev) => ({
                                     {field.required && (
                                       <span className="text-red-500 ml-1">*</span>
                                     )}
-                                    {isSystem && (
+                                    {isSystemField(field.name) && (
                                       <span className="text-xs text-muted-foreground ml-2">(Auto-filled)</span>
                                     )}
                                   </label>
@@ -1914,7 +1926,7 @@ setImagePreviews((prev) => ({
                   {isDesigner ? "" : " your"} data collected for this project.
                 </p>
                 <Button
-                  onClick={() => handleExportData(projectRecords, projectSections, project?.name)}
+                  onClick={handleExportData}
                   className="mt-4 w-full sm:w-auto"
                   disabled={projectRecords.length === 0}
                 >

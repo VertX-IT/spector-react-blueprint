@@ -90,7 +90,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
       <Tabs value={selectedTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="dropdown" disabled={disabled}>Province/District</TabsTrigger>
-          <TabsTrigger value="manual" disabled={disabled}>Manual Entry</TabsTrigger>
+          <TabsTrigger value="manual" disabled={disabled}>Coordinates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dropdown" className="space-y-3 pt-2">

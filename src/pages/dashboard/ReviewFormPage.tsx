@@ -22,7 +22,7 @@ const dataTypes = [
   { id: "coordinates", name: "Geographical Coordinates" },
   { id: "image", name: "Image (Take new, Add existing)" },
   { id: "checkbox", name: "Checkbox (Yes/No)" },
-  { id: "multipleChoice", name: "Multiple Choice" },
+  { id: "multipleChoice", name: "Multiple Choice (select many)" },
   { id: "qrBarcode", name: "QR/Barcode Reader" },
   { id: "dateTime", name: "Date and Time" },
 ];

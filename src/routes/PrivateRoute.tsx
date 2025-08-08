@@ -7,7 +7,7 @@ interface PrivateRouteProps {
 }
 
 export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { currentUser, isLoading, isEmailVerified } = useAuth();
+  const { currentUser, isLoading, isEmailVerified, userData } = useAuth();
   
   // Wait until the auth state is loaded
   if (isLoading) {
@@ -19,8 +19,10 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
     return <Navigate to="/signin" />;
   }
   
-  // Redirect to email verification if email is not verified
-  if (!isEmailVerified) {
+  // Only require email verification for Google sign-up users
+  // Email/password users can access the app immediately
+  const isGoogleSignUp = userData?.signUpMethod === 'google';
+  if (isGoogleSignUp && !isEmailVerified) {
     return <Navigate to="/email-verification" />;
   }
   

@@ -60,11 +60,19 @@ const MyProjectsPage: React.FC = () => {
       const storedProjects = localStorage.getItem("myProjects");
       if (storedProjects) {
         const parsedProjects: Project[] = JSON.parse(storedProjects);
-        allProjects = parsedProjects.map((project) => ({
+        
+        // Filter localStorage projects to only include those belonging to current user
+        const userLocalProjects = parsedProjects.filter((project) => 
+          project.createdBy === currentUser?.uid
+        );
+        
+        allProjects = userLocalProjects.map((project) => ({
           ...project,
           createdAt: new Date(project.createdAt),
         }));
-        console.log("LocalStorage Projects:", allProjects);
+        console.log("LocalStorage Projects (filtered for user):", allProjects);
+        console.log("Original localStorage projects:", parsedProjects.length);
+        console.log("Filtered localStorage projects:", allProjects.length);
       } else {
         localStorage.setItem("myProjects", JSON.stringify([]));
       }
@@ -72,31 +80,48 @@ const MyProjectsPage: React.FC = () => {
       // Fetch from Firebase if online and user is authenticated
       if (isOnline && currentUser?.uid) {
         console.log("Fetching from Firebase with UID:", currentUser.uid);
-        const firebaseProjects = await getUserProjects(currentUser.uid);
-        console.log("Firebase Projects:", firebaseProjects);
-        const firebaseProjectsWithDates = firebaseProjects.map((project) => ({
-          ...project,
-          createdAt: new Date(project.createdAt),
-          formSections: Array.isArray(project.formSections) ? project.formSections : [],
-        }));
+        console.log("User data:", userData);
+        
+        try {
+          const firebaseProjects = await getUserProjects(currentUser.uid);
+          console.log("Firebase Projects fetched:", firebaseProjects.length);
+          console.log("Firebase Projects details:", firebaseProjects);
+          
+          const firebaseProjectsWithDates = firebaseProjects.map((project) => ({
+            ...project,
+            createdAt: new Date(project.createdAt),
+            formSections: Array.isArray(project.formSections) ? project.formSections : [],
+          }));
 
-        // Merge projects, prioritizing Firebase data
-        const mergedProjects = [
-          ...allProjects.filter((local) => !firebaseProjects.some((fb) => fb.id === local.id)),
-          ...firebaseProjectsWithDates,
-        ];
-        console.log("Merged Projects before set:", mergedProjects);
+          // Merge projects, prioritizing Firebase data
+          const mergedProjects = [
+            ...allProjects.filter((local) => !firebaseProjects.some((fb) => fb.id === local.id)),
+            ...firebaseProjectsWithDates,
+          ];
+          console.log("Merged Projects before set:", mergedProjects);
 
-        if (mergedProjects.length > 0) {
-          localStorage.setItem("myProjects", JSON.stringify(mergedProjects));
-          setProjects([...mergedProjects]); // Ensure new array reference
-          console.log("Projects state set to:", mergedProjects);
-        } else {
-          console.log("No projects to set, using local fallback");
-          setProjects([...allProjects]); // Ensure new array reference
+          if (mergedProjects.length > 0) {
+            // Ensure all projects in localStorage have the correct createdBy field
+            const projectsWithCorrectCreatedBy = mergedProjects.map(project => ({
+              ...project,
+              createdBy: currentUser?.uid || project.createdBy
+            }));
+            
+            localStorage.setItem("myProjects", JSON.stringify(projectsWithCorrectCreatedBy));
+            setProjects([...projectsWithCorrectCreatedBy]); // Ensure new array reference
+            console.log("Projects state set to:", projectsWithCorrectCreatedBy);
+          } else {
+            console.log("No projects to set, using local fallback");
+            setProjects([...allProjects]); // Ensure new array reference
+          }
+        } catch (error) {
+          console.error("Error fetching Firebase projects:", error);
+          toast.error("Failed to fetch projects from cloud");
+          setProjects([...allProjects]); // Use local projects as fallback
         }
       } else {
         console.log("Offline or no user, using local projects");
+        console.log("isOnline:", isOnline, "currentUser?.uid:", currentUser?.uid);
         setProjects([...allProjects]); // Ensure new array reference
       }
     } catch (error) {
@@ -127,6 +152,8 @@ const MyProjectsPage: React.FC = () => {
     }
     wasOfflineRef.current = !isOnline; // Update previous state
   }, [isOnline, currentUser?.uid]);
+
+
 
   const syncOfflineProject = async () => {
     const offlineData = localStorage.getItem('offline_project_creation');
@@ -185,6 +212,11 @@ const MyProjectsPage: React.FC = () => {
         : [];
       const projectDataToSync = projectCreationData.projectData || projectCreationData.data;
 
+      // Ensure we have a valid user ID before creating the project
+      if (!currentUser?.uid) {
+        throw new Error('User must be authenticated to create projects');
+      }
+
       const completeProjectData = {
         name: projectDataToSync.name,
         category: projectDataToSync.category,
@@ -195,7 +227,7 @@ const MyProjectsPage: React.FC = () => {
         projectPin: offlineProjectPin,
         createdAt: new Date(),
         recordCount: 0,
-        createdBy: currentUser?.uid || 'anonymous',
+        createdBy: currentUser.uid,
       };
 
       const connectionCheck = await verifyFirebaseConnection();

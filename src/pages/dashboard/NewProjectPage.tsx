@@ -98,7 +98,14 @@ const NewProjectPage: React.FC = () => {
     const subscription = form.watch((data) => {
       if (data.name || data.assetName || data.description || data.category) {
         setIsSaving(true);
-        autoSaveProjectData(data);
+        // Ensure all required fields are present and properly typed
+        const projectData = {
+          name: data.name || '',
+          assetName: data.assetName || '',
+          description: data.description || '',
+          category: data.category || '',
+        };
+        autoSaveProjectData(projectData);
         setLastSaved(new Date());
         setIsSaving(false);
       }
@@ -110,8 +117,16 @@ const NewProjectPage: React.FC = () => {
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
+      // Ensure all required fields are present and properly typed
+      const projectData = {
+        name: data.name || '',
+        assetName: data.assetName || '',
+        description: data.description || '',
+        category: data.category || '',
+      };
+      
       // Save the form data to localStorage
-      autoSaveProjectData(data);
+      autoSaveProjectData(projectData);
 
       // Navigate to the next step
       navigate('/dashboard/form-builder', {
@@ -236,7 +251,7 @@ const NewProjectPage: React.FC = () => {
 
               <Separator />
 
-              <div className="flex gap-2 pt-4">
+              <div className="flex flex-col gap-2 pt-4">
                 <Button
                   type="button"
                   variant="outline"

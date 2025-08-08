@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,10 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserRole } from '@/contexts/AuthContext';
-import { Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, XCircle, X } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 // Password strength checker function
@@ -55,6 +57,62 @@ const signUpSchema = z.object({
 });
 
 type SignUpFormValues = z.infer<typeof signUpSchema>;
+
+// Custom hook for form persistence
+const useFormPersistence = <T extends Record<string, any>>(
+  formKey: string,
+  defaultValues: T
+) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load saved data from localStorage
+  const loadSavedData = (): T => {
+    try {
+      const saved = localStorage.getItem(`signup_form_${formKey}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Only restore non-sensitive fields (exclude passwords)
+        return {
+          ...defaultValues,
+          ...parsed,
+          password: '', // Don't restore password for security
+          confirmPassword: '', // Don't restore confirm password for security
+        } as T;
+      }
+    } catch (error) {
+      console.warn('Failed to load saved form data:', error);
+    }
+    return defaultValues;
+  };
+
+  // Save data to localStorage
+  const saveData = (data: T) => {
+    try {
+      // Don't save sensitive fields
+      const { password, confirmPassword, ...safeData } = data;
+      localStorage.setItem(`signup_form_${formKey}`, JSON.stringify(safeData));
+    } catch (error) {
+      console.warn('Failed to save form data:', error);
+    }
+  };
+
+  // Clear saved data
+  const clearSavedData = () => {
+    try {
+      localStorage.removeItem(`signup_form_${formKey}`);
+    } catch (error) {
+      console.warn('Failed to clear saved form data:', error);
+    }
+  };
+
+  return {
+    loadSavedData,
+    saveData,
+    clearSavedData,
+    isLoaded,
+    setIsLoaded,
+  };
+};
 
 // Password Strength Indicator Component
 const PasswordStrengthIndicator: React.FC<{ password: string }> = ({ password }) => {
@@ -131,6 +189,283 @@ const PasswordStrengthIndicator: React.FC<{ password: string }> = ({ password })
   );
 };
 
+// Terms of Service Modal Component
+const TermsOfServiceModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+        <DialogHeader className="p-6 pb-4">
+          <DialogTitle className="text-xl font-bold">
+            Privacy Policy & User Terms for Spector
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Explicitly Agree Upon Account Creation
+          </p>
+        </DialogHeader>
+        <ScrollArea className="h-[60vh] px-6 pb-6">
+          <div className="space-y-6 prose prose-sm max-w-none">
+            <section>
+              <h2 className="text-lg font-semibold mb-3">1. Acceptance of Terms</h2>
+              <p>
+                By accessing or using the Spector app, you agree to the following terms and conditions. 
+                If you do not agree, please do not use the application.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">2. Purpose of the App</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  Spector is a data collection and storage tool designed for professionals to capture, 
+                  organize, and access property inspection data.
+                </li>
+                <li>
+                  The app does not interpret, process, validate, or verify the accuracy or completeness 
+                  of any data entered by users. It serves purely as a recording and organizational platform.
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">3. Information We Collect</h2>
+              <p className="mb-2">Spector may collect and store the following data types:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <strong>Personal Information:</strong> Name, email address, phone number, and Google account identifiers
+                </li>
+                <li>
+                  <strong>Survey and Field Data:</strong> Photos, GPS location, notes, timestamps, and inspection-related inputs.
+                </li>
+                <li>
+                  <strong>Device Data:</strong> Non-identifying information such as device type, app version, and device ID for diagnostics and security.
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">4. How Your Data Is Used</h2>
+              <p className="mb-2">Data collected through Spector is used for the following purposes:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Supporting core app functionality (data capture, syncing, export)</li>
+                <li>Managing accounts and survey permissions</li>
+                <li>Securing system integrity and fixing bugs</li>
+                <li>Providing user support</li>
+              </ul>
+              <p className="mt-3">
+                <strong>We do not sell, share, or monetize personal or survey data.</strong>
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">5. User Consent</h2>
+              <p className="mb-2">Spector requests access only when necessary for feature functionality:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li><strong>Location Access:</strong> Used to tag entries with GPS.</li>
+                <li><strong>Camera Access:</strong> Used to take photos for inspections.</li>
+                <li><strong>Storage Access:</strong> Used for uploading attachments or exporting reports.</li>
+              </ul>
+              <p className="mt-3">These permissions are used strictly during active data collection.</p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">6. Data Storage and Security</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>All inspection data is stored securely in encrypted cloud storage.</li>
+                <li>Data entered while offline is stored locally on the device and uploaded automatically when connectivity is restored.</li>
+                <li>Access to cloud data is restricted based on user role and authentication.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">7. Data Access and Control</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li><strong>Survey Creators:</strong> Can access and export all data in their surveys.</li>
+                <li><strong>Data Collectors:</strong> Can only view or export data they have personally submitted.</li>
+                <li>Users may initiate account deletion or data deletion at any time.</li>
+                <li>You have the right to request a copy of all data we have about you.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">8. Liability and Disclaimers</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Spector is provided "as is" without warranties of any kind.</li>
+                <li>Users are responsible for the accuracy and completeness of data they enter.</li>
+                <li>We are not liable for any damages arising from the use of the application.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">9. Jurisdiction and Governing Law</h2>
+              <p>
+                These terms are governed by the laws of the jurisdiction where Spector operates. 
+                Any disputes will be resolved in accordance with applicable local laws.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">10. Policy Updates</h2>
+              <p>
+                We may update these terms from time to time. Users will be notified of significant changes, 
+                and continued use of the app constitutes acceptance of updated terms.
+              </p>
+            </section>
+          </div>
+        </ScrollArea>
+        <div className="p-6 pt-0">
+          <Button onClick={onClose} className="w-full">
+            I Understand
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Privacy Policy Modal Component
+const PrivacyPolicyModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+        <DialogHeader className="p-6 pb-4">
+          <DialogTitle className="text-xl font-bold">
+            Privacy Policy for Spector
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            How we collect, use, and protect your data
+          </p>
+        </DialogHeader>
+        <ScrollArea className="h-[60vh] px-6 pb-6">
+          <div className="space-y-6 prose prose-sm max-w-none">
+            <section>
+              <h2 className="text-lg font-semibold mb-3">1. Information We Collect</h2>
+              <p className="mb-2">Spector may collect and store the following data types:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <strong>Personal Information:</strong> Name, email address, phone number, and Google account identifiers
+                </li>
+                <li>
+                  <strong>Survey and Field Data:</strong> Photos, GPS location, notes, timestamps, and inspection-related inputs.
+                </li>
+                <li>
+                  <strong>Device Data:</strong> Non-identifying information such as device type, app version, and device ID for diagnostics and security.
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">2. How Your Data Is Used</h2>
+              <p className="mb-2">Data collected through Spector is used for the following purposes:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Supporting core app functionality (data capture, syncing, export)</li>
+                <li>Managing accounts and survey permissions</li>
+                <li>Securing system integrity and fixing bugs</li>
+                <li>Providing user support</li>
+              </ul>
+              <p className="mt-3">
+                <strong>We do not sell, share, or monetize personal or survey data.</strong>
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">3. User Consent and Permissions</h2>
+              <p className="mb-2">Spector requests access only when necessary for feature functionality:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li><strong>Location Access:</strong> Used to tag entries with GPS coordinates for accurate asset location tracking.</li>
+                <li><strong>Camera Access:</strong> Used to take photos for inspections and asset documentation.</li>
+                <li><strong>Storage Access:</strong> Used for uploading attachments or exporting reports.</li>
+              </ul>
+              <p className="mt-3">These permissions are used strictly during active data collection and can be revoked at any time through your device settings.</p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">4. Data Storage and Security</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>All inspection data is stored securely in encrypted cloud storage using Firebase services.</li>
+                <li>Data entered while offline is stored locally on the device and uploaded automatically when connectivity is restored.</li>
+                <li>Access to cloud data is restricted based on user role and authentication.</li>
+                <li>We implement industry-standard security measures to protect your data.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">5. Data Access and Control</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li><strong>Survey Creators:</strong> Can access and export all data in their surveys.</li>
+                <li><strong>Data Collectors:</strong> Can only view or export data they have personally submitted.</li>
+                <li>Users may initiate account deletion or data deletion at any time.</li>
+                <li>You have the right to request a copy of all data we have about you.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">6. Audit Metadata</h2>
+              <p className="mb-2">To ensure traceability and accountability, each inspection record may include:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Created By (user ID)</li>
+                <li>Created At (timestamp)</li>
+                <li>Last Modified (timestamp)</li>
+                <li>Location (if enabled)</li>
+              </ul>
+              <p className="mt-3">This information may appear in dashboards, logs, or exported reports for audit purposes.</p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">7. Data Retention</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Account data is retained as long as your account is active.</li>
+                <li>Survey data is retained according to your organization's requirements.</li>
+                <li>You may request data deletion at any time.</li>
+                <li>Some data may be retained for legal or security purposes.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">8. Third-Party Services</h2>
+              <p className="mb-2">We use the following third-party services:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li><strong>Firebase:</strong> For authentication, database, and storage services</li>
+                <li><strong>Google Services:</strong> For Google Sign-In functionality</li>
+              </ul>
+              <p className="mt-3">These services have their own privacy policies and data handling practices.</p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">9. International Data Transfers</h2>
+              <p>
+                Your data may be processed and stored in countries other than your own. 
+                We ensure appropriate safeguards are in place to protect your data during such transfers.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">10. Contact Information</h2>
+              <p className="mb-2">For privacy-related questions or concerns, please contact us:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Email: privacy@spector-app.com</li>
+                <li>We will respond to your inquiry within 30 days.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-lg font-semibold mb-3">11. Policy Updates</h2>
+              <p>
+                This privacy policy may be updated from time to time. We will notify users of significant changes 
+                and provide an opportunity to review the updated policy before it takes effect.
+              </p>
+            </section>
+          </div>
+        </ScrollArea>
+        <div className="p-6 pt-0">
+          <Button onClick={onClose} className="w-full">
+            I Understand
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export const SignUpForm: React.FC = () => {
   const { signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -138,21 +473,50 @@ export const SignUpForm: React.FC = () => {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+
+  const defaultValues: SignUpFormValues = {
+    name: '',
+    email: '',
+    phoneNumber: '',
+    password: '',
+    confirmPassword: '',
+    role: 'collector',
+    termsAccepted: false,
+  };
+
+  const { loadSavedData, saveData, clearSavedData, isLoaded, setIsLoaded } = useFormPersistence('signup', defaultValues);
 
   const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      phoneNumber: '',
-      password: '',
-      confirmPassword: '',
-      role: 'collector',
-      termsAccepted: false,
-    },
+    defaultValues: loadSavedData(),
   });
 
   const password = form.watch('password');
+
+  // Load saved data on component mount
+  useEffect(() => {
+    if (!isLoaded) {
+      const savedData = loadSavedData();
+      form.reset(savedData as SignUpFormValues);
+      setIsLoaded(true);
+    }
+  }, [isLoaded, form, loadSavedData, setIsLoaded]);
+
+  // Save form data on every change
+  useEffect(() => {
+    if (isLoaded) {
+      const subscription = form.watch((data) => {
+        setIsSaving(true);
+        saveData(data as SignUpFormValues);
+        // Show saving indicator briefly
+        setTimeout(() => setIsSaving(false), 500);
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [form, saveData, isLoaded]);
 
   const onSubmit = async (values: SignUpFormValues) => {
     setIsLoading(true);
@@ -164,7 +528,9 @@ export const SignUpForm: React.FC = () => {
         values.phoneNumber,
         values.role as UserRole
       );
-      navigate('/email-verification');
+      // Clear saved data on successful signup
+      clearSavedData();
+      navigate('/dashboard');
     } catch (error) {
       // Error is handled in the AuthContext
       console.error(error);
@@ -179,6 +545,8 @@ export const SignUpForm: React.FC = () => {
       // For Google sign-up, we'll use 'collector' as default role
       // Users can change this later in their profile
       await signInWithGoogle('collector');
+      // Clear saved data on successful Google signup
+      clearSavedData();
       navigate('/dashboard');
     } catch (error) {
       console.error(error);
@@ -189,6 +557,13 @@ export const SignUpForm: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Auto-save indicator */}
+      {isSaving && (
+        <div className="text-xs text-muted-foreground text-center animate-pulse">
+          Auto-saving your progress...
+        </div>
+      )}
+      
       {/* Google Sign Up Button */}
       <div className="space-y-4">
         <Button
@@ -395,7 +770,23 @@ export const SignUpForm: React.FC = () => {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel>
-                    I agree to the <a href="/terms" className="text-primary hover:underline">Terms of Service</a> and <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a> *
+                    I agree to the{" "}
+                    <button
+                      type="button"
+                      onClick={() => setIsTermsModalOpen(true)}
+                      className="text-primary hover:underline"
+                    >
+                      Terms of Service
+                    </button>{" "}
+                    and{" "}
+                    <button
+                      type="button"
+                      onClick={() => setIsPrivacyModalOpen(true)}
+                      className="text-primary hover:underline"
+                    >
+                      Privacy Policy
+                    </button>{" "}
+                    *
                   </FormLabel>
                   <FormMessage />
                 </div>
@@ -407,14 +798,36 @@ export const SignUpForm: React.FC = () => {
             {isLoading ? "Creating account..." : "Create account"}
           </Button>
 
-          <div className="text-center text-sm">
-            Already have an account?{" "}
-            <Link to="/signin" className="text-primary hover:underline">
-              Sign in
-            </Link>
+          <div className="flex justify-between items-center text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                form.reset(defaultValues);
+                clearSavedData();
+              }}
+              className="text-muted-foreground hover:text-foreground underline"
+            >
+              Clear form
+            </button>
+            <span>
+              Already have an account?{" "}
+              <Link to="/signin" className="text-primary hover:underline">
+                Sign in
+              </Link>
+            </span>
           </div>
         </form>
       </Form>
+
+      {/* Modals */}
+      <TermsOfServiceModal 
+        isOpen={isTermsModalOpen} 
+        onClose={() => setIsTermsModalOpen(false)} 
+      />
+      <PrivacyPolicyModal 
+        isOpen={isPrivacyModalOpen} 
+        onClose={() => setIsPrivacyModalOpen(false)} 
+      />
     </div>
   );
 };

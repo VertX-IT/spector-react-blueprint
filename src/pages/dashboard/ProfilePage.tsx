@@ -52,7 +52,6 @@ const ProfilePage: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const editDialogFileInputRef = useRef<HTMLInputElement>(null);
   
   // Setup form
@@ -75,7 +74,7 @@ const ProfilePage: React.FC = () => {
     },
   });
 
-  // Handle profile picture upload from main page with progress tracking
+  // Handle profile picture upload from edit dialog
   const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !currentUser) return;
@@ -128,8 +127,8 @@ const ProfilePage: React.FC = () => {
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      if (editDialogFileInputRef.current) {
+        editDialogFileInputRef.current.value = '';
       }
     }
   };
@@ -140,7 +139,7 @@ const ProfilePage: React.FC = () => {
 
     try {
       setIsRemoving(true);
-      await deleteProfilePicture(currentUser.uid);
+      await deleteProfilePicture(currentUser.uid, userData?.profilePictureURL || undefined);
       
       // Update user data in context
       await updateUserData({
@@ -167,16 +166,14 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleProfilePictureClick = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleEditDialogProfilePictureClick = () => {
     editDialogFileInputRef.current?.click();
   };
 
   const handleEditDialogClose = () => {
     setIsEditDialogOpen(false);
+    setLocalProfilePicture(null);
+    setUploadProgress(0);
     form.reset();
   };
   
@@ -203,155 +200,77 @@ const ProfilePage: React.FC = () => {
       await changePassword(data.currentPassword, data.newPassword);
       setIsPasswordDialogOpen(false);
       passwordForm.reset();
-    } catch (error) {
-      console.error("Password change error:", error);
-      // Error handling is done in the auth context
-    }
-  };
-
-  // Handle logout
-  const handleLogout = async () => {
-    try {
-      await logOut();
-      navigate('/signin');
     } catch (error: any) {
       toast({
-        title: "Error logging out",
+        title: "Error changing password",
         description: error.message,
         variant: "destructive",
       });
     }
   };
 
-  // Get current profile picture URL (local or Firebase)
-  const getCurrentProfilePicture = () => {
-    return localProfilePicture || userData?.profilePictureURL || "";
+  const handleLogout = async () => {
+    try {
+      await logOut();
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
-  
+
+  const getCurrentProfilePicture = () => {
+    return localProfilePicture || userData?.profilePictureURL;
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header with Back Button */}
-      <div className="mb-4 px-1">
-        <div className="mb-3">
-          <InlineBackButton 
-            path="/dashboard"
-          />
-        </div>
-        
-        <h1 className="text-xl font-bold tracking-tight">Profile Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your account information and preferences
+    <div className="container mx-auto p-4">
+      <div className="mb-6">
+        <InlineBackButton path="/dashboard/my-projects" />
+        <h1 className="text-2xl font-bold tracking-tight mt-2">Profile</h1>
+        <p className="text-muted-foreground">
+          Manage your account settings and preferences
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Profile Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Personal Information</CardTitle>
+            <CardTitle>Profile Information</CardTitle>
             <CardDescription>
-              Your account details and preferences
+              Your personal information and account details
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4 pt-2">
-            {/* Hidden file input for main page */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleProfilePictureUpload}
-              className="hidden"
-            />
-            
-            {/* Profile Picture */}
-            <div className="relative group">
-              <Avatar 
-                className="h-24 w-24 cursor-pointer transition-all duration-200 group-hover:opacity-80"
-                onClick={handleProfilePictureClick}
-              >
-                <AvatarImage 
-                  src={getCurrentProfilePicture()} 
-                  alt={userData?.displayName || "User"} 
-                />
-                <AvatarFallback className="text-3xl">
-                  {userData?.displayName?.charAt(0).toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              
-              {/* Upload overlay */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <div className="bg-black/50 rounded-full p-2">
-                  <Camera className="h-6 w-6 text-white" />
-                </div>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="relative">
+                <Avatar className="h-24 w-24">
+                  <AvatarImage src={getCurrentProfilePicture() || undefined} alt={userData?.displayName || 'Profile'} />
+                  <AvatarFallback className="text-lg">
+                    {userData?.displayName?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
               </div>
               
-              {/* Loading indicator */}
-              {(isUploading || isRemoving) && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+              <div className="text-center">
+                <p className="text-xl font-semibold">{userData?.displayName}</p>
+                <p className="text-muted-foreground">{userData?.email}</p>
+                <div className="mt-1">
+                  <Badge variant="outline" className="capitalize">
+                    {userData?.role}
+                  </Badge>
                 </div>
-              )}
-            </div>
-            
-            {/* Profile Picture Actions */}
-            <div className="flex flex-col gap-2 w-full">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleProfilePictureClick}
-                  disabled={isUploading || isRemoving}
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-1" />
-                      Upload
-                    </>
-                  )}
-                </Button>
-                
-                {userData?.profilePictureURL && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemoveProfilePicture}
-                    disabled={isUploading || isRemoving}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    {isRemoving ? "Removing..." : "Remove"}
-                  </Button>
-                )}
               </div>
-              
-              {/* Progress bar for upload */}
-              {isUploading && uploadProgress > 0 && (
-                <div className="space-y-1">
-                  <Progress value={uploadProgress} className="h-2" />
-                  <p className="text-xs text-muted-foreground text-center">
-                    {Math.round(uploadProgress)}% uploaded
-                  </p>
-                </div>
-              )}
-            </div>
-            
-            <div className="text-center">
-              <p className="text-xl font-semibold">{userData?.displayName}</p>
-              <p className="text-muted-foreground">{userData?.email}</p>
-              <div className="mt-1">
-                <Badge variant="outline" className="capitalize">
-                  {userData?.role}
-                </Badge>
-              </div>
-            </div>
 
-            <div className="text-sm text-muted-foreground w-full max-w-xs">
-              <div className="flex justify-between py-2 border-b">
-                <span>Phone Number</span>
-                <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
+              <div className="text-sm text-muted-foreground w-full max-w-xs">
+                <div className="flex justify-between py-2 border-b">
+                  <span>Phone Number</span>
+                  <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -421,6 +340,73 @@ const ProfilePage: React.FC = () => {
               Make changes to your profile here. Click save when you're done.
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Profile Picture Upload Section */}
+          <div className="space-y-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="relative">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={getCurrentProfilePicture() || undefined} alt={userData?.displayName || 'Profile'} />
+                  <AvatarFallback className="text-lg">
+                    {userData?.displayName?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full p-0"
+                  onClick={handleEditDialogProfilePictureClick}
+                  disabled={isUploading || isRemoving}
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEditDialogProfilePictureClick}
+                  disabled={isUploading || isRemoving}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-1" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+                
+                {userData?.profilePictureURL && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveProfilePicture}
+                    disabled={isUploading || isRemoving}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    {isRemoving ? "Removing..." : "Remove"}
+                  </Button>
+                )}
+              </div>
+              
+              {/* Progress bar for upload */}
+              {isUploading && uploadProgress > 0 && (
+                <div className="space-y-1 w-full">
+                  <Progress value={uploadProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground text-center">
+                    {Math.round(uploadProgress)}% uploaded
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -444,7 +430,7 @@ const ProfilePage: React.FC = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} disabled />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -472,6 +458,15 @@ const ProfilePage: React.FC = () => {
               </DialogFooter>
             </form>
           </Form>
+
+          {/* Hidden file input for profile picture upload */}
+          <input
+            ref={editDialogFileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleProfilePictureUpload}
+            className="hidden"
+          />
         </DialogContent>
       </Dialog>
 

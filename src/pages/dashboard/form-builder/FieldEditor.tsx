@@ -46,7 +46,8 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
   const handleOptionsChange = (value: string) => {
     setOptionsInput(value);
     const options = value.split(",").map(opt => opt.trim()).filter(opt => opt);
-    setNewField(prev => ({ ...prev, options }));
+    setNewField({ ...newField, options });
+
   };
 
   // Render additional configuration fields based on field type

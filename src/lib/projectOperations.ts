@@ -138,6 +138,11 @@ export const saveProject = async (projectData: Omit<Project, 'id'>) => {
   try {
     console.log('Attempting to save project to Firestore:', projectData);
     
+    // Validate that the project has a valid createdBy field
+    if (!projectData.createdBy || projectData.createdBy === 'anonymous' || projectData.createdBy.trim() === '') {
+      throw new Error('Project must have a valid user ID in createdBy field');
+    }
+    
     const connectionCheck = await verifyFirebaseConnection();
     if (!connectionCheck.success) {
       throw new Error(`Firebase connection issue: ${connectionCheck.error}`);
@@ -205,6 +210,13 @@ export const duplicateProject = async (projectId: string, newName?: string) => {
 export const getUserProjects = async (userId: string) => {
   try {
     console.log('Fetching projects for user ID:', userId);
+    
+    // Validate userId to ensure it's not empty or invalid
+    if (!userId || userId === 'anonymous' || userId.trim() === '') {
+      console.log('Invalid user ID provided:', userId);
+      return [];
+    }
+    
     const projectsRef = collection(db, 'projects');
     const q = query(projectsRef, where("createdBy", "==", userId));
     const querySnapshot = await getDocs(q);
@@ -215,21 +227,28 @@ export const getUserProjects = async (userId: string) => {
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       console.log('Processing project data:', data);
-      projects.push({
-        id: doc.id,
-        name: data.name,
-        category: data.category,
-        createdAt: new Date(data.createdAt),
-        recordCount: data.recordCount,
-        projectPin: data.projectPin,
-        createdBy: data.createdBy,
-        description: data.description,
-        status: data.status || 'active',
-        endedAt: data.endedAt,
-        formSections: Array.isArray(data.formSections) ? data.formSections : [],
-      });
+      
+      // Additional validation to ensure the project belongs to the user
+      if (data.createdBy === userId) {
+        projects.push({
+          id: doc.id,
+          name: data.name,
+          category: data.category,
+          createdAt: new Date(data.createdAt),
+          recordCount: data.recordCount,
+          projectPin: data.projectPin,
+          createdBy: data.createdBy,
+          description: data.description,
+          status: data.status || 'active',
+          endedAt: data.endedAt,
+          formSections: Array.isArray(data.formSections) ? data.formSections : [],
+        });
+      } else {
+        console.log('Skipping project with mismatched createdBy:', data.createdBy, 'expected:', userId);
+      }
     });
     
+    console.log('Final filtered projects count:', projects.length);
     return projects;
   } catch (error: any) {
     console.error('Error getting user projects:', error);
@@ -325,11 +344,16 @@ export const submitFormData = async (projectId: string, data: Record<string, any
     // Sanitize the data to remove undefined values and ensure Firestore compatibility
     const sanitizedData = sanitizeData(data);
 
+    // Validate that we have a valid user ID
+    if (!userId || userId === 'anonymous' || userId.trim() === '') {
+      throw new Error('Valid user ID is required to submit form data');
+    }
+
     const recordData: Omit<ProjectRecord, 'id'> = {
       projectId,
       data: sanitizedData,
       createdAt: new Date().toISOString(),
-      createdBy: userId || 'anonymous',
+      createdBy: userId,
     };
     
     const recordsRef = collection(db, 'records');
@@ -408,5 +432,81 @@ export const updateProject = async (projectId: string, updates: Partial<Project>
   } catch (error: any) {
     console.error('Error updating project:', error);
     throw new Error(`Failed to update project: ${error.message || 'Unknown error'}`);
+  }
+};
+
+// Helper function to identify projects with invalid createdBy values
+export const identifyInvalidProjects = async () => {
+  try {
+    console.log('Identifying projects with invalid createdBy values...');
+    const projectsRef = collection(db, 'projects');
+    const querySnapshot = await getDocs(projectsRef);
+    
+    const invalidProjects: any[] = [];
+    const validProjects: any[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (!data.createdBy || data.createdBy === 'anonymous' || data.createdBy.trim() === '') {
+        invalidProjects.push({
+          id: doc.id,
+          name: data.name,
+          createdBy: data.createdBy,
+          createdAt: data.createdAt,
+        });
+      } else {
+        validProjects.push({
+          id: doc.id,
+          name: data.name,
+          createdBy: data.createdBy,
+        });
+      }
+    });
+    
+    console.log('Invalid projects found:', invalidProjects.length);
+    console.log('Valid projects found:', validProjects.length);
+    console.log('Invalid projects details:', invalidProjects);
+    
+    return {
+      invalid: invalidProjects,
+      valid: validProjects,
+      total: querySnapshot.size,
+    };
+  } catch (error: any) {
+    console.error('Error identifying invalid projects:', error);
+    throw new Error(`Failed to identify invalid projects: ${error.message || 'Unknown error'}`);
+  }
+};
+
+// Helper function to get all projects (for admin/debugging purposes)
+export const getAllProjects = async () => {
+  try {
+    console.log('Fetching all projects for debugging...');
+    const projectsRef = collection(db, 'projects');
+    const querySnapshot = await getDocs(projectsRef);
+    
+    const projects: Project[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      projects.push({
+        id: doc.id,
+        name: data.name,
+        category: data.category,
+        createdAt: new Date(data.createdAt),
+        recordCount: data.recordCount,
+        projectPin: data.projectPin,
+        createdBy: data.createdBy,
+        description: data.description,
+        status: data.status || 'active',
+        endedAt: data.endedAt,
+        formSections: Array.isArray(data.formSections) ? data.formSections : [],
+      });
+    });
+    
+    console.log('All projects fetched:', projects.length);
+    return projects;
+  } catch (error: any) {
+    console.error('Error getting all projects:', error);
+    throw new Error(`Failed to get all projects: ${error.message || 'Unknown error'}`);
   }
 };

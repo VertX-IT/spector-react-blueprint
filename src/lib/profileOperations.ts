@@ -2,16 +2,16 @@ import { storage, db } from './firebase';
 import { ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import { doc, updateDoc } from 'firebase/firestore';
 
-// Upload profile picture to Firebase Storage with progress tracking
+// Upload profile picture to Firebase Storage with improved progress tracking
 export const uploadProfilePicture = async (
-  file: File, 
+  file: File | Blob, 
   userId: string, 
   onProgress?: (progress: number) => void
 ): Promise<string> => {
   try {
     // Create a unique filename with timestamp
-    const fileExtension = file.name.split('.').pop();
     const timestamp = Date.now();
+    const fileExtension = file instanceof File ? file.name.split('.').pop() : 'webp';
     const fileName = `profile-pictures/${userId}/profile_${timestamp}.${fileExtension}`;
     
     // Create storage reference
@@ -20,34 +20,39 @@ export const uploadProfilePicture = async (
     // Use resumable upload for progress tracking
     const uploadTask = uploadBytesResumable(storageRef, file);
     
-    // Track upload progress
-    if (onProgress) {
+    // Track upload progress with better error handling
+    return new Promise((resolve, reject) => {
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          onProgress(progress);
+          if (onProgress) {
+            onProgress(progress);
+          }
         },
         (error) => {
           console.error('Upload error:', error);
-          throw error;
+          reject(new Error(`Upload failed: ${error.message}`));
+        },
+        async () => {
+          try {
+            // Get download URL
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            
+            // Update user document in Firestore with the new profile picture URL
+            const userDocRef = doc(db, 'users', userId);
+            await updateDoc(userDocRef, {
+              profilePictureURL: downloadURL,
+              profilePictureUpdatedAt: new Date().toISOString(),
+            });
+            
+            resolve(downloadURL);
+          } catch (error) {
+            console.error('Error getting download URL or updating user:', error);
+            reject(new Error('Failed to complete upload process'));
+          }
         }
       );
-    }
-    
-    // Wait for upload to complete
-    const snapshot = await uploadTask;
-    
-    // Get download URL
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    
-    // Update user document in Firestore with the new profile picture URL
-    const userDocRef = doc(db, 'users', userId);
-    await updateDoc(userDocRef, {
-      profilePictureURL: downloadURL,
-      profilePictureUpdatedAt: new Date().toISOString(),
     });
-    
-    return downloadURL;
   } catch (error) {
     console.error('Error uploading profile picture:', error);
     throw new Error('Failed to upload profile picture');
@@ -59,8 +64,13 @@ export const deleteProfilePicture = async (userId: string, currentProfilePicture
   try {
     // If there's a current profile picture, delete it from storage
     if (currentProfilePictureURL) {
-      const storageRef = ref(storage, currentProfilePictureURL);
-      await deleteObject(storageRef);
+      try {
+        const storageRef = ref(storage, currentProfilePictureURL);
+        await deleteObject(storageRef);
+      } catch (error) {
+        console.warn('Could not delete old profile picture from storage:', error);
+        // Continue with updating the user document even if storage deletion fails
+      }
     }
     
     // Update user document to remove profile picture URL
@@ -98,13 +108,13 @@ export const validateImageFile = (file: File): { isValid: boolean; error?: strin
   return { isValid: true };
 };
 
-// Optimized image compression with multiple quality levels and WebP support
+// Improved image compression with better error handling
 export const compressImage = (
   file: File, 
   maxWidth: number = 300, 
   maxHeight: number = 300,
   quality: number = 0.85
-): Promise<File> => {
+): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -127,64 +137,32 @@ export const compressImage = (
           ctx.imageSmoothingQuality = 'high';
         }
         
-        // Draw and compress image
+        // Draw image
         ctx?.drawImage(img, 0, 0, newWidth, newHeight);
         
         // Try WebP first, fallback to original format
-        const tryWebP = () => {
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.webp'), {
-                  type: 'image/webp',
-                  lastModified: Date.now(),
-                });
-                resolve(compressedFile);
-              } else {
-                // Fallback to original format
-                canvas.toBlob(
-                  (fallbackBlob) => {
-                    if (fallbackBlob) {
-                      const compressedFile = new File([fallbackBlob], file.name, {
-                        type: file.type,
-                        lastModified: Date.now(),
-                      });
-                      resolve(compressedFile);
-                    } else {
-                      reject(new Error('Failed to compress image'));
-                    }
-                  },
-                  file.type,
-                  quality
-                );
-              }
-            },
-            'image/webp',
-            quality
-          );
-        };
-        
-        // Check if WebP is supported
-        if (canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0) {
-          tryWebP();
-        } else {
-          // Fallback to original format
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                const compressedFile = new File([blob], file.name, {
-                  type: file.type,
-                  lastModified: Date.now(),
-                });
-                resolve(compressedFile);
-              } else {
-                reject(new Error('Failed to compress image'));
-              }
-            },
-            file.type,
-            quality
-          );
-        }
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              // Fallback to original format
+              canvas.toBlob(
+                (fallbackBlob) => {
+                  if (fallbackBlob) {
+                    resolve(fallbackBlob);
+                  } else {
+                    reject(new Error('Failed to compress image'));
+                  }
+                },
+                file.type,
+                quality
+              );
+            }
+          },
+          'image/webp',
+          quality
+        );
       } catch (error) {
         reject(new Error('Failed to process image'));
       }
@@ -199,92 +177,12 @@ export const compressImage = (
     // Clean up object URL after image loads
     img.onload = () => {
       URL.revokeObjectURL(objectURL);
-      img.onload = null; // Prevent double execution
-      img.onload = () => {
-        try {
-          // Calculate new dimensions maintaining aspect ratio
-          const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
-          const newWidth = Math.round(img.width * ratio);
-          const newHeight = Math.round(img.height * ratio);
-          
-          // Set canvas dimensions
-          canvas.width = newWidth;
-          canvas.height = newHeight;
-          
-          // Enable image smoothing for better quality
-          if (ctx) {
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-          }
-          
-          // Draw and compress image
-          ctx?.drawImage(img, 0, 0, newWidth, newHeight);
-          
-          // Try WebP first, fallback to original format
-          const tryWebP = () => {
-            canvas.toBlob(
-              (blob) => {
-                if (blob) {
-                  const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.webp'), {
-                    type: 'image/webp',
-                    lastModified: Date.now(),
-                  });
-                  resolve(compressedFile);
-                } else {
-                  // Fallback to original format
-                  canvas.toBlob(
-                    (fallbackBlob) => {
-                      if (fallbackBlob) {
-                        const compressedFile = new File([fallbackBlob], file.name, {
-                          type: file.type,
-                          lastModified: Date.now(),
-                        });
-                        resolve(compressedFile);
-                      } else {
-                        reject(new Error('Failed to compress image'));
-                      }
-                    },
-                    file.type,
-                    quality
-                  );
-                }
-              },
-              'image/webp',
-              quality
-            );
-          };
-          
-          // Check if WebP is supported
-          if (canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0) {
-            tryWebP();
-          } else {
-            // Fallback to original format
-            canvas.toBlob(
-              (blob) => {
-                if (blob) {
-                  const compressedFile = new File([blob], file.name, {
-                    type: file.type,
-                    lastModified: Date.now(),
-                  });
-                  resolve(compressedFile);
-                } else {
-                  reject(new Error('Failed to compress image'));
-                }
-              },
-              file.type,
-              quality
-            );
-          }
-        } catch (error) {
-          reject(new Error('Failed to process image'));
-        }
-      };
     };
   });
 };
 
 // Progressive image compression with multiple quality levels
-export const compressImageProgressive = async (file: File): Promise<File> => {
+export const compressImageProgressive = async (file: File): Promise<Blob> => {
   // Try different compression levels
   const compressionLevels = [
     { maxWidth: 200, maxHeight: 200, quality: 0.9 },
@@ -306,6 +204,11 @@ export const compressImageProgressive = async (file: File): Promise<File> => {
     }
   }
   
-  // If all compression levels fail, return original file
-  return file;
+  // If all compression levels fail, try basic compression
+  try {
+    return await compressImage(file, 300, 300, 0.7);
+  } catch (error) {
+    // If compression completely fails, return original as blob
+    return new Blob([file], { type: file.type });
+  }
 }; 

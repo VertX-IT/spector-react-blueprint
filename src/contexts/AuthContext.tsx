@@ -29,6 +29,7 @@ export interface UserData {
   createdAt: number;
   profilePictureURL?: string | null;
   profilePictureUpdatedAt?: string | null;
+  signUpMethod?: 'email' | 'google'; // Track how user signed up
 }
 
 interface AuthContextType {
@@ -120,17 +121,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         phoneNumber,
         role,
         createdAt: Date.now(),
+        signUpMethod: 'email',
       };
 
       await setDoc(doc(db, "users", user.uid), userData);
       setUserData(userData);
 
-      // Send verification email
-      await sendEmailVerification(user);
-
+      // For email/password sign-up, we don't require email verification
+      // Users can access the app immediately
       toast({
         title: "Account created successfully!",
-        description: "Please check your email and click the verification link, then return to this page to access your dashboard.",
+        description: "Welcome to Spector! You can now access your dashboard.",
       });
     } catch (error: any) {
       let errorMessage = "An error occurred while creating your account. Please try again.";
@@ -167,15 +168,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      if (!user.emailVerified) {
-        // Sign out the user since email is not verified
-        await signOut(auth);
-        toast({
-          title: "Email not verified",
-          description: "Please check your email and click the verification link before signing in.",
-          variant: "destructive",
-        });
-        throw new Error("Email not verified");
+      // Fetch user data to check sign-up method
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data() as UserData;
+        
+        // Only check email verification for Google sign-up users
+        if (userData.signUpMethod === 'google' && !user.emailVerified) {
+          // Sign out the user since email is not verified
+          await signOut(auth);
+          toast({
+            title: "Email not verified",
+            description: "Please check your email and click the verification link before signing in.",
+            variant: "destructive",
+          });
+          throw new Error("Email not verified");
+        }
       }
 
       toast({
@@ -235,14 +245,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           phoneNumber: user.phoneNumber,
           role,
           createdAt: Date.now(),
+          signUpMethod: 'google',
         };
 
         await setDoc(userDocRef, userData);
         setUserData(userData);
 
+        // For Google sign-up, send verification email
+        await sendEmailVerification(user);
+
         toast({
           title: "Google sign-up successful!",
-          description: "Welcome to Spector",
+          description: "Please check your email and click the verification link to access your dashboard.",
         });
       } else {
         // User already exists, just sign them in
