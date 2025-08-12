@@ -13,6 +13,7 @@ export const uploadProfilePicture = async (
     const timestamp = Date.now();
     const fileExtension = file instanceof File ? file.name.split('.').pop() : 'webp';
     const fileName = `profile-pictures/${userId}/profile_${timestamp}.${fileExtension}`;
+    console.log('Attempting to upload file:', fileName); // Added for debugging
     
     // Create storage reference
     const storageRef = ref(storage, fileName);

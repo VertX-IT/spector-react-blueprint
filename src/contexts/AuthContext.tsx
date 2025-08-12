@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { createContext, useState, useContext, useEffect } from "react";
 import {
   User,
@@ -30,6 +31,7 @@ export interface UserData {
   profilePictureURL?: string | null;
   profilePictureUpdatedAt?: string | null;
   signUpMethod?: 'email' | 'google'; // Track how user signed up
+  profilePictureBase64?: string | null; // <-- Add this line
 }
 
 interface AuthContextType {
@@ -135,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     } catch (error: any) {
       let errorMessage = "An error occurred while creating your account. Please try again.";
-      
+
       // Handle specific Firebase Auth errors
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = "An account with this email address already exists. Please try signing in instead, or use a different email address.";
@@ -171,10 +173,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       // Fetch user data to check sign-up method
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
-      
+
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data() as UserData;
-        
+
         // Only check email verification for Google sign-up users
         if (userData.signUpMethod === 'google' && !user.emailVerified) {
           // Sign out the user since email is not verified
@@ -198,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       let errorMessage = "An error occurred while signing in. Please try again.";
-      
+
       // Handle specific Firebase Auth errors
       if (error.code === 'auth/user-not-found') {
         errorMessage = "No account found with this email address. Please check your email or create a new account.";
@@ -261,7 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } else {
         // User already exists, just sign them in
         setUserData(userDocSnap.data() as UserData);
-        
+
         toast({
           title: "Welcome back!",
           description: "Successfully signed in with Google.",
@@ -269,7 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     } catch (error: any) {
       let errorMessage = "An error occurred while signing in with Google. Please try again.";
-      
+
       // Handle specific Firebase Auth errors
       if (error.code === 'auth/popup-closed-by-user') {
         errorMessage = "Sign-in was cancelled. Please try again.";
@@ -323,7 +325,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     } catch (error: any) {
       let errorMessage = "An error occurred while sending the password reset email. Please try again.";
-      
+
       // Handle specific Firebase Auth errors
       if (error.code === 'auth/user-not-found') {
         errorMessage = "No account found with this email address. Please check your email or create a new account.";
@@ -449,7 +451,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // Reload the current user to get updated email verification status
       await currentUser.reload();
-      
+
       toast({
         title: "User data reloaded",
         description: "Your user data has been reloaded successfully.",

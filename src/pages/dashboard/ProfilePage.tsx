@@ -53,7 +53,7 @@ const ProfilePage: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const editDialogFileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Setup form
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -74,7 +74,7 @@ const ProfilePage: React.FC = () => {
     },
   });
 
-  // Handle profile picture upload from edit dialog
+  // Handle profile picture upload from edit dialog (Firestore base64 version)
   const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !currentUser) return;
@@ -91,32 +91,29 @@ const ProfilePage: React.FC = () => {
           title: "Invalid file",
           description: validationResult.error,
         });
+        setIsUploading(false);
         return;
       }
 
-      // Compress image with progressive quality
-      const compressedBlob = await compressImageProgressive(file);
-      
-      // Show immediate preview
-      const previewUrl = URL.createObjectURL(compressedBlob);
-      setLocalProfilePicture(previewUrl);
+      // Convert image to base64
+      const toBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+      const base64String = await toBase64(file);
+      setLocalProfilePicture(base64String);
 
-      // Upload with progress tracking
-      const downloadURL = await uploadProfilePicture(compressedBlob, currentUser.uid, (progress) => {
-        setUploadProgress(progress);
-      });
-
-      // Update user data in context
-      await updateUserData({
-        ...userData,
-        profilePictureURL: downloadURL,
-      });
+      // Save base64 string to Firestore
+      await updateUserData({ profilePictureBase64: base64String });
 
       toast({
         title: "Profile picture updated",
         description: "Your profile picture has been successfully updated.",
       });
-
     } catch (error: any) {
       console.error('Error uploading profile picture:', error);
       toast({
@@ -127,9 +124,6 @@ const ProfilePage: React.FC = () => {
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
-      if (editDialogFileInputRef.current) {
-        editDialogFileInputRef.current.value = '';
-      }
     }
   };
 
@@ -140,7 +134,7 @@ const ProfilePage: React.FC = () => {
     try {
       setIsRemoving(true);
       await deleteProfilePicture(currentUser.uid, userData?.profilePictureURL || undefined);
-      
+
       // Update user data in context
       await updateUserData({
         ...userData,
@@ -148,7 +142,7 @@ const ProfilePage: React.FC = () => {
       });
 
       setLocalProfilePicture(null);
-      
+
       toast({
         title: "Profile picture removed",
         description: "Your profile picture has been successfully removed.",
@@ -176,7 +170,7 @@ const ProfilePage: React.FC = () => {
     setUploadProgress(0);
     form.reset();
   };
-  
+
   // Handle profile update
   const onSubmit = async (data: ProfileFormValues) => {
     try {
@@ -249,13 +243,13 @@ const ProfilePage: React.FC = () => {
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={getCurrentProfilePicture() || undefined} alt={userData?.displayName || 'Profile'} />
+                  <AvatarImage src={userData?.profilePictureBase64 || userData?.profilePictureURL || localProfilePicture || undefined} alt={userData?.displayName || 'Profile'} />
                   <AvatarFallback className="text-lg">
                     {userData?.displayName?.charAt(0).toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
               </div>
-              
+
               <div className="text-center">
                 <p className="text-xl font-semibold">{userData?.displayName}</p>
                 <p className="text-muted-foreground">{userData?.email}</p>
@@ -288,8 +282,8 @@ const ProfilePage: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full"
               onClick={handleLogout}
             >
@@ -340,7 +334,7 @@ const ProfilePage: React.FC = () => {
               Make changes to your profile here. Click save when you're done.
             </DialogDescription>
           </DialogHeader>
-          
+
           {/* Profile Picture Upload Section */}
           <div className="space-y-4">
             <div className="flex flex-col items-center space-y-4">
@@ -361,7 +355,7 @@ const ProfilePage: React.FC = () => {
                   <Camera className="h-4 w-4" />
                 </Button>
               </div>
-              
+
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -381,7 +375,7 @@ const ProfilePage: React.FC = () => {
                     </>
                   )}
                 </Button>
-                
+
                 {userData?.profilePictureURL && (
                   <Button
                     variant="outline"
@@ -394,7 +388,7 @@ const ProfilePage: React.FC = () => {
                   </Button>
                 )}
               </div>
-              
+
               {/* Progress bar for upload */}
               {isUploading && uploadProgress > 0 && (
                 <div className="space-y-1 w-full">
