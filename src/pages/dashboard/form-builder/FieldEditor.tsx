@@ -50,12 +50,15 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
 
   };
 
+  const isIdentityField = (name: string) => name === "Record No." || name === "User ID";
+  const isProtectedField = (name: string) => name === "Record No." || name === "User ID" || name === "Date and Time";
+
   // Render additional configuration fields based on field type
   const renderAdditionalConfig = (isEditing: boolean) => {
     const field = isEditing ? newField : newField;
     return (
       <>
-        {(field.type === "text" || field.type === "numbers" || field.type === "textAndNumbers") && (
+        {(field.type === "text" || field.type === "numbers" || field.type === "textAndNumbers") && !isIdentityField(field.name) && (
           <div className={isMobile ? "w-full" : "flex-1 min-w-[200px]"}>
             <label className="text-sm mb-1 block">Placeholder</label>
             <Input
@@ -137,23 +140,25 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
                   placeholder="Field name"
                   className="flex-1"
                 />
-                <Select
-                  value={newField.type}
-                  onValueChange={(value) =>
-                    setNewField({ ...newField, type: value })
-                  }
-                >
-                  <SelectTrigger className="w-full md:w-[180px]">
-                    <SelectValue placeholder="Select data type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dataTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {!isProtectedField(newField.name) && (
+                  <Select
+                    value={newField.type}
+                    onValueChange={(value) =>
+                      setNewField({ ...newField, type: value })
+                    }
+                  >
+                    <SelectTrigger className="w-full md:w-[180px]">
+                      <SelectValue placeholder="Select data type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dataTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="flex items-center gap-2">
                   <span className="text-sm">Required</span>
                   <Switch
@@ -187,10 +192,12 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
                   <p className={`font-medium ${isMobile ? "text-base" : ""}`}>
                     {field.name}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {getDataTypeName(field.type)}
-                  </p>
-                  {field.placeholder && (
+                  {!isProtectedField(field.name) && (
+                    <p className="text-xs text-muted-foreground">
+                      {getDataTypeName(field.type)}
+                    </p>
+                  )}
+                  {!isProtectedField(field.name) && field.placeholder && (
                     <p className="text-xs text-muted-foreground">
                       Placeholder: {field.placeholder}
                     </p>
@@ -223,7 +230,7 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
                   )}
                 </div>
               </div>
-              {isMobile && (
+              {isMobile && !isProtectedField(field.name) && (
                 <div className="flex mt-2 border-t pt-2 justify-between">
                   <Button
                     variant="ghost"
@@ -254,7 +261,7 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
                   </Button>
                 </div>
               )}
-              {!isMobile && (
+              {!isMobile && !isProtectedField(field.name) && (
                 <div className="flex items-center gap-2 mt-2 justify-end">
                   <Button
                     variant="ghost"

@@ -164,6 +164,10 @@ const FormBuilderPage: React.FC = () => {
 
   const handleEditField = (fieldIdx: number) => {
     const field = sections[activeSection].fields[fieldIdx];
+    if (isSystemField(field.name)) {
+      toast.error("Cannot edit system fields");
+      return;
+    }
     setEditingFieldIndex(fieldIdx);
     setNewField({ ...field });
     setOptionsInput(field.options?.join(", ") || "");
@@ -208,6 +212,11 @@ const FormBuilderPage: React.FC = () => {
   };
 
   const handleRemoveField = (fieldIdx: number) => {
+    const target = sections[activeSection]?.fields[fieldIdx];
+    if (target && isSystemField(target.name)) {
+      toast.error("Cannot remove system fields");
+      return;
+    }
     if (activeSection === 0 && fieldIdx < 3) {
       toast.error("Cannot remove mandatory system fields");
       return;
@@ -226,6 +235,11 @@ const FormBuilderPage: React.FC = () => {
   };
 
   const handleToggleRequired = (fieldIdx: number) => {
+    const target = sections[activeSection]?.fields[fieldIdx];
+    if (target && isSystemField(target.name)) {
+      toast.error("System fields are always required");
+      return;
+    }
     setSections(prev =>
       prev.map((section, idx) =>
         idx === activeSection

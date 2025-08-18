@@ -63,6 +63,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import InlineBackButton from "@/components/ui/CustomButton";
 import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
 import { generateSystemFieldValues, isSystemField, formatDateForDisplay } from "@/lib/formUtils";
+import { getNextRecordNumber } from "@/lib/formUtils";
 import ProjectHeader from "./project-form/ProjectHeader";
 import SectionTabs from "./project-form/SectionTabs";
 import SectionForm from "./project-form/SectionForm";
@@ -284,7 +285,9 @@ const ProjectFormPage: React.FC = () => {
           formSections: projectSections,
         });
 
-        const initialData: FormData = { userId: currentUserId };
+        // Compose user identifier as display name + unique id suffix
+        const composedUserId = `${userData?.displayName || "User"}-${currentUserId.slice(0, 8)}`;
+        const initialData: FormData = { userId: composedUserId };
         const recordNoField = allFields.find((field) => field.name === "Record No.");
         allFields.forEach((field: FieldTemplate) => {
           if (field.type === "checkbox") {
@@ -296,8 +299,17 @@ const ProjectFormPage: React.FC = () => {
           }
         });
 
-        // Generate automatic values for system fields
-        const systemValues = generateSystemFieldValues(currentUserId, foundProject.recordCount || 0);
+        // Generate automatic values for system fields based on live DB record count
+        let dbRecordCount = foundProject.recordCount || 0;
+        try {
+          if (foundProject.id) {
+            const existing = await getProjectRecords(foundProject.id);
+            dbRecordCount = Array.isArray(existing) ? existing.length : dbRecordCount;
+          }
+        } catch (e) {
+          // fallback to project's recordCount if fetch fails
+        }
+        const systemValues = generateSystemFieldValues(composedUserId, dbRecordCount);
         
         // Set system field values
         allFields.forEach((field: FieldTemplate) => {
@@ -629,16 +641,15 @@ setImagePreviews((prev) => ({
             "Processing image for field:",
             fieldId,
             "File size:",
-            value.size,
+            (value as File).size,
             "File type:",
-            value.type
+            (value as File).type
           );
-          const base64String = await fileToBase64(value);
+          const base64String = await fileToBase64(value as File);
           console.log("Image converted to Base64. Length:", base64String.length);
 
-          // Check if the Base64 string is too large for Firestore (1 MB limit per document)
-          const base64SizeInBytes = (base64String.length * 3) / 4 - 2; // Approximate size in bytes
-          const maxFirestoreSize = 1 * 1024 * 1024; // 1 MB
+          const base64SizeInBytes = (base64String.length * 3) / 4 - 2;
+          const maxFirestoreSize = 1 * 1024 * 1024;
           if (base64SizeInBytes > maxFirestoreSize) {
             throw new Error(
               `Base64 image size exceeds Firestore limit of 1 MB. Size: ${(base64SizeInBytes / (1024 * 1024)).toFixed(2)} MB`
@@ -657,7 +668,7 @@ setImagePreviews((prev) => ({
         }
       } else if (field?.type === "qrBarcode" && value instanceof File) {
         try {
-          const base64String = await fileToBase64(value);
+          const base64String = await fileToBase64(value as File);
           const base64SizeInBytes = (base64String.length * 3) / 4 - 2;
           const maxFirestoreSize = 1 * 1024 * 1024;
           if (base64SizeInBytes > maxFirestoreSize) {
@@ -675,20 +686,34 @@ setImagePreviews((prev) => ({
           return;
         }
       } else if (field?.type === "qrBarcode" && typeof value === "string") {
-        surveyPayload[fieldId] = value;
+        surveyPayload[fieldId] = value as string;
       } else if (field?.type === "checkbox" && typeof value === "boolean") {
-        surveyPayload[fieldId] = value;
+        surveyPayload[fieldId] = value as boolean;
       } else if (field?.type === "multipleChoice" && Array.isArray(value)) {
-        surveyPayload[fieldId] = value;
-      } else if (value !== undefined) { // Explicitly exclude undefined values
+        surveyPayload[fieldId] = value as string[];
+      } else if (value !== undefined) {
         surveyPayload[fieldId] = value;
       }
     }
 
-    surveyPayload["userId"] = formData["userId"];
-    const recordNoField = projectSections[0]?.fields.find((f) => f.name === "Record No.");
-    if (recordNoField) {
-      surveyPayload[recordNoField.id] = formData[recordNoField.id];
+    // Ensure system fields are forced with latest values
+    try {
+      const existing = await getProjectRecords(project.id);
+      const nextRecordNo = getNextRecordNumber(Array.isArray(existing) ? existing.length : 0);
+      const composedUserId = `${userData?.displayName || "User"}-${(userData?.uid || "").slice(0, 8)}`;
+      const nowIso = new Date().toISOString();
+
+      surveyPayload["userId"] = composedUserId;
+
+      const allFields: FieldTemplate[] = sections.flatMap((s) => s.fields);
+      const recordNoField = allFields.find((f) => f.name === "Record No.");
+      const userIdField = allFields.find((f) => f.name === "User ID");
+      const dateTimeField = allFields.find((f) => f.name === "Date and Time");
+      if (recordNoField) surveyPayload[recordNoField.id] = nextRecordNo;
+      if (userIdField) surveyPayload[userIdField.id] = composedUserId;
+      if (dateTimeField) surveyPayload[dateTimeField.id] = nowIso;
+    } catch (e) {
+      // if DB count fails, continue with existing payload
     }
 
     try {
@@ -719,7 +744,7 @@ setImagePreviews((prev) => ({
       }
       endSurvey();
       resetSurvey();
-      setFormData({ userId: currentUserId, recordNo: "" });
+      setFormData({ userId: `${userData?.displayName || "User"}-${(userData?.uid || "").slice(0, 8)}`, recordNo: "" });
       setActiveSectionIndex(0);
       localStorage.removeItem(`records_${project.id}_draft`);
     } catch (err: any) {

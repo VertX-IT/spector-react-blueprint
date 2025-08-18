@@ -32,15 +32,18 @@ const AdditionalConfig: React.FC<AdditionalConfigProps> = ({
   const handleOptionsChange = (value: string) => {
     setOptionsInput(value);
     const options = value.split(",").map(opt => opt.trim()).filter(opt => opt);
-    setNewField(prev => ({ ...prev, options }));
+    setNewField({ ...newField, options });
   };
+
+  const isIdentityField = (name: string) => name === "Record No." || name === "User ID";
+  const isProtectedField = (name: string) => name === "Record No." || name === "User ID" || name === "Date and Time";
 
   // Render additional configuration fields based on field type
   const renderAdditionalConfig = (isEditing: boolean) => {
     const field = isEditing ? newField : newField;
     return (
       <>
-        {(field.type === "text" || field.type === "numbers" || field.type === "textAndNumbers") && (
+        {(field.type === "text" || field.type === "numbers" || field.type === "textAndNumbers") && !isIdentityField(field.name) && (
           <div className="w-full">
             <label className="text-sm mb-1 block">Placeholder</label>
             <Input
@@ -119,30 +122,32 @@ const AdditionalConfig: React.FC<AdditionalConfigProps> = ({
               className="text-base h-12"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Data Type</label>
-            <Select
-              value={newField.type}
-              onValueChange={(value) =>
-                setNewField({ ...newField, type: value })
-              }
-            >
-              <SelectTrigger className="text-base h-12">
-                <SelectValue placeholder="Select data type" />
-              </SelectTrigger>
-              <SelectContent>
-                {dataTypes.map((type) => (
-                  <SelectItem
-                    key={type.id}
-                    value={type.id}
-                    className="text-base"
-                  >
-                    {type.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!isProtectedField(newField.name) && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Data Type</label>
+              <Select
+                value={newField.type}
+                onValueChange={(value) =>
+                  setNewField({ ...newField, type: value })
+                }
+              >
+                <SelectTrigger className="text-base h-12">
+                  <SelectValue placeholder="Select data type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dataTypes.map((type) => (
+                    <SelectItem
+                      key={type.id}
+                      value={type.id}
+                      className="text-base"
+                    >
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex items-center justify-between py-2">
             <span className="text-base font-medium">Required Field</span>
             <Switch

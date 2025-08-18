@@ -13,9 +13,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { LocationSelector } from "@/components/survey/LocationSelector";
 import { Section, FieldTemplate, FormData } from "./types";
+import { formatDateForDisplay } from "@/lib/formUtils";
 import { getFieldsBySection } from "./project-form-utils";
 import { handleScanQRBarcode } from "./project-form-utils";
 import { Camera, Upload, ScanLine } from "lucide-react";
+
+// Basic province/district dataset. Replace with your real dataset as needed.
+const PROVINCES: Record<string, string[]> = {
+ 
+  "Southern": ["Galle", "Matara", "Hambantota"],
+  "Central Province": ["Kandy", "Matale", "Nuwara Eliya"],
+  "Eastern Province": ["Ampara", "Batticaloa", "Trincomalee"],
+  "Northern Province": ["Jaffna", "Kilinochchi", "Mannar", "Mullaitivu", "Vavuniya"],
+  "North Central Province": ["Anuradhapura", "Polonnaruwa"],
+  "North Western Province": ["Kurunegala", "Puttalam"],
+  "Sabaragamuwa Province": ["Kegalle", "Ratnapura"],
+  "Uva Province": ["Badulla", "Monaragala"],
+  "Western Province": ["Colombo", "Gampaha", "Kalutara"],
+};
 
 interface SectionFormProps {
   section: Section;
@@ -47,7 +62,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
   const sectionFields = getFieldsBySection(sections, section.id);
 
   const renderField = (field: FieldTemplate) => {
-    const isSystem = field.name === "User ID" || field.name === "Record No.";
+    const isSystem = field.name === "User ID" || field.name === "Record No." || field.name === "Date and Time";
     const isReadOnly = isSystem || isProjectInactive;
 
     return (
@@ -65,7 +80,19 @@ const SectionForm: React.FC<SectionFormProps> = ({
           )}
         </label>
 
-        {field.type === "text" && (
+        {isSystem && field.name !== "Date and Time" && (
+          <Input
+            id={field.id}
+            value={(formData[field.id] as string) || ""}
+            onChange={() => {}}
+            required={field.required}
+            disabled={true}
+            readOnly={true}
+            className="bg-gray-100"
+          />
+        )}
+
+        {field.type === "text" && !isSystem && (
           <Input
             id={field.id}
             value={formData[field.id] as string || ""}
@@ -78,7 +105,82 @@ const SectionForm: React.FC<SectionFormProps> = ({
           />
         )}
 
-        {field.type === "number" && (
+        {field.type === "textAndNumbers" && !isSystem && (
+          <>
+            {field.name === "Address" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(() => {
+                  let selectedProvince = "";
+                  let selectedDistrict = "";
+                  try {
+                    const parsed = JSON.parse((formData[field.id] as string) || "{}");
+                    selectedProvince = parsed.province || "";
+                    selectedDistrict = parsed.district || "";
+                  } catch {}
+                  const districts = selectedProvince ? PROVINCES[selectedProvince] || [] : [];
+                  return (
+                    <>
+                      <div>
+                        <Select
+                          value={selectedProvince}
+                          onValueChange={(prov) => {
+                            const next = JSON.stringify({ province: prov, district: "" });
+                            handleInputChange(field.id, next);
+                          }}
+                          disabled={isReadOnly}
+                        >
+                          <SelectTrigger className={`${isReadOnly ? "bg-gray-100" : ""}`}>
+                            <SelectValue placeholder="Select province" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.keys(PROVINCES).map((prov) => (
+                              <SelectItem key={prov} value={prov}>
+                                {prov}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Select
+                          value={selectedDistrict}
+                          onValueChange={(dist) => {
+                            const next = JSON.stringify({ province: selectedProvince, district: dist });
+                            handleInputChange(field.id, next);
+                          }}
+                          disabled={!selectedProvince || isReadOnly}
+                        >
+                          <SelectTrigger className={`${isReadOnly ? "bg-gray-100" : ""}`}>
+                            <SelectValue placeholder={selectedProvince ? "Select district" : "Select province first"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {districts.map((dist) => (
+                              <SelectItem key={dist} value={dist}>
+                                {dist}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <Input
+                id={field.id}
+                value={formData[field.id] as string || ""}
+                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                placeholder={field.placeholder || "Enter value"}
+                required={field.required}
+                disabled={isReadOnly}
+                className={`${isReadOnly ? "bg-gray-100" : ""}`}
+              />
+            )}
+          </>
+        )}
+
+        {field.type === "number" && !isSystem && (
           <Input
             id={field.id}
             type="number"
@@ -92,12 +194,70 @@ const SectionForm: React.FC<SectionFormProps> = ({
           />
         )}
 
+        {field.type === "dateTime" && (
+          <Input
+            id={field.id}
+            value={formatDateForDisplay((formData[field.id] as string) || new Date().toISOString())}
+            onChange={() => {}}
+            required={field.required}
+            disabled={true}
+            readOnly={true}
+            className="bg-gray-100"
+          />
+        )}
+
+        {field.type === "coordinates" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {(() => {
+              let latitude = "";
+              let longitude = "";
+              try {
+                const parsed = JSON.parse((formData[field.id] as string) || "{}");
+                latitude = typeof parsed.latitude === "number" ? String(parsed.latitude) : (parsed.latitude || "");
+                longitude = typeof parsed.longitude === "number" ? String(parsed.longitude) : (parsed.longitude || "");
+              } catch {}
+              return (
+                <>
+                  <Input
+                    id={`${field.id}-lat`}
+                    type="number"
+                    step="any"
+                    placeholder="Latitude"
+                    value={latitude}
+                    onChange={(e) => {
+                      const next = JSON.stringify({ latitude: e.target.value, longitude });
+                      handleInputChange(field.id, next);
+                    }}
+                    required={field.required}
+                    disabled={isReadOnly}
+                    className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                  />
+                  <Input
+                    id={`${field.id}-lng`}
+                    type="number"
+                    step="any"
+                    placeholder="Longitude"
+                    value={longitude}
+                    onChange={(e) => {
+                      const next = JSON.stringify({ latitude, longitude: e.target.value });
+                      handleInputChange(field.id, next);
+                    }}
+                    required={field.required}
+                    disabled={isReadOnly}
+                    className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        )}
+
         {field.type === "textarea" && (
           <Textarea
             id={field.id}
             value={formData[field.id] as string || ""}
             onChange={(e) => handleInputChange(field.id, e.target.value)}
-            placeholder={field.placeholder || ""}
+            placeholder={field.placeholder || "Enter text"}
             required={field.required}
             disabled={isReadOnly}
             readOnly={isSystem}
