@@ -9,8 +9,6 @@ interface ProjectHeaderProps {
   isDesigner: boolean;
   isEditMode: boolean;
   setIsEditMode: (editMode: boolean) => void;
-  setIsEndSurveyDialogOpen: (open: boolean) => void;
-  setIsDeleteDialogOpen: (open: boolean) => void;
 }
 
 const ProjectHeader: React.FC<ProjectHeaderProps> = ({
@@ -18,8 +16,6 @@ const ProjectHeader: React.FC<ProjectHeaderProps> = ({
   isDesigner,
   isEditMode,
   setIsEditMode,
-  setIsEndSurveyDialogOpen,
-  setIsDeleteDialogOpen,
 }) => {
   const isProjectInactive = project.status === "inactive";
 
@@ -46,35 +42,6 @@ const ProjectHeader: React.FC<ProjectHeaderProps> = ({
         </div>
       </div>
 
-      {isDesigner && (
-        <div className="flex flex-wrap items-center gap-2 mt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditMode(!isEditMode)}
-            className="flex-1 min-w-[80px] sm:flex-none"
-          >
-            {isEditMode ? "Cancel Edit" : "Edit Form"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 min-w-[80px] sm:flex-none text-amber-500 hover:text-amber-600"
-            onClick={() => setIsEndSurveyDialogOpen(true)}
-            disabled={isProjectInactive}
-          >
-            End Survey
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 min-w-[80px] sm:flex-none text-red-500 hover:text-red-600"
-            onClick={() => setIsDeleteDialogOpen(true)}
-          >
-            Delete
-          </Button>
-        </div>
-      )}
     </div>
   );
 };

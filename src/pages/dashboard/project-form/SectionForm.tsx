@@ -43,7 +43,6 @@ interface SectionFormProps {
   activeSectionIndex: number;
   isCollector: boolean;
   isDesigner: boolean;
-  clearStorage: () => void;
 }
 
 const SectionForm: React.FC<SectionFormProps> = ({
@@ -57,7 +56,6 @@ const SectionForm: React.FC<SectionFormProps> = ({
   activeSectionIndex,
   isCollector,
   isDesigner,
-  clearStorage,
 }) => {
   const sectionFields = getFieldsBySection(sections, section.id);
 
@@ -80,18 +78,6 @@ const SectionForm: React.FC<SectionFormProps> = ({
           )}
         </label>
 
-        {isSystem && field.name !== "Date and Time" && (
-          <Input
-            id={field.id}
-            value={(formData[field.id] as string) || ""}
-            onChange={() => {}}
-            required={field.required}
-            disabled={true}
-            readOnly={true}
-            className="bg-gray-100"
-          />
-        )}
-
         {field.type === "text" && !isSystem && (
           <Input
             id={field.id}
@@ -99,9 +85,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
             onChange={(e) => handleInputChange(field.id, e.target.value)}
             placeholder={field.placeholder || ""}
             required={field.required}
-            disabled={isReadOnly}
-            readOnly={isSystem}
-            className={`${isReadOnly ? "bg-gray-100" : ""}`}
+            disabled={isProjectInactive}
+            className={`${isProjectInactive ? "bg-gray-100" : ""}`}
           />
         )}
 
@@ -127,9 +112,9 @@ const SectionForm: React.FC<SectionFormProps> = ({
                             const next = JSON.stringify({ province: prov, district: "" });
                             handleInputChange(field.id, next);
                           }}
-                          disabled={isReadOnly}
+                          disabled={isProjectInactive}
                         >
-                          <SelectTrigger className={`${isReadOnly ? "bg-gray-100" : ""}`}>
+                          <SelectTrigger className={`${isProjectInactive ? "bg-gray-100" : ""}`}>
                             <SelectValue placeholder="Select province" />
                           </SelectTrigger>
                           <SelectContent>
@@ -148,9 +133,9 @@ const SectionForm: React.FC<SectionFormProps> = ({
                             const next = JSON.stringify({ province: selectedProvince, district: dist });
                             handleInputChange(field.id, next);
                           }}
-                          disabled={!selectedProvince || isReadOnly}
+                          disabled={!selectedProvince || isProjectInactive}
                         >
-                          <SelectTrigger className={`${isReadOnly ? "bg-gray-100" : ""}`}>
+                          <SelectTrigger className={`${isProjectInactive ? "bg-gray-100" : ""}`}>
                             <SelectValue placeholder={selectedProvince ? "Select district" : "Select province first"} />
                           </SelectTrigger>
                           <SelectContent>
@@ -173,8 +158,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
                 onChange={(e) => handleInputChange(field.id, e.target.value)}
                 placeholder={field.placeholder || "Enter value"}
                 required={field.required}
-                disabled={isReadOnly}
-                className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                disabled={isProjectInactive}
+                className={`${isProjectInactive ? "bg-gray-100" : ""}`}
               />
             )}
           </>
@@ -188,21 +173,20 @@ const SectionForm: React.FC<SectionFormProps> = ({
             onChange={(e) => handleInputChange(field.id, e.target.value)}
             placeholder={field.placeholder || "Enter a number"}
             required={field.required}
-            disabled={isReadOnly}
-            readOnly={isSystem}
-            className={`${isReadOnly ? "bg-gray-100" : ""}`}
+            disabled={isProjectInactive}
+            className={`${isProjectInactive ? "bg-gray-100" : ""}`}
           />
         )}
 
-        {field.type === "dateTime" && (
+        {field.type === "dateTime" && !isSystem && (
           <Input
             id={field.id}
-            value={formatDateForDisplay((formData[field.id] as string) || new Date().toISOString())}
-            onChange={() => {}}
+            type="datetime-local"
+            value={formData[field.id] as string || ""}
+            onChange={(e) => handleInputChange(field.id, e.target.value)}
             required={field.required}
-            disabled={true}
-            readOnly={true}
-            className="bg-gray-100"
+            disabled={isProjectInactive}
+            className={`${isProjectInactive ? "bg-gray-100" : ""}`}
           />
         )}
 
@@ -229,8 +213,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
                       handleInputChange(field.id, next);
                     }}
                     required={field.required}
-                    disabled={isReadOnly}
-                    className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                    disabled={isProjectInactive}
+                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
                   />
                   <Input
                     id={`${field.id}-lng`}
@@ -243,8 +227,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
                       handleInputChange(field.id, next);
                     }}
                     required={field.required}
-                    disabled={isReadOnly}
-                    className={`${isReadOnly ? "bg-gray-100" : ""}`}
+                    disabled={isProjectInactive}
+                    className={`${isProjectInactive ? "bg-gray-100" : ""}`}
                   />
                 </>
               );
@@ -259,9 +243,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
             onChange={(e) => handleInputChange(field.id, e.target.value)}
             placeholder={field.placeholder || "Enter text"}
             required={field.required}
-            disabled={isReadOnly}
-            readOnly={isSystem}
-            className={`${isReadOnly ? "bg-gray-100" : ""}`}
+            disabled={isProjectInactive}
+            className={`${isProjectInactive ? "bg-gray-100" : ""}`}
           />
         )}
 
@@ -269,9 +252,9 @@ const SectionForm: React.FC<SectionFormProps> = ({
           <Select
             value={formData[field.id] as string || ""}
             onValueChange={(value) => handleInputChange(field.id, value)}
-            disabled={isReadOnly}
+            disabled={isProjectInactive}
           >
-            <SelectTrigger className={`${isReadOnly ? "bg-gray-100" : ""}`}>
+            <SelectTrigger className={`${isProjectInactive ? "bg-gray-100" : ""}`}>
               <SelectValue placeholder={field.placeholder || "Select an option"} />
             </SelectTrigger>
             <SelectContent>
@@ -289,7 +272,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
             value={formData[field.id] as string || ""}
             onChange={(value) => handleInputChange(field.id, value)}
             placeholder={field.placeholder || "Enter location"}
-            disabled={isReadOnly}
+            disabled={isProjectInactive}
           />
         )}
 
@@ -304,8 +287,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
                 handleInputChange(field.id, e.target.files?.[0] || null)
               }
               required={field.required}
-              disabled={isReadOnly}
-              className={`${isReadOnly ? "bg-gray-100" : ""} hidden`}
+              disabled={isProjectInactive}
+              className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
             />
             <Button
               type="button"
@@ -313,7 +296,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
               variant="outline"
               size="sm"
               className="flex items-center space-x-2"
-              disabled={isReadOnly}
+              disabled={isProjectInactive}
             >
               <Camera className="h-4 w-4" />
               <span>Capture</span>
@@ -324,7 +307,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
               variant="outline"
               size="sm"
               className="flex items-center space-x-2"
-              disabled={isReadOnly}
+              disabled={isProjectInactive}
             >
               <Upload className="h-4 w-4" />
               <span>Upload</span>
@@ -340,7 +323,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
               onCheckedChange={(checked) =>
                 handleInputChange(field.id, checked)
               }
-              disabled={isReadOnly}
+              disabled={isProjectInactive}
             />
             <label
               htmlFor={field.id}
@@ -365,7 +348,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
                       : currentValues.filter((val) => val !== option);
                     handleInputChange(field.id, newValues);
                   }}
-                  disabled={isReadOnly}
+                  disabled={isProjectInactive}
                 />
                 <label
                   htmlFor={`${field.id}-${option}`}
@@ -390,8 +373,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
                   handleInputChange(field.id, e.target.files?.[0] || null)
                 }
                 required={field.required}
-                disabled={isReadOnly}
-                className={`${isReadOnly ? "bg-gray-100" : ""} hidden`}
+                disabled={isProjectInactive}
+                className={`${isProjectInactive ? "bg-gray-100" : ""} hidden`}
               />
               <Button
                 type="button"
@@ -399,7 +382,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
                 variant="outline"
                 size="sm"
                 className="flex items-center space-x-2"
-                disabled={isReadOnly}
+                disabled={isProjectInactive}
               >
                 <Camera className="h-4 w-4" />
                 <span>Capture</span>
@@ -410,7 +393,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
                 variant="outline"
                 size="sm"
                 className="flex items-center space-x-2"
-                disabled={isReadOnly}
+                disabled={isProjectInactive}
               >
                 <Upload className="h-4 w-4" />
                 <span>Upload</span>
@@ -421,7 +404,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
                 variant="outline"
                 size="sm"
                 className="flex items-center space-x-2"
-                disabled={isReadOnly}
+                disabled={isProjectInactive}
               >
                 <ScanLine className="h-4 w-4" />
                 <span>Scan</span>
@@ -431,8 +414,8 @@ const SectionForm: React.FC<SectionFormProps> = ({
               placeholder="Or enter QR/Barcode manually"
               value={formData[field.id] as string || ""}
               onChange={(e) => handleInputChange(field.id, e.target.value)}
-              disabled={isReadOnly}
-              className={`${isReadOnly ? "bg-gray-100" : ""}`}
+              disabled={isProjectInactive}
+              className={`${isProjectInactive ? "bg-gray-100" : ""}`}
             />
           </div>
         )}
@@ -456,29 +439,21 @@ const SectionForm: React.FC<SectionFormProps> = ({
       }}
       className="space-y-4 mt-4"
     >
-      <Button
-        variant="outline"
-        onClick={clearStorage}
-        className="mt-2"
-      >
-        Clear Storage
-      </Button>
-
-      <div className="mb-6">
-        <div className="mb-4">
-          <h3 className="text-lg font-medium">{section.name}</h3>
-          <Separator className="mt-2" />
+        <div className="mb-6">
+          <div className="mb-4">
+            <h3 className="text-lg font-medium">{section.name}</h3>
+            <Separator className="mt-2" />
+          </div>
+          <div className="space-y-4 pl-0 sm:pl-2">
+            {sectionFields.length > 0 ? (
+              sectionFields.map(renderField)
+            ) : (
+              <p className="text-center text-muted-foreground">
+                No fields in this section.
+              </p>
+            )}
+          </div>
         </div>
-        <div className="space-y-4 pl-0 sm:pl-2">
-          {sectionFields.length > 0 ? (
-            sectionFields.map(renderField)
-          ) : (
-            <p className="text-center text-muted-foreground">
-              No fields in this section.
-            </p>
-          )}
-        </div>
-      </div>
 
       {!completedSections.includes(section.id) && (
         <div className="flex justify-end">
