@@ -36,6 +36,7 @@ import ProfilePage from '@/pages/dashboard/ProfilePage';
 import ProjectFormPage from '@/pages/dashboard/ProjectFormPage';
 import NotFound from '@/pages/NotFound';
 import EditProjectPage from "@/pages/dashboard/EditProjectPage";
+import EditProjectFormBuilderPage from "@/pages/dashboard/EditProjectFormBuilderPage";
 
 const App: React.FC = () => {
   return (
@@ -107,6 +108,7 @@ const App: React.FC = () => {
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="projects/:projectId/form" element={<ProjectFormPage />} />
                 <Route path="projects/:projectId/edit" element={<EditProjectPage />} />
+                <Route path="projects/:projectId/form-builder" element={<EditProjectFormBuilderPage />} />
               </Route>
               
               {/* Redirect /dashboard to /dashboard */}

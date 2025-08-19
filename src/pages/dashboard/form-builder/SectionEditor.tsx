@@ -22,6 +22,7 @@ interface SectionEditorProps {
   handleRemoveField: (fieldIdx: number) => void;
   handleToggleRequired: (fieldIdx: number) => void;
   isMobile: boolean;
+  isEditMode?: boolean; // New prop to control edit vs creation mode
 }
 
 const SectionEditor: React.FC<SectionEditorProps> = ({
@@ -40,6 +41,7 @@ const SectionEditor: React.FC<SectionEditorProps> = ({
   handleRemoveField,
   handleToggleRequired,
   isMobile,
+  isEditMode = false, // Default to creation mode
 }) => {
   const navigate = useNavigate();
 
@@ -82,21 +84,24 @@ const SectionEditor: React.FC<SectionEditorProps> = ({
           isMobile={isMobile}
         />
         
-        <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard/new-project")}
-            className={isMobile ? "h-12 text-base w-full" : ""}
-          >
-            Back
-          </Button>
-          <Button
-            onClick={handleNext}
-            className={isMobile ? "h-12 text-base w-full" : ""}
-          >
-            Continue to Review
-          </Button>
-        </div>
+        {/* Only show navigation buttons in creation mode, not edit mode */}
+        {!isEditMode && (
+          <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/dashboard/new-project")}
+              className={isMobile ? "h-12 text-base w-full" : ""}
+            >
+              Back
+            </Button>
+            <Button
+              onClick={handleNext}
+              className={isMobile ? "h-12 text-base w-full" : ""}
+            >
+              Continue to Review
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

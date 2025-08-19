@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { Settings, Save } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -30,31 +32,16 @@ export interface ProjectEditFormProps {
   onSave: (project: any) => Promise<void>;
 }
 
-const fieldTypes = [
-  "text",
-  "textarea",
-  "definedList",
-  "location"
-];
-
 export const ProjectEditForm: React.FC<ProjectEditFormProps> = ({
   project,
   onCancel,
   onSave,
 }) => {
+  const navigate = useNavigate();
   const [name, setName] = useState(project.name || "");
   const [category, setCategory] = useState(project.category || "");
   const [description, setDescription] = useState(project.description || "");
-  const [sections, setSections] = useState(project.formSections || []);
-  const [fields, setFields] = useState(project.formFields || []);
   const [saving, setSaving] = useState(false);
-
-  // Handler to add/edit/remove sections/fields can be extended as needed
-  const handleFieldChange = (fieldId: string, key: string, value: any) => {
-    setFields(fields =>
-      fields.map(f => f.id === fieldId ? { ...f, [key]: value } : f)
-    );
-  };
 
   async function handleSave() {
     setSaving(true);
@@ -63,17 +50,25 @@ export const ProjectEditForm: React.FC<ProjectEditFormProps> = ({
       name,
       category,
       description,
-      formSections: sections,
-      formFields: fields,
       updatedAt: new Date().toISOString(),
     };
     await onSave(updated);
     setSaving(false);
   }
 
+  const handleGoToFormBuilder = () => {
+    // Navigate to the form builder page for this specific project
+    navigate(`/dashboard/projects/${project.id}/form-builder`);
+  };
+
   return (
     <Card>
       <CardContent className="space-y-4 py-4">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Basic Project Details</h3>
+          <p className="text-sm text-gray-600">Edit the basic information for your project. Use the "Edit Full Form" button below to modify sections and form fields.</p>
+        </div>
+        
         <div>
           <label className="font-medium block mb-1">Project Name</label>
           <Input value={name} onChange={e => setName(e.target.value)} />
@@ -95,55 +90,27 @@ export const ProjectEditForm: React.FC<ProjectEditFormProps> = ({
           <label className="font-medium block mb-1">Description</label>
           <Textarea value={description} onChange={e => setDescription(e.target.value)} />
         </div>
-        {sections.length > 0 && (
-          <div>
-            <label className="font-bold block mb-2">Form Sections & Fields</label>
-            <div className="space-y-6">
-              {sections.map(sec =>
-                <div key={sec.id} className="mb-4 border p-2 rounded-lg">
-                  <div className="mb-2 font-medium">{sec.name}</div>
-                  <div className="space-y-3">
-                    {fields.filter(f => f.sectionId === sec.id).map(field => (
-                      <div key={field.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
-                        <Input
-                          value={field.label}
-                          onChange={e => handleFieldChange(field.id, "label", e.target.value)}
-                          placeholder="Field Label"
-                          className="col-span-2"
-                        />
-                        <Select
-                          value={field.type}
-                          onValueChange={val => handleFieldChange(field.id, "type", val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Type"/>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {fieldTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={field.required}
-                            onChange={e => handleFieldChange(field.id, "required", e.target.checked)}
-                            className="w-4 h-4"
-                          />
-                          <span className="text-xs">Required</span>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        
+        <div className="pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={handleGoToFormBuilder}
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Edit Full Form (Sections & Fields)
+          </Button>
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            This will open the complete form builder where you can edit all sections and form fields
+          </p>
+        </div>
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
+          <Save className="h-4 w-4 mr-2" />
+          {saving ? "Saving..." : "Save Basic Details"}
         </Button>
       </CardFooter>
     </Card>
