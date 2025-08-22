@@ -65,11 +65,11 @@ import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
 import { generateSystemFieldValues, isSystemField, formatDateForDisplay } from "@/lib/formUtils";
 import { getNextRecordNumber } from "@/lib/formUtils";
 import ProjectHeader from "./project-form/ProjectHeader";
-import SectionTabs from "./project-form/SectionTabs";
 import SectionForm from "./project-form/SectionForm";
 import ProjectRecordsTable from "./project-form/ProjectRecordsTable";
 import { fileToBase64, getFieldsBySection, formatLocationForDisplay, handleExportData } from "./project-form/project-form-utils";
 import { Section, FieldTemplate, ProjectRecord, Project, FormData } from "./project-form/types";
+import { PullToRefreshify } from "react-pull-to-refreshify";
 
 const ProjectFormPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -93,6 +93,194 @@ const ProjectFormPage: React.FC = () => {
   const { isOnline } = useNetwork();
   const [localCompletedSections, setLocalCompletedSections] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<{ [key: string]: string | null }>({});
+
+  // Fetch project details
+  const fetchProject = async () => {
+    console.log(
+      "fetchProject function called. projectId:",
+      projectId,
+      "currentUserId:",
+      currentUserId
+    );
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!projectId) {
+        throw new Error("Project ID is missing");
+      }
+
+      console.log("Fetching project with ID:", projectId);
+
+      const isCapacitor = Capacitor.isNativePlatform();
+      let storedProjects = null;
+      if (isCapacitor) {
+        const { Preferences } = await import("@capacitor/preferences");
+        const { value } = await Preferences.get({ key: "myProjects" });
+        console.log("Capacitor Storage 'myProjects':", value);
+        storedProjects = value;
+      } else {
+        storedProjects = localStorage.getItem("myProjects");
+        console.log("localStorage 'myProjects':", storedProjects);
+      }
+
+      let foundProject: any = null;
+      if (storedProjects) {
+        const parsedProjects = JSON.parse(storedProjects);
+        console.log("Parsed projects:", parsedProjects);
+        foundProject = parsedProjects.find((p: any) => p.id === projectId);
+      }
+
+      if (!foundProject) {
+        console.log("Project not found in storage, fetching from Firebase...");
+        const firebaseProject = await getProjectById(projectId);
+        if (firebaseProject) {
+          foundProject = firebaseProject;
+          console.log("Fetched project from Firebase:", foundProject);
+        } else {
+          throw new Error("Project not found in Firebase");
+        }
+      }
+
+      if (!foundProject) {
+        throw new Error("Project data is invalid");
+      }
+
+      let projectSections: Section[] = [];
+      if (
+        foundProject.formSections &&
+        Array.isArray(foundProject.formSections) &&
+        foundProject.formSections.length > 0
+      ) {
+        projectSections = foundProject.formSections.map((section: any) => ({
+          id: section.id,
+          name: section.name,
+          order: section.order || 0,
+          fields: (section.fields || []).map((field: any, fieldIndex: number) => ({
+            id: field.id || `${section.id}_${fieldIndex}`,
+            name: field.name || field.label || `Field ${fieldIndex}`,
+            label: field.label || field.name || `Field ${fieldIndex}`,
+            type: field.type === "numbers" ? "number" : field.type || "text",
+            required: field.required !== undefined ? field.required : false,
+            sectionId: section.id,
+            placeholder: field.placeholder || "",
+            options: field.options || [],
+            defaultChecked: field.defaultChecked !== undefined ? field.defaultChecked : false,
+            barcodeType: field.barcodeType || "qr",
+          })),
+        }));
+        console.log("Populated projectSections:", projectSections);
+      } else {
+        console.warn("No formSections found, using default section with Record No.");
+        projectSections = [
+          {
+            id: "section_default",
+            name: "Section 1",
+            order: 0,
+            fields: [
+              {
+                id: "section_default_0",
+                name: "Record No.",
+                label: "Record No.",
+                type: "text",
+                required: true,
+                sectionId: "section_default",
+                placeholder: "Enter Record No.",
+                options: [],
+                defaultChecked: false,
+                barcodeType: "qr",
+              },
+            ],
+          },
+        ];
+      }
+
+      const allFields: FieldTemplate[] = projectSections.flatMap(
+        (section) => section.fields
+      );
+      console.log("All fields:", allFields);
+
+      setSections(projectSections);
+      setProject({
+        ...foundProject,
+        createdAt: new Date(foundProject.createdAt),
+        recordCount: foundProject.recordCount || 0,
+        status: foundProject.status || "active",
+        formSections: projectSections,
+      });
+
+      // Compose user identifier as display name + unique id suffix
+      const composedUserId = `${userData?.displayName || "User"}-${currentUserId.slice(0, 8)}`;
+      const initialData: FormData = { userId: composedUserId };
+      const recordNoField = allFields.find((field) => field.name === "Record No.");
+      allFields.forEach((field: FieldTemplate) => {
+        if (field.type === "checkbox") {
+          initialData[field.id] = field.defaultChecked || false;
+        } else if (field.type === "multipleChoice" && Array.isArray(field.options)) {
+          initialData[field.id] = [];
+        } else {
+          initialData[field.id] = "";
+        }
+      });
+
+      // Generate automatic values for system fields based on live DB record count
+      let dbRecordCount = foundProject.recordCount || 0;
+      try {
+        if (foundProject.id) {
+          const existing = await getProjectRecords(foundProject.id);
+          dbRecordCount = Array.isArray(existing) ? existing.length : dbRecordCount;
+        }
+      } catch (e) {
+        // fallback to project's recordCount if fetch fails
+      }
+      const systemValues = generateSystemFieldValues(composedUserId, dbRecordCount);
+      
+      // Set system field values
+      allFields.forEach((field: FieldTemplate) => {
+        if (isSystemField(field.name)) {
+          initialData[field.id] = systemValues[field.name] || "";
+        }
+      });
+
+      setFormData(initialData);
+    } catch (error: any) {
+      console.error("Error fetching project:", error);
+      setError(error.message || "Failed to load project");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load project",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRecords = async () => {
+    if (!projectId || activeTab !== "data") return;
+
+    try {
+      setLoadingRecords(true);
+      let records = await getProjectRecords(projectId);
+
+      // Filter records based on user role
+      if (isCollector && !isDesigner) {
+        records = records.filter((record) => record.createdBy === currentUserId);
+      }
+      // For designer, no filtering needed; they see all records
+
+      setProjectRecords(records);
+    } catch (error: any) {
+      console.error("Error fetching project records:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load project records",
+      });
+    } finally {
+      setLoadingRecords(false);
+    }
+  };
 
   // Clean up image preview URLs to prevent memory leaks
   useEffect(() => {
@@ -165,206 +353,13 @@ const ProjectFormPage: React.FC = () => {
     syncOfflineData();
   }, [isOnline, project?.id, userData.uid]);
 
-  // Fetch project details
+  // Fetch project details effect
   useEffect(() => {
-    console.log(
-      "useEffect for fetchProject triggered. projectId:",
-      projectId,
-      "currentUserId:",
-      currentUserId
-    );
-    const fetchProject = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        if (!projectId) {
-          throw new Error("Project ID is missing");
-        }
-
-        console.log("Fetching project with ID:", projectId);
-
-        const isCapacitor = Capacitor.isNativePlatform();
-        let storedProjects = null;
-        if (isCapacitor) {
-          const { Preferences } = await import("@capacitor/preferences");
-          const { value } = await Preferences.get({ key: "myProjects" });
-          console.log("Capacitor Storage 'myProjects':", value);
-          storedProjects = value;
-        } else {
-          storedProjects = localStorage.getItem("myProjects");
-          console.log("localStorage 'myProjects':", storedProjects);
-        }
-
-        let foundProject: any = null;
-        if (storedProjects) {
-          const parsedProjects = JSON.parse(storedProjects);
-          console.log("Parsed projects:", parsedProjects);
-          foundProject = parsedProjects.find((p: any) => p.id === projectId);
-        }
-
-        if (!foundProject) {
-          console.log("Project not found in storage, fetching from Firebase...");
-          const firebaseProject = await getProjectById(projectId);
-          if (firebaseProject) {
-            foundProject = firebaseProject;
-            console.log("Fetched project from Firebase:", foundProject);
-          } else {
-            throw new Error("Project not found in Firebase");
-          }
-        }
-
-        if (!foundProject) {
-          throw new Error("Project data is invalid");
-        }
-
-        let projectSections: Section[] = [];
-        if (
-          foundProject.formSections &&
-          Array.isArray(foundProject.formSections) &&
-          foundProject.formSections.length > 0
-        ) {
-          projectSections = foundProject.formSections.map((section: any) => ({
-            id: section.id,
-            name: section.name,
-            order: section.order || 0,
-            fields: (section.fields || []).map((field: any, fieldIndex: number) => ({
-              id: field.id || `${section.id}_${fieldIndex}`,
-              name: field.name || field.label || `Field ${fieldIndex}`,
-              label: field.label || field.name || `Field ${fieldIndex}`,
-              type: field.type === "numbers" ? "number" : field.type || "text",
-              required: field.required !== undefined ? field.required : false,
-              sectionId: section.id,
-              placeholder: field.placeholder || "",
-              options: field.options || [],
-              defaultChecked: field.defaultChecked !== undefined ? field.defaultChecked : false,
-              barcodeType: field.barcodeType || "qr",
-            })),
-          }));
-          console.log("Populated projectSections:", projectSections);
-        } else {
-          console.warn("No formSections found, using default section with Record No.");
-          projectSections = [
-            {
-              id: "section_default",
-              name: "Section 1",
-              order: 0,
-              fields: [
-                {
-                  id: "section_default_0",
-                  name: "Record No.",
-                  label: "Record No.",
-                  type: "text",
-                  required: true,
-                  sectionId: "section_default",
-                  placeholder: "Enter Record No.",
-                  options: [],
-                  defaultChecked: false,
-                  barcodeType: "qr",
-                },
-              ],
-            },
-          ];
-        }
-
-        const allFields: FieldTemplate[] = projectSections.flatMap(
-          (section) => section.fields
-        );
-        console.log("All fields:", allFields);
-
-        setSections(projectSections);
-        setProject({
-          ...foundProject,
-          createdAt: new Date(foundProject.createdAt),
-          recordCount: foundProject.recordCount || 0,
-          status: foundProject.status || "active",
-          formSections: projectSections,
-        });
-
-        // Compose user identifier as display name + unique id suffix
-        const composedUserId = `${userData?.displayName || "User"}-${currentUserId.slice(0, 8)}`;
-        const initialData: FormData = { userId: composedUserId };
-        const recordNoField = allFields.find((field) => field.name === "Record No.");
-        allFields.forEach((field: FieldTemplate) => {
-          if (field.type === "checkbox") {
-            initialData[field.id] = field.defaultChecked || false;
-          } else if (field.type === "multipleChoice" && Array.isArray(field.options)) {
-            initialData[field.id] = [];
-          } else {
-            initialData[field.id] = "";
-          }
-        });
-
-        // Generate automatic values for system fields based on live DB record count
-        let dbRecordCount = foundProject.recordCount || 0;
-        try {
-          if (foundProject.id) {
-            const existing = await getProjectRecords(foundProject.id);
-            dbRecordCount = Array.isArray(existing) ? existing.length : dbRecordCount;
-          }
-        } catch (e) {
-          // fallback to project's recordCount if fetch fails
-        }
-        const systemValues = generateSystemFieldValues(composedUserId, dbRecordCount);
-        
-        // Set system field values
-        allFields.forEach((field: FieldTemplate) => {
-          if (isSystemField(field.name)) {
-            initialData[field.id] = systemValues[field.name] || "";
-          }
-        });
-
-        setFormData(initialData);
-      } catch (error: any) {
-        console.error("Error fetching project:", error);
-        setError(error.message || "Failed to load project");
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to load project",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchProject();
   }, [projectId, currentUserId]);
 
-  // Fetch records when the "View Data" tab is active
+  // Fetch records effect when the "View Data" tab is active
   useEffect(() => {
-    console.log(
-      "useEffect for fetchRecords triggered. projectId:",
-      projectId,
-      "activeTab:",
-      activeTab
-    );
-    const fetchRecords = async () => {
-      if (!projectId || activeTab !== "data") return;
-
-      try {
-        setLoadingRecords(true);
-        let records = await getProjectRecords(projectId);
-
-        // Filter records based on user role
-        if (isCollector && !isDesigner) {
-          records = records.filter((record) => record.createdBy === currentUserId);
-        }
-        // For designer, no filtering needed; they see all records
-
-        setProjectRecords(records);
-      } catch (error: any) {
-        console.error("Error fetching project records:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to load project records",
-        });
-      } finally {
-        setLoadingRecords(false);
-      }
-    };
-
     fetchRecords();
   }, [projectId, activeTab, isCollector, isDesigner, currentUserId]);
 
@@ -381,6 +376,11 @@ const ProjectFormPage: React.FC = () => {
   const memoizedProjectId = useMemo(() => project?.id || "", [project?.id]);
   const memoizedUserId = useMemo(() => userData?.uid || "", [userData?.uid]);
   useFirebaseSync(memoizedProjectId, memoizedUserId);
+
+  const handleRefresh = async () => {
+    await fetchProject();
+    await fetchRecords();
+  };
 
   const handleInputChange = (fieldId: string, value: string | File | boolean | string[] | null) => {
     setFormData((prev) => ({
@@ -1067,7 +1067,15 @@ setImagePreviews((prev) => ({
   };
 
   return (
-    <>
+    <PullToRefreshify 
+      onRefresh={handleRefresh}
+      renderText={(status: string, percent: number) => {
+        if (status === 'pulling') return 'Pull to refresh';
+        if (status === 'refreshing') return 'Refreshing...';
+        if (status === 'release') return 'Release to refresh';
+        return '';
+      }}
+    >
       <ProjectHeader
         project={project}
         isDesigner={isDesigner}
@@ -1254,7 +1262,7 @@ setImagePreviews((prev) => ({
           </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </PullToRefreshify>
   );
 };
 

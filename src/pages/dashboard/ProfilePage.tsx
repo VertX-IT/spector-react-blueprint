@@ -20,6 +20,7 @@ import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Progress } from '@/components/ui/progress';
 import { uploadProfilePicture, validateImageFile, compressImageProgressive, deleteProfilePicture } from '@/lib/profileOperations';
 import InlineBackButton from '@/components/ui/CustomButton';
+import { PullToRefreshify } from "react-pull-to-refreshify";
 
 // Define the profile form schema
 const profileFormSchema = z.object({
@@ -43,7 +44,7 @@ const passwordFormSchema = z.object({
 type PasswordFormValues = z.infer<typeof passwordFormSchema>;
 
 const ProfilePage: React.FC = () => {
-  const { userData, logOut, currentUser, changePassword, updateUserData } = useAuth();
+  const { userData, logOut, currentUser, changePassword, updateUserData, reloadUser } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -221,312 +222,322 @@ const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-6">
-        <InlineBackButton path="/dashboard/my-projects" />
-        <h1 className="text-2xl font-bold tracking-tight mt-2">Profile</h1>
-        <p className="text-muted-foreground">
-          Manage your account settings and preferences
-        </p>
-      </div>
+    <PullToRefreshify
+      onRefresh={reloadUser}
+      renderText={(status: string) => {
+        if (status === 'pulling') return 'Pull to refresh';
+        if (status === 'refreshing') return 'Refreshing...';
+        if (status === 'release') return 'Release to refresh';
+        return '';
+      }}
+    >
+      <div className="container mx-auto p-4">
+        <div className="mb-6">
+          <InlineBackButton path="/dashboard/my-projects" />
+          <h1 className="text-2xl font-bold tracking-tight mt-2">Profile</h1>
+          <p className="text-muted-foreground">
+            Manage your account settings and preferences
+          </p>
+        </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Profile Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile Information</CardTitle>
-            <CardDescription>
-              Your personal information and account details
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="relative">
-                <Avatar className="h-24 w-24">
-                  <AvatarImage src={userData?.profilePictureBase64 || userData?.profilePictureURL || localProfilePicture || undefined} alt={userData?.displayName || 'Profile'} />
-                  <AvatarFallback className="text-lg">
-                    {userData?.displayName?.charAt(0).toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Profile Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+              <CardDescription>
+                Your personal information and account details
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="relative">
+                  <Avatar className="h-24 w-24">
+                    <AvatarImage src={userData?.profilePictureBase64 || userData?.profilePictureURL || localProfilePicture || undefined} alt={userData?.displayName || 'Profile'} />
+                    <AvatarFallback className="text-lg">
+                      {userData?.displayName?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
 
-              <div className="text-center">
-                <p className="text-xl font-semibold">{userData?.displayName}</p>
-                <p className="text-muted-foreground">{userData?.email}</p>
-                <div className="mt-1">
-                  <Badge variant="outline" className="capitalize">
-                    {userData?.role}
-                  </Badge>
+                <div className="text-center">
+                  <p className="text-xl font-semibold">{userData?.displayName}</p>
+                  <p className="text-muted-foreground">{userData?.email}</p>
+                  <div className="mt-1">
+                    <Badge variant="outline" className="capitalize">
+                      {userData?.role}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="text-sm text-muted-foreground w-full max-w-xs">
+                  <div className="flex justify-between py-2 border-b">
+                    <span>Phone Number</span>
+                    <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
+                  </div>
                 </div>
               </div>
+            </CardContent>
+            <CardFooter className="flex justify-center border-t pt-4">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
+            </CardFooter>
+          </Card>
 
-              <div className="text-sm text-muted-foreground w-full max-w-xs">
-                <div className="flex justify-between py-2 border-b">
-                  <span>Phone Number</span>
-                  <span className="font-medium text-foreground">{userData?.phoneNumber || 'Not set'}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-center border-t pt-4">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
-          </CardFooter>
-        </Card>
+          {/* Account Actions Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Actions</CardTitle>
+              <CardDescription>
+                Manage your account and data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleLogout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Account Actions Card */}
-        <Card>
+        {/* Account Security Card */}
+        <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Account Actions</CardTitle>
+            <CardTitle>Account Security</CardTitle>
             <CardDescription>
-              Manage your account and data
+              Manage your password and authentication settings
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleLogout}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </Button>
+            <div className="space-y-2">
+              <p className="font-medium">Password</p>
+              <p className="text-sm text-muted-foreground">
+                Last changed: Never
+              </p>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setIsPasswordDialogOpen(true)}
+              >
+                <Lock className="mr-2 h-4 w-4" />
+                Change Password
+              </Button>
+            </div>
+
+            <div className="pt-4 border-t">
+              <p className="font-medium mb-2">Danger Zone</p>
+              <Button variant="destructive" className="w-full">Delete Account</Button>
+            </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Account Security Card */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Account Security</CardTitle>
-          <CardDescription>
-            Manage your password and authentication settings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <p className="font-medium">Password</p>
-            <p className="text-sm text-muted-foreground">
-              Last changed: Never
-            </p>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setIsPasswordDialogOpen(true)}
-            >
-              <Lock className="mr-2 h-4 w-4" />
-              Change Password
-            </Button>
-          </div>
+        {/* Edit Profile Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+              <DialogDescription>
+                Make changes to your profile here. Click save when you're done.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="pt-4 border-t">
-            <p className="font-medium mb-2">Danger Zone</p>
-            <Button variant="destructive" className="w-full">Delete Account</Button>
-          </div>
-        </CardContent>
-      </Card>
+            {/* Profile Picture Upload Section */}
+            <div className="space-y-4">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="relative">
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src={getCurrentProfilePicture() || undefined} alt={userData?.displayName || 'Profile'} />
+                    <AvatarFallback className="text-lg">
+                      {userData?.displayName?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full p-0"
+                    onClick={handleEditDialogProfilePictureClick}
+                    disabled={isUploading || isRemoving}
+                  >
+                    <Camera className="h-4 w-4" />
+                  </Button>
+                </div>
 
-      {/* Edit Profile Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Edit Profile</DialogTitle>
-            <DialogDescription>
-              Make changes to your profile here. Click save when you're done.
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Profile Picture Upload Section */}
-          <div className="space-y-4">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="relative">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={getCurrentProfilePicture() || undefined} alt={userData?.displayName || 'Profile'} />
-                  <AvatarFallback className="text-lg">
-                    {userData?.displayName?.charAt(0).toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full p-0"
-                  onClick={handleEditDialogProfilePictureClick}
-                  disabled={isUploading || isRemoving}
-                >
-                  <Camera className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleEditDialogProfilePictureClick}
-                  disabled={isUploading || isRemoving}
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-1" />
-                      Upload
-                    </>
-                  )}
-                </Button>
-
-                {userData?.profilePictureURL && (
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleRemoveProfilePicture}
+                    onClick={handleEditDialogProfilePictureClick}
                     disabled={isUploading || isRemoving}
                   >
-                    <X className="h-4 w-4 mr-1" />
-                    {isRemoving ? "Removing..." : "Remove"}
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-1" />
+                        Upload
+                      </>
+                    )}
                   </Button>
+
+                  {userData?.profilePictureURL && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveProfilePicture}
+                      disabled={isUploading || isRemoving}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      {isRemoving ? "Removing..." : "Remove"}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Progress bar for upload */}
+                {isUploading && uploadProgress > 0 && (
+                  <div className="space-y-1 w-full">
+                    <Progress value={uploadProgress} className="h-2" />
+                    <p className="text-xs text-muted-foreground text-center">
+                      {Math.round(uploadProgress)}% uploaded
+                    </p>
+                  </div>
                 )}
               </div>
-
-              {/* Progress bar for upload */}
-              {isUploading && uploadProgress > 0 && (
-                <div className="space-y-1 w-full">
-                  <Progress value={uploadProgress} className="h-2" />
-                  <p className="text-xs text-muted-foreground text-center">
-                    {Math.round(uploadProgress)}% uploaded
-                  </p>
-                </div>
-              )}
             </div>
-          </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="displayName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="John Doe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="displayName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input {...field} disabled />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="+1 (123) 456-7890" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleEditDialogClose}>
-                  Cancel
-                </Button>
-                <Button type="submit">Save Changes</Button>
-              </DialogFooter>
-            </form>
-          </Form>
+                <FormField
+                  control={form.control}
+                  name="phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="+1 (123) 456-7890" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={handleEditDialogClose}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Save Changes</Button>
+                </DialogFooter>
+              </form>
+            </Form>
 
-          {/* Hidden file input for profile picture upload */}
-          <input
-            ref={editDialogFileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleProfilePictureUpload}
-            className="hidden"
-          />
-        </DialogContent>
-      </Dialog>
+            {/* Hidden file input for profile picture upload */}
+            <input
+              ref={editDialogFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleProfilePictureUpload}
+              className="hidden"
+            />
+          </DialogContent>
+        </Dialog>
 
-      {/* Change Password Dialog */}
-      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Password</DialogTitle>
-            <DialogDescription>
-              Enter your current password and choose a new one
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...passwordForm}>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-              <FormField
-                control={passwordForm.control}
-                name="currentPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Current Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Enter current password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        {/* Change Password Dialog */}
+        <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Change Password</DialogTitle>
+              <DialogDescription>
+                Enter your current password and choose a new one
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...passwordForm}>
+              <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+                <FormField
+                  control={passwordForm.control}
+                  name="currentPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Current Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Enter current password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={passwordForm.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>New Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Enter new password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={passwordForm.control}
+                  name="newPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Enter new password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={passwordForm.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm New Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Confirm new password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Change Password</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-    </div>
+                <FormField
+                  control={passwordForm.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm New Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Confirm new password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Change Password</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </PullToRefreshify>
   );
 };
 

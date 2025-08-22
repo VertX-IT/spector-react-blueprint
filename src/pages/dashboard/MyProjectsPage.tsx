@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import lz from 'lz-string'; // Import lz-string for decompression
+import { PullToRefreshify } from "react-pull-to-refreshify";
 
 const MyProjectsPage: React.FC = () => {
   const { userData, currentUser } = useAuth();
@@ -389,7 +390,15 @@ const MyProjectsPage: React.FC = () => {
   };
 
   return (
-    <>
+    <PullToRefreshify
+      onRefresh={loadProjects}
+      renderText={(status: string) => {
+        if (status === 'pulling') return 'Pull to refresh';
+        if (status === 'refreshing') return 'Refreshing...';
+        if (status === 'release') return 'Release to refresh';
+        return '';
+      }}
+    >
       <div className="mb-4">
         <h1 className="text-xl font-bold tracking-tight">My Projects</h1>
         <p className="text-sm text-muted-foreground">
@@ -493,7 +502,7 @@ const MyProjectsPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </PullToRefreshify>
   );
 };
 
