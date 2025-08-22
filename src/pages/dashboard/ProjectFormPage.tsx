@@ -1074,19 +1074,6 @@ setImagePreviews((prev) => ({
         isEditMode={isEditMode}
         setIsEditMode={setIsEditMode}
       />
-      <SectionTabs
-        sections={projectSections}
-        activeSectionIndex={activeSectionIndex}
-        setActiveSectionIndex={setActiveSectionIndex}
-        completedSections={completedSections}
-        isDesigner={isDesigner}
-        isCollector={isCollector}
-        isEditMode={isEditMode}
-        handleRenameSection={handleRenameSection}
-        handleDeleteSection={handleDeleteSection}
-        handleToggleRequired={handleToggleRequired}
-        handleUpdateFieldName={handleUpdateFieldName}
-      />
       <SectionForm
         section={projectSections[activeSectionIndex]}
         sections={projectSections}
