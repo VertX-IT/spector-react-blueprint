@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { App } from '@capacitor/app';
 import { useMobile } from '@/contexts/MobileContext';
 
 interface UseMobileBackButtonOptions {
@@ -25,22 +26,31 @@ export const useMobileBackButton = (options: UseMobileBackButtonOptions = {}) =>
   }, [onBack, fallbackPath, navigate]);
 
   useEffect(() => {
-    if (!isMobile || !enabled) return;
+    if (!enabled) return;
 
-    // Handle browser back button and mobile back button
     const handlePopState = (event: PopStateEvent) => {
-      // For mobile, we want to handle the back button ourselves
-      if (isMobile) {
-        event.preventDefault();
+      // For non-mobile, we handle the browser back button normally
+      if (!isMobile) {
         handleBack();
       }
     };
 
-    // Listen for popstate events (triggered by back button)
+    // Handle Capacitor's native back button
+    let removeListener: (() => void) | undefined;
+    if (isMobile) {
+      removeListener = App.addListener('backButton', (event) => {
+        event.preventDefault();
+        handleBack();
+      }).remove;
+    }
+
     window.addEventListener('popstate', handlePopState);
-    
+
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      if (removeListener) {
+        removeListener();
+      }
     };
   }, [isMobile, enabled, handleBack]);
 
