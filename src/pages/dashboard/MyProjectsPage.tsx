@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,8 @@ const MyProjectsPage: React.FC = () => {
   const [newProjectCategory, setNewProjectCategory] = useState("");
   const [isDuplicating, setIsDuplicating] = useState(false);
   const wasOfflineRef = useRef(false); // Track previous offline state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [projectToDeleteId, setProjectToDeleteId] = useState<string | null>(null);
 
   // Move loadProjects to component scope so it can be called elsewhere
   const loadProjects = async () => {
@@ -294,7 +297,15 @@ const MyProjectsPage: React.FC = () => {
     } catch (error) {
       console.error("Error deleting project:", error);
       toast.error("Failed to delete project");
+    } finally {
+      setIsDeleteDialogOpen(false); // Close dialog regardless of success or failure
+      setProjectToDeleteId(null); // Clear the project ID to delete
     }
+  };
+
+  const handleConfirmDelete = (id: string) => {
+    setProjectToDeleteId(id);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleDuplicateClick = (id: string) => {
@@ -424,7 +435,7 @@ const MyProjectsPage: React.FC = () => {
               recordCount={project.recordCount || 0}
               projectPin={project.projectPin}
               status={project.status || "active"}
-              onDelete={isDesigner ? handleDeleteProject : undefined}
+              onDelete={isDesigner ? handleConfirmDelete : undefined}
               onDuplicate={isDesigner ? handleDuplicateClick : undefined}
             />
           ))}
@@ -498,6 +509,30 @@ const MyProjectsPage: React.FC = () => {
             </Button>
             <Button onClick={handleDuplicateProject} disabled={isDuplicating}>
               {isDuplicating ? "Duplicating..." : "Duplicate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Are you absolutely sure?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete your
+              project and remove all associated data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => projectToDeleteId && handleDeleteProject(projectToDeleteId)}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -69,7 +69,6 @@ import SectionForm from "./project-form/SectionForm";
 import ProjectRecordsTable from "./project-form/ProjectRecordsTable";
 import { fileToBase64, getFieldsBySection, formatLocationForDisplay, handleExportData } from "./project-form/project-form-utils";
 import { Section, FieldTemplate, ProjectRecord, Project, FormData } from "./project-form/types";
-import { PullToRefreshify } from "react-pull-to-refreshify";
 
 const ProjectFormPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -1067,15 +1066,7 @@ setImagePreviews((prev) => ({
   };
 
   return (
-    <PullToRefreshify 
-      onRefresh={handleRefresh}
-      renderText={(status: string, percent: number) => {
-        if (status === 'pulling') return 'Pull to refresh';
-        if (status === 'refreshing') return 'Refreshing...';
-        if (status === 'release') return 'Release to refresh';
-        return '';
-      }}
-    >
+    <>
       <ProjectHeader
         project={project}
         isDesigner={isDesigner}
@@ -1262,7 +1253,7 @@ setImagePreviews((prev) => ({
           </Card>
         </TabsContent>
       </Tabs>
-    </PullToRefreshify>
+    </>
   );
 };
 
